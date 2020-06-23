@@ -1,7 +1,9 @@
+import custom_nodes as nodes
 import tfwavelets
-from tfwavelets.dwtcoeffs import haar
+from tfwavelets.dwtcoeffs import haar, db3
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.layers import *
 
 
 class LFilter(tf.keras.layers.Layer):
@@ -19,6 +21,14 @@ class LFilter(tf.keras.layers.Layer):
             dtype=tf.float32,
             constraint=tf.keras.constraints.max_norm(np.sqrt(2), [1, 2])
         )
+
+        def my_initializer(shape, dtype=None):
+            return tf.constant(initial_coeffs)[tf.newaxis,:,tf.newaxis,tf.newaxis ]
+        self.filt = tf.keras.layers.Conv2D(1, (1,initial_coeffs.shape[0]),
+                                           kernel_constraint=tf.keras.constraints.max_norm(np.sqrt(2), [1, 2]),
+                                           dtype=tf.float32,
+                                           name=name+"filter",
+                                           kernel_initializer=my_initializer, padding="valid")
 
         # Erase stuff that will be invalid once the filter coeffs has changed
         self._coeffs = [None] * len(self._coeffs)
@@ -121,25 +131,27 @@ class DWT2(tf.keras.layers.Layer):
         self.recon_hp = LFilter(haar.recon_hp._coeffs, haar.recon_hp.zero, "recon_hp")
 
     def call(self, input):
-        print(input.shape)
-        t = tfwavelets.nodes.dwt2d(input[0], wavelet=self)
-        return t[tf.newaxis, ...]
+        #print(input.shape)
+        t = nodes.dwt2d(input, wavelet=self)
+        #t = tf.keras.activations.sigmoid(input)
+        return t
 
 
 class IDWT2(tf.keras.layers.Layer):
     """Inverse Wavelet transform"""
     def __init__(self):
         super(IDWT2, self).__init__()
-        self.wavelet = tfwavelets.dwtcoeffs.TrainableWavelet(tfwavelets.dwtcoeffs.haar)
-        self.rlp = self.wavelet.recon_lp.coeffs
-        self.rhp = self.wavelet.recon_hp.coeffs
-        self.dlp = self.wavelet.decomp_hp.coeffs
-        self.dhp = self.wavelet.decomp_lp.coeffs
+        self.decomp_lp = LFilter(haar.decomp_lp._coeffs, haar.decomp_lp.zero, "decomp_lp")
+        self.decomp_hp = LFilter(haar.decomp_hp._coeffs, haar.decomp_hp.zero, "decomp_hp")
+        self.recon_lp = LFilter(haar.recon_lp._coeffs, haar.recon_lp.zero, "recon_lp")
+        self.recon_hp = LFilter(haar.recon_hp._coeffs, haar.recon_hp.zero, "recon_hp")
+        self.idwt2d = nodes.IDWT2D()
 
     def call(self, input):
-        print(input.shape)
-        t = tfwavelets.nodes.idwt2d(input[0], wavelet=self.wavelet)
-        return t[tf.newaxis, ...]
+        #print(input.shape)
+        t = self.idwt2d(input, wavelet=self)
+        return t
+
 
 
 class FullWavelet(tf.keras.layers.Layer):
@@ -148,17 +160,35 @@ class FullWavelet(tf.keras.layers.Layer):
     """
     def __init__(self):
         super(FullWavelet, self).__init__()
-        self.decomp_lp = LFilter(haar.decomp_lp._coeffs, haar.decomp_lp.zero, "decomp_lp")
-        self.decomp_hp = LFilter(haar.decomp_hp._coeffs, haar.decomp_hp.zero, "decomp_hp")
-        self.recon_lp = LFilter(haar.recon_lp._coeffs, haar.recon_lp.zero, "recon_lp", trainable=False)
-        self.recon_hp = LFilter(haar.recon_hp._coeffs, haar.recon_hp.zero, "recon_hp", trainable=False)
+        self.decomp_lp = LFilter(db3.decomp_lp._coeffs, db3.decomp_lp.zero, "decomp_lp")
+        self.decomp_hp = LFilter(db3.decomp_hp._coeffs, db3.decomp_hp.zero, "decomp_hp")
+        self.recon_lp = LFilter(db3.recon_lp._coeffs, db3.recon_lp.zero, "recon_lp", trainable=False)
+        # self.recon_lp.filt.kernel = tf.reverse(self.decomp_lp.filt.kernel, axis=1)
+        # self.recon_lp.filt._trainable_weights = []
+        # self.recon_lp.filt.trainable_weights.append(self.decomp_lp.filt.kernel)
 
-        self.relu = tf.keras.layers.ReLU()
+        self.recon_hp = LFilter(db3.recon_hp._coeffs, db3.recon_hp.zero, "recon_hp", trainable=False)
+        # self.recon_hp.filt.kernel = tf.reverse(self.decomp_hp.filt.kernel, axis=1)
+        # self.recon_hp.filt._trainable_weights = []
+        # self.recon_hp.filt.trainable_weights.append(self.decomp_hp.filt.kernel)
+        #self.recon_lp.coeffs = tf.reverse(self.decomp_lp.coeffs, tf.constant([0], dtype=tf.int32))
+        #self.recon_hp.coeffs = tf.reverse(self.decomp_hp.coeffs, tf.constant([0], dtype=tf.int32))
+        self.bias = tf.Variable( initial_value=tf.zeros(1),
+            trainable=True,
+            name="bias",
+            dtype=tf.float32,)
+        self.activation = tf.keras.layers.ReLU(max_value=1.0)
+        self.idwt2d = nodes.IDWT2D()
 
     def call(self, inp):
-        t = tfwavelets.nodes.dwt2d(inp[0], wavelet=self)
-        t = self.relu(t[tf.newaxis, ...])
-        self.recon_lp.coeffs = tf.reverse(self.decomp_lp.coeffs, tf.constant([1], dtype=tf.int32))
-        self.recon_hp.coeffs = tf.reverse(self.decomp_hp.coeffs, tf.constant([1], dtype=tf.int32))
-        t = tfwavelets.nodes.idwt2d(t[0], wavelet=self)
-        return t[tf.newaxis, ...]
+        t = nodes.dwt2d(inp, wavelet=self,)
+        t = tf.math.subtract(t, self.bias)
+        #t = self.split(t)
+
+
+        t = tf.keras.activations.relu(t)
+        #self.recon_lp.coeffs = tf.reverse(self.decomp_lp.coeffs, tf.constant([0], dtype=tf.int32))
+        #self.recon_hp.coeffs = tf.reverse(self.decomp_hp.coeffs, tf.constant([0], dtype=tf.int32))
+        t = self.idwt2d(t, wavelet=self)
+        t = tf.keras.activations.sigmoid(t)
+        return t

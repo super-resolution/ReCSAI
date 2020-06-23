@@ -4,14 +4,9 @@ from custom_layers import *
 
 
 def model():
+    inputs = tf.keras.layers.Input(shape=[64, 64, 1])
+    layer = FullWavelet()
+    x = inputs
+    x = layer(x)
 
-    model = tf.keras.Sequential([
-        FullWavelet(),]
-        #tf.keras.layers.Conv2DTranspose(2, 64, strides=2,
-        #                                padding='same',
-        #                                kernel_initializer=tf.random_normal_initializer(0., 0.02),
-        #                                use_bias=False),
-        #tf.keras.layers.ReLU(),
-        #IDWT2()]
-    )
-    return model
+    return tf.keras.Model(inputs=inputs, outputs=x)

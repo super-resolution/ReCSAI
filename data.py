@@ -17,3 +17,17 @@ def data_generator(file_path, loc_path):
         reconstruct = bin.filter(data[...,1]/data[...,1].max()*255)#todo: crop image to coords!
         coords = bin.get_coords(reconstruct)
         yield data[...,1], coords, truth_cords[i][:,0:2]/100
+
+def data_generator_image(file_path, truth_path):
+    tif = TiffFile(file_path)
+    truth = TiffFile(truth_path)
+    for i in range(len(tif.frames)):
+        data = np.zeros((64, 64))
+        data_truth = np.zeros((64,64))
+        image = tif.read_frame(i, 0)[0].astype(np.float32)
+        image_truth = truth.read_frame(i, 0)[0].astype(np.float32)
+        data[0:tif.frames[0].tags[256][1], 0:tif.frames[0].tags[256][1]] = image
+        data_truth[0:tif.frames[0].tags[256][1], 0:tif.frames[0].tags[256][1]] = image_truth
+        data = (data)/data.max()
+        data_truth = (data_truth)/data_truth.max()
+        yield data, data_truth
