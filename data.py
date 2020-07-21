@@ -18,6 +18,31 @@ def data_generator(file_path, loc_path):
         coords = bin.get_coords(reconstruct)
         yield data[...,1], coords, truth_cords[i][:,0:2]/100
 
+def data_generator_coords(file_path, loc_path):
+    tif = TiffFile(file_path)
+    truth_cords = np.load(loc_path, allow_pickle=True)['arr_0']
+
+
+    for i in range(len(tif.frames)):
+        px_coords = truth_cords[i] / 100
+        im = np.zeros((64, 64, 3))
+        for coord in px_coords:
+            n_x = int(coord[0])
+            n_y = int(coord[1])
+            r_x = coord[0] - n_x
+            r_y = coord[1] - n_y
+            im[n_x, n_y, 0] = 100
+            im[n_x, n_y, 1] = r_x
+            im[n_x, n_y, 2] = r_y
+
+        data = np.zeros((64, 64, 3))
+        for j in range(3):
+            k = i+j-1
+            if k>=0 and k<len(tif.frames):
+                image = tif.read_frame(k, 0)[0].astype(np.float32)
+                data[0:tif.frames[0].tags[256][1], 0:tif.frames[0].tags[256][1], j] = image
+        yield data,  im[:,:,:], px_coords
+
 def data_generator_image(file_path, truth_path):
     tif = TiffFile(file_path)
     truth = TiffFile(truth_path)

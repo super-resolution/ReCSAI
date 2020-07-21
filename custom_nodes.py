@@ -7,72 +7,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.keras.layers import *
 
-
-@tf.function
-def concat(a, b, ax):
-    u1 = tf.unstack(a, axis=ax)
-    u2 = tf.unstack(b, axis=ax)
-    u1 += u2
-    return tf.stack(u1, axis=ax)
-
-@tf.function
-def split(a, ax):
-    x = tf.unstack(a, axis=ax)
-    return tf.stack(x[:a.shape[ax]//2], axis=ax), tf.stack(x[a.shape[ax]//2:],axis=ax)
-
-
-
-def cyclic_conv1d(input_node, filter_):
-    """
-    Cyclic convolution
-
-    Args:
-        input_node:  Input signal (3-tensor [batch, width, in_channels])
-        filter_:     Filter
-
-    Returns:
-        Tensor with the result of a periodic convolution
-    """
-    # Create shorthands for TF nodes
-    kernel_node = filter_.coeffs
-    tl_node, tr_node, bl_node, br_node = filter_.edge_matrices
-
-    # Do inner convolution
-    inner = tf.nn.conv1d(input_node, kernel_node[::-1], stride=1, padding='VALID')
-
-    # Create shorthands for shapes
-    input_shape = tf.shape(input_node)
-    tl_shape = tf.shape(tl_node)
-    tr_shape = tf.shape(tr_node)
-    bl_shape = tf.shape(bl_node)
-    br_shape = tf.shape(br_node)
-
-    # Slices of the input signal corresponding to the corners
-    tl_slice = tf.slice(input_node,
-                        [0, 0, 0],
-                        [-1, tl_shape[2], -1])
-    tr_slice = tf.slice(input_node,
-                        [0, input_shape[1] - tr_shape[2], 0],
-                        [-1, tr_shape[2], -1])
-    bl_slice = tf.slice(input_node,
-                        [0, 0, 0],
-                        [-1, bl_shape[2], -1])
-    br_slice = tf.slice(input_node,
-                        [0, input_shape[1] - br_shape[2], 0],
-                        [-1, br_shape[2], -1])
-
-    # TODO: It just werks (It's the magic of the algorithm). i.e. Why do we have to transpose?
-    tl = tl_node @ tf.transpose(tl_slice, perm=[2, 1, 0])
-    tr = tr_node @ tf.transpose(tr_slice, perm=[2, 1, 0])
-    bl = bl_node @ tf.transpose(bl_slice, perm=[2, 1, 0])
-    br = br_node @ tf.transpose(br_slice, perm=[2, 1, 0])
-
-    head = tf.transpose(tl + tr, perm=[2, 1, 0])
-    tail = tf.transpose(bl + br, perm=[2, 1, 0])
-
-    return tf.concat((head, inner, tail), axis=1)
-
-def cyclic_conv1d_alt(input_node, filter_):
+def cyclic_conv1d_alt(input_node, filter_, mode):
         """
         Alternative cyclic convolution. Uses more memory than cyclic_conv1d.
 
@@ -83,57 +18,26 @@ def cyclic_conv1d_alt(input_node, filter_):
         Returns:
             Tensor with the result of a periodic convolution.
         """
-        kernel_node = filter_.coeffs
-
         N = int(input_node.shape[2])
+        if mode == "lp":
+            kernel = filter_.coeffs[0:1]
 
-        start = N - filter_.num_neg()
-        end = filter_.num_pos() - 1
-        # Perodically extend input signal
+            start = N - filter_.zero_lp
+            end = filter_.coeffs.shape[1] - filter_.zero_lp - 1
+            # Perodically extend input signal
+        if mode == "hp":
+            kernel = filter_.coeffs[1:2]
+            start = N - filter_.zero_hp
+            end = filter_.coeffs.shape[1] - filter_.zero_hp - 1
         input_new = tf.concat(
             (input_node[:, :, start:, :], input_node, input_node[:, :, 0:end, :]),
             axis=2
         )
 
         # Convolve with periodic extension
-        result = filter_.filt(input_new)
+        result = tf.nn.conv2d(input_new, kernel, strides=(1,1), padding="VALID")
 
         return result
-
-
-class CYCLCONV(tf.keras.layers.Layer):
-    def __init__(self):
-        super(CYCLCONV, self).__init__()
-        self.concat = tf.keras.layers.Concatenate(axis=2)
-        #self.input_new = tf.zeros((None,64,64,1))
-
-    def __call__(self, input_node, filter_):
-        """
-        Alternative cyclic convolution. Uses more memory than cyclic_conv1d.
-
-        Args:
-            input_node:         Input signal
-            filter_ (Filter):   Filter object
-
-        Returns:
-            Tensor with the result of a periodic convolution.
-        """
-
-        N = int(input_node.shape[2])
-        #
-        start = N - filter_.num_neg()
-        end = filter_.num_pos() - 1
-        # # Perodically extend input signal
-        input_new = self.concat(
-            [input_node[:,:, start:, :], input_node, input_node[:,:, 0:end, :]],
-        )
-        # Convolve with periodic extension
-        input_node = filter_.filt(input_new)
-
-        return input_node
-
-
-
 
 
 def dwt1d(input_node, wavelet, levels=1):
@@ -156,8 +60,8 @@ def dwt1d(input_node, wavelet, levels=1):
 
     last_level = input_node
     for level in range(levels):
-        lp_res = cyclic_conv1d_alt(last_level, wavelet.decomp_lp)[:,:, ::2, :]
-        hp_res = cyclic_conv1d_alt(last_level, wavelet.decomp_hp)[:,:, 1::2, :]
+        lp_res = cyclic_conv1d_alt(last_level, wavelet.filter, "lp")[:,:, ::2, :]
+        hp_res = cyclic_conv1d_alt(last_level, wavelet.filter, "hp")[:,:, 1::2, :]
 
         last_level = lp_res
         coeffs[levels - level] = hp_res
@@ -165,66 +69,95 @@ def dwt1d(input_node, wavelet, levels=1):
     coeffs[0] = last_level
     return tf.concat(coeffs, axis=2)
 
+class DWT2D(Layer):
+    def __init__(self, level):
+        super(DWT2D, self).__init__()
+        self.padding = []
+        self.levels = level
+        for i in range(level):
+            self.padding.append(ZeroPadding2D(padding=(8*i, 8*i), data_format="channels_last"))
 
-def dwt2d(input_node, wavelet, levels=1):
-    """
-    Constructs a TF computational graph computing the 2D DWT of an input signal.
 
-    Args:
-        input_node:     A 3D tensor containing the signal. The dimensions should be
-                        [rows, cols, channels].
-        wavelet:        Wavelet object.
-        levels:         Number of levels.
+    def __call__(self, input_node, wavelet):
+        """
+        Constructs a TF computational graph computing the 2D DWT of an input signal.
 
-    Returns:
-        The output node of the DWT graph.
-    """
-    # TODO: Check that level is a reasonable number
-    # TODO: Check types
+        Args:
+            input_node:     A 3D tensor containing the signal. The dimensions should be
+                            [rows, cols, channels].
+            wavelet:        Wavelet object.
+            levels:         Number of levels.
 
-    coeffs = [None] * levels
+        Returns:
+            The output node of the DWT graph.
+        """
+        # TODO: Check that level is a reasonable number
+        # TODO: Check types
 
-    last_level = input_node
-    #print(input_node.shape[0], input_node.shape[1])
-    m, n = int(input_node.shape[1]), int(input_node.shape[2])
+        coeffs = [None] * self.levels
 
-    for level in range(levels):
-        local_m, local_n = m // (2 ** level), n // (2 ** level)
+        last_level = input_node
+        #print(input_node.shape[0], input_node.shape[1])
+        m, n = int(input_node.shape[1]), int(input_node.shape[2])
 
-        first_pass = dwt1d(last_level, wavelet, 1)
-        x = tf.transpose(first_pass, perm=[0, 2, 1, 3])
-        second_pass = tf.transpose(
-            dwt1d(
-                tf.transpose(first_pass, perm=[0, 2, 1, 3]),
-                wavelet,
-                1
-            ),
-            perm=[0, 2, 1, 3]
-        )
+        for level in range(self.levels):
+            local_m, local_n = m // (2 ** level), n // (2 ** level)
 
-        last_level = tf.slice(second_pass, [0,0, 0, 0], [-1,local_m // 2, local_n // 2, 1])
-        coeffs[level] = [
-            tf.slice(second_pass, [0,local_m // 2, 0, 0], [-1, local_m // 2, local_n // 2, 1]),
-            tf.slice(second_pass, [0,0, local_n // 2, 0], [-1, local_m // 2, local_n // 2, 1]),
-            tf.slice(second_pass, [0,local_m // 2, local_n // 2, 0],
-                     [-1, local_m // 2, local_n // 2, 1])
-        ]
+            first_pass = dwt1d(last_level, wavelet, 1)
+            second_pass = tf.transpose(
+                dwt1d(
+                    tf.transpose(first_pass, perm=[0, 2, 1, 3]),
+                    wavelet,
+                    1
+                ),
+                perm=[0, 2, 1, 3]
+            )
 
-    for level in range(levels - 1, -1, -1):
-        upper_half = tf.concat([last_level, coeffs[level][0]], -1)
-        lower_half = tf.concat([coeffs[level][1], coeffs[level][2]], -1)
+            last_level = tf.slice(second_pass, [0,0, 0, 0], [-1,local_m // 2, local_n // 2, 1])
+            coeffs[level] = [
+                tf.slice(second_pass, [0,local_m // 2, 0, 0], [-1, local_m // 2, local_n // 2, 1]),
+                tf.slice(second_pass, [0,0, local_n // 2, 0], [-1, local_m // 2, local_n // 2, 1]),
+                tf.slice(second_pass, [0,local_m // 2, local_n // 2, 0],
+                         [-1, local_m // 2, local_n // 2, 1])
+            ]
 
-        last_level = tf.concat([upper_half, lower_half], -1)
+        for level in range(self.levels - 1, -1, -1):
+            upper_half = tf.concat([self.padding[level](last_level),
+                                    self.padding[level](coeffs[level][0])] , -1)
+            lower_half = tf.concat([self.padding[level](coeffs[level][1]),
+                                    self.padding[level](coeffs[level][2])], -1)
 
-    return last_level
+            last_level = tf.concat([upper_half, lower_half], -1)
+
+        return last_level
 
 class IDWT1D(tf.keras.layers.Layer):
     def __init__(self):
         super(IDWT1D, self).__init__()
-        self.cyclconv = CYCLCONV()
+        #self.cyclconv = CYCLCONV()
         self.test_concat = tf.keras.layers.Concatenate(axis=2)
-        self.crop1 = crop(2, 0, 32)
-        self.crop2 = crop(2, 32, 64)
+        no_crop = (0,-1)
+        self.crop1 = crop(axis1=no_crop, axis2=(0,32), axis3=no_crop)
+        self.crop2 = crop(axis1=no_crop, axis2=(32,64), axis3=no_crop)
+        self.concat = tf.keras.layers.Concatenate(axis=2)
+
+    def cyclconv(self, input_node, filter_, mode):
+        N = int(input_node.shape[2])
+        if mode == "lp":
+            start = N - filter_.zero_hp #swap hp lp zero
+            end = len(filter_._coeffs) - filter_.zero_hp - 1
+            kernel = filter_.coeffs[0:1,::-1]
+        if mode == "hp":
+            start = N - filter_.zero_lp #swap hp lp zero
+            end = len(filter_._coeffs) - filter_.zero_lp - 1
+            # # Perodically extend input signal
+            kernel = filter_.coeffs[1:2,::-1]
+        input_new = self.concat(
+            [input_node[:,:, start:, :], input_node, input_node[:,:, 0:end, :]],
+        )
+        # Convolve with periodic extension
+        input_new = tf.nn.conv2d(input_new, kernel, strides=(1,1), padding="VALID")
+        return input_new
 
 
     def upsample(self, input_node, odd=False):
@@ -276,48 +209,49 @@ class IDWT1D(tf.keras.layers.Layer):
         for level in range(levels - 1, -1 , -1):
             #local_n = n // (2 ** level)
 
-            last_level = self.crop1(input_node)#tf.slice(input_node, [0, 0, local_n//2, 0], [-1, m, local_n//2, 1])
-            detail = self.crop2(input_node)
+            last_level, detail = tf.split(input_node, 2, axis=2)#tf.slice(input_node, [0, 0, local_n//2, 0], [-1, m, local_n//2, 1])
+            #detail = self.crop2(input_node)
             print(detail.shape, last_level.shape)
 
             lowres_padded = self.upsample(last_level, odd=False)
             detail_padded = self.upsample(detail, odd=True)
 
-            lowres_filtered = self.cyclconv(lowres_padded, wavelet.recon_lp)
-            detail_filtered = self.cyclconv(detail_padded, wavelet.recon_hp)
+            lowres_filtered = self.cyclconv(lowres_padded, wavelet.filter, "lp")
+            detail_filtered = self.cyclconv(detail_padded, wavelet.filter, "hp")
 
             last_level = lowres_filtered + detail_filtered
         return last_level
 
-def crop(dimension, start, end):
+def crop(axis1,axis2,axis3):
     # Crops (or slices) a Tensor on a given dimension from start to end
     # example : to crop tensor x[:, :, 5:10]
     # call slice(2, 5, 10) as you want to crop on the second dimension
     def func(x):
-        if dimension == 0:
-            return x[start: end]
-        if dimension == 1:
-            return x[:, start: end]
-        if dimension == 2:
-            return x[:, :, start: end]
-        if dimension == 3:
-            return x[:, :, :, start: end]
-        if dimension == 4:
-            return x[:, :, :, :, start: end]
-    return Lambda(func)
+        return x[:, axis1[0]:axis1[1], axis2[0]:axis2[1], axis3[0]:axis3[1]]
+    return func
 
 
 class IDWT2D(tf.keras.layers.Layer):
-    def __init__(self):
+    def __init__(self, level):
         super(IDWT2D, self).__init__()
+        self.levels = level
         self.idwt1d = IDWT1D()
         self.concat1 = tf.keras.layers.Concatenate(axis=1)
         self.concat2 = tf.keras.layers.Concatenate(axis=2)
-        # todo: implement multilevel crop
-        self.crop1 = crop(3, 0, 1)
-        self.crop2 = crop(3, 1, 2)
-        self.crop3 = crop(3, 2, 3)
-        self.crop4 = crop(3, 3, 4)
+        x = y = [8 * (level-1), 32-(8 * (level-1))]
+        self.crops = [crop(x,y, [0,1])]
+        j=0
+        for i in range(level- 1, -1, -1):
+            x = y = [8*i,32-(8*i)] # todo image size here
+            self.crops.append(crop(x, y, [1 + j * 3, 2 + j * 3]))
+            self.crops.append(crop(x, y, [2 + j * 3, 3 + j * 3]))
+            self.crops.append(crop(x, y, [3 + j * 3, 4 + j * 3]))
+            j+=1
+        self.crops.reverse()
+        #self.crop1 = crop(3, 0, 1)
+        #self.crop2 = crop(3, 1, 2)
+        #self.crop3 = crop(3, 2, 3)
+        #self.crop4 = crop(3, 3, 4)
 
     def __call__(self, input_node, wavelet, levels=1):
         """
@@ -332,28 +266,29 @@ class IDWT2D(tf.keras.layers.Layer):
         Returns:
             Output node of IDWT graph.
         """
+        last_level = self.crops[self.levels*3](input_node)
+        for level in range(self.levels - 1, -1, -1):
 
-        last_level = self.crop1(input_node)
 
-        detail_tr = self.crop2(input_node)
-        detail_bl = self.crop3(input_node)
-        detail_br = self.crop4(input_node)
+            detail_tr = self.crops[level*3+2](input_node)
+            detail_bl = self.crops[level*3+1](input_node)
+            detail_br = self.crops[level*3+0](input_node)
 
-        upper_half = self.concat1([last_level, detail_tr])#tf.concat([last_level, detail_tr], 1)
-        lower_half = self.concat1([detail_bl, detail_br])#tf.concat([detail_bl, detail_br], 1)
+            upper_half = self.concat1([last_level, detail_tr])#tf.concat([last_level, detail_tr], 1)
+            lower_half = self.concat1([detail_bl, detail_br])#tf.concat([detail_bl, detail_br], 1)
 
-        this_level = self.concat2([upper_half, lower_half])#tf.concat([upper_half, lower_half], 2)
-        first_pass = tf.transpose(
-            self.idwt1d(
-                tf.transpose(this_level, perm=[0,2, 1, 3]),
-                wavelet,
-                1
-            ),
-            perm=[0,2, 1, 3]
-        )
-        # # #Second pass, corresponding to first pass in dwt2d
-        second_pass = self.idwt1d(first_pass, wavelet, 1)
+            this_level = self.concat2([upper_half, lower_half])#tf.concat([upper_half, lower_half], 2)
+            first_pass = tf.transpose(
+                self.idwt1d(
+                    tf.transpose(this_level, perm=[0,2, 1, 3]),
+                    wavelet,
+                    1
+                ),
+                perm=[0,2, 1, 3]
+            )
+            # # #Second pass, corresponding to first pass in dwt2d
+            second_pass = self.idwt1d(first_pass, wavelet, 1)
 
-        last_level = second_pass
+            last_level = second_pass
 
         return last_level
