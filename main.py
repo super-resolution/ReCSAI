@@ -1,11 +1,6 @@
-import tensorflow as tf
-from data import *
 import matplotlib.pyplot as plt
-from model import *
-from custom_layers import *
-from tensorflow.keras.losses import categorical_crossentropy
-import tfwavelets
-from tensorflow.keras.optimizers import Adam
+from src.model import *
+from src.custom_layers import *
 import os
 
 image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\maxi_batch\coordinate_reconstruction_flim.tif"

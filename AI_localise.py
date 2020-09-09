@@ -1,11 +1,6 @@
-from data import *
 import matplotlib.pyplot as plt
-from model import *
-from custom_layers import *
-from tensorflow.keras.losses import categorical_crossentropy
-from tensorflow.keras.optimizers import Adam
-import os
-
+from src.model import *
+from src.custom_layers import *
 
 image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\coordinate_recon_flim.tif"
 truth = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\coordinate_reconstruction.npz"

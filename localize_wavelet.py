@@ -1,11 +1,9 @@
 import os
-import tensorflow as tf
-from model import *
-from localisations import *
-from data import *
+from src.model import *
+from src.data import *
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from utility import bin_localisations
+from src.utility import bin_localisations
 
 
 
