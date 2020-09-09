@@ -1,5 +1,4 @@
 import tensorflow as tf
-from .quicktiff import TiffFile
 from tifffile import TiffFile as TIF
 import numpy as np
 from localisations import *
