@@ -1,5 +1,5 @@
 from .data import *
-from src.localisations import *
+from .localisations import *
 
 
 def bin_localisations(data_tensor, denoising, truth_tensor=None, th=8.0):

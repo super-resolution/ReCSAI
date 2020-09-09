@@ -20,7 +20,7 @@ def display_storm_data(localizations):
     localizations *= 100
     array = np.zeros((int(localizations[:,0].max())+1, int(localizations[:,1].max())+1))
     for loc in localizations:
-        array[int(loc[0]),int(loc[1])] +=255
+        array[int(loc[0]),int(loc[1])] +=2550
     array = cv2.GaussianBlur(array, (5, 5), 0)
     heatmap = cv2.applyColorMap(array.astype(np.uint8), cv2.COLORMAP_HOT)
     plt.imshow(heatmap)
