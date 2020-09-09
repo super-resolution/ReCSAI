@@ -4,7 +4,7 @@ from src.data import *
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from src.utility import bin_localisations
-from visualization import display_storm_data
+from src.visualization import display_storm_data
 
 
 
