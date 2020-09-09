@@ -1,5 +1,5 @@
 import tensorflow as tf
-from custom_layers import *
+from .custom_layers import *
 
 OUTPUT_CHANNELS = 3
 

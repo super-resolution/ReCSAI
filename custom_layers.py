@@ -1,10 +1,10 @@
-import custom_nodes as nodes
-import tfwavelets
 from tfwavelets.dwtcoeffs import haar, db3
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import *
-from utility import *
+from .utility import *
+from . import custom_nodes as nodes
+
 
 class CompressedSensing(tf.keras.layers.Layer):
     def __init__(self):

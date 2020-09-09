@@ -4,7 +4,6 @@ or IDWT. Intended to be used if you need a DWT in your own TF graph.
 """
 
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from tensorflow.keras.layers import *
 
 def cyclic_conv1d_alt(input_node, filter_, mode):
