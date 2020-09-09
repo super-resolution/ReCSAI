@@ -5,7 +5,6 @@ from tensorflow.keras.layers import *
 from .utility import *
 from . import custom_nodes as nodes
 
-
 class CompressedSensing(tf.keras.layers.Layer):
     def __init__(self):
         #todo: gaussian as initial value

@@ -1,5 +1,5 @@
 import numpy as np
-from data import *
+from .data import *
 from .localisations import *
 
 
