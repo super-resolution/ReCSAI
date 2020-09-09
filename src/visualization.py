@@ -22,5 +22,6 @@ def display_storm_data(localizations):
     for loc in localizations:
         array[int(loc[0]),int(loc[1])] +=2500
     array = cv2.GaussianBlur(array, (5, 5), 0)
-    plt.imshow(array, cmap='gnuplot2')
+    array = np.log(array+1)
+    plt.imshow(array, cmap='hot')
     plt.show()
