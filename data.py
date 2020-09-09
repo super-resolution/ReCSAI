@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tifffile import TiffFile as TIF
 import numpy as np
-from localisations import *
+from .localisations import *
 OFFSET=8
 def data_generator(file_path, loc_path):
     bin = Binning()
