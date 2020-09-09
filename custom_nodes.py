@@ -74,9 +74,11 @@ class DWT2D(Layer):
         super(DWT2D, self).__init__()
         self.padding = []
         self.levels = level
+        p= 8
+        pad = 0
         for i in range(level):
-            self.padding.append(ZeroPadding2D(padding=(8*i, 8*i), data_format="channels_last"))
-
+            self.padding.append(ZeroPadding2D(padding=(int(pad), int(pad)), data_format="channels_last"))
+            pad += p/(i+1)
 
     def __call__(self, input_node, wavelet):
         """
@@ -120,10 +122,10 @@ class DWT2D(Layer):
                 tf.slice(second_pass, [0,local_m // 2, local_n // 2, 0],
                          [-1, local_m // 2, local_n // 2, 1])
             ]
-
+        last_level = self.padding[self.levels-1](last_level)
         for level in range(self.levels - 1, -1, -1):
-            upper_half = tf.concat([self.padding[level](last_level),
-                                    self.padding[level](coeffs[level][0])] , -1)
+            upper_half = tf.concat([(last_level),
+                                    self.padding[level](coeffs[level][0])], -1)
             lower_half = tf.concat([self.padding[level](coeffs[level][1]),
                                     self.padding[level](coeffs[level][2])], -1)
 
@@ -238,22 +240,19 @@ class IDWT2D(tf.keras.layers.Layer):
         self.idwt1d = IDWT1D()
         self.concat1 = tf.keras.layers.Concatenate(axis=1)
         self.concat2 = tf.keras.layers.Concatenate(axis=2)
-        x = y = [8 * (level-1), 32-(8 * (level-1))]
+        x = y = [int((32 - 32 * 0.5 ** (level-1))/2),32-int((32 - 32 * 0.5 ** (level-1))/2)]
         self.crops = [crop(x,y, [0,1])]
         j=0
         for i in range(level- 1, -1, -1):
-            x = y = [8*i,32-(8*i)] # todo image size here
+            n = int((32 - 32 * 0.5 ** (i))/2)
+            x = y = [n,32-n] # todo image size here
             self.crops.append(crop(x, y, [1 + j * 3, 2 + j * 3]))
             self.crops.append(crop(x, y, [2 + j * 3, 3 + j * 3]))
             self.crops.append(crop(x, y, [3 + j * 3, 4 + j * 3]))
             j+=1
         self.crops.reverse()
-        #self.crop1 = crop(3, 0, 1)
-        #self.crop2 = crop(3, 1, 2)
-        #self.crop3 = crop(3, 2, 3)
-        #self.crop4 = crop(3, 3, 4)
 
-    def __call__(self, input_node, wavelet, levels=1):
+    def __call__(self, input_node, wavelet, ):
         """
         Constructs a TF graph that computes the 2D inverse DWT for a given wavelet.
 

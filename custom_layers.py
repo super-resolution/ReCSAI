@@ -4,6 +4,37 @@ from tfwavelets.dwtcoeffs import haar, db3
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import *
+from utility import *
+
+class CompressedSensing(tf.keras.layers.Layer):
+    def __init__(self):
+        #todo: gaussian as initial value
+        self.mat = tf.Variable(initial_value=self.psf_initializer())
+        self.mu = tf.constant(np.ones((1)), dtype=tf.float64)
+        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64)*0.12
+        self.t = tf.Variable(np.array([1]),dtype=tf.float64)
+
+    def psf_initializer(self):
+        mat = create_psf_matrix(9, 8)
+        return tf.constant(mat)[:,:,tf.newaxis]
+
+    def softthresh(self, input, lam):
+        one = simulate_where_add(input, lam, tf.constant([np.inf],dtype=tf.float64), -lam)
+        two = simulate_where_add(input, tf.constant([-np.inf],dtype=tf.float64), -lam, lam)
+        return one+two
+
+    def __call__(self, input):
+        #todo: fista here
+        y = tf.constant(np.zeros((5184)))
+        for i in range(100):
+            #todo: has to work for image stack
+            re =tf.linalg.matvec(self.mat[:,:,0], tf.keras.backend.flatten(input)- tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y))
+            w = y+1/self.mu*re
+            y_new = self.softthresh(w, self.lam/self.mu)
+            t_n = (1+tf.math.sqrt(1+self.t**2))/2
+            y = y_new+ (self.t-1)/t_n*(y_new-y)
+            self.t = t_n
+        return y
 
 
 def downsample(filters, size, apply_batchnorm=True):
@@ -13,7 +44,6 @@ def downsample(filters, size, apply_batchnorm=True):
     result.add(
       tf.keras.layers.Conv2D(filters, size, strides=2, padding='same',
                              kernel_initializer=initializer, use_bias=False))
-
     if apply_batchnorm:
         result.add(tf.keras.layers.BatchNormalization())
 
@@ -41,13 +71,6 @@ def upsample(filters, size, apply_dropout=False):
 
     return result
 
-class BiasedSigmoid(tf.keras.layers.Layer):
-    def __init__(self):
-        super(BiasedSigmoid, self).__init__()
-        self.bias = tf.Variable(initial_value=[1.0])
-
-    def __call__(self, inp):
-        return tf.keras.activations.sigmoid(inp)
 
 class OrthonormalConstraint(tf.keras.constraints.Constraint):
     def __call__(self, x):
@@ -84,56 +107,17 @@ class LFilter(tf.keras.layers.Layer):
         self._coeffs = [None] * len(self._coeffs_lp)
         self.edge_matrices = None
 
-    def __getitem__(self, item):
-        """
-        Returns filter coefficients at requested indeces. Indeces are offset by the filter
-        origin
-
-        Args:
-            item (int or slice):    Item(s) to get
-
-        Returns:
-            np.ndarray: Item(s) at specified place(s)
-        """
-        if isinstance(item, slice):
-            return self._coeffs.__getitem__(
-                slice(item.start + self.zero, item.stop + self.zero, item.step)
-            )
-        else:
-            return self._coeffs.__getitem__(item + self.zero)
-
-    def num_pos(self):
-        """
-        Number of positive indexed coefficients in filter, including the origin. Ie,
-        strictly speaking it's the number of non-negative indexed coefficients.
-
-        Returns:
-            int: Number of positive indexed coefficients in filter.
-        """
-        return len(self._coeffs) - self.zero
-
-    def num_neg(self):
-        """
-        Number of negative indexed coefficients, excluding the origin.
-
-        Returns:
-            int: Number of negative indexed coefficients
-        """
-        return self.zero
-
 
 class DWT2(tf.keras.layers.Layer):
     """Wavelet transform"""
     def __init__(self):
         super(DWT2, self).__init__()
         self.filter = LFilter(haar.decomp_lp._coeffs,haar.decomp_hp._coeffs, haar.decomp_lp.zero, haar.decomp_hp.zero, "filter")
-        self.dwt2 = nodes.DWT2D(level=2)
+        self.dwt2 = nodes.DWT2D(level=3)
 
 
     def call(self, input):
-        #print(input.shape)
         t = self.dwt2(input, wavelet=self)
-        #t = tf.keras.activations.sigmoid(input)
         return t
 
 
@@ -142,7 +126,7 @@ class IDWT2(tf.keras.layers.Layer):
     def __init__(self):
         super(IDWT2, self).__init__()
         self.filter = LFilter(haar.decomp_lp._coeffs, haar.decomp_hp._coeffs, haar.decomp_lp.zero,haar.decomp_hp.zero, "filter")
-        self.idwt2d = nodes.IDWT2D(level=2)
+        self.idwt2d = nodes.IDWT2D(level=3)
 
     def call(self, input):
         #print(input.shape)
@@ -158,8 +142,6 @@ class FullWavelet(tf.keras.layers.Layer):
     def __init__(self, level=1):
         super(FullWavelet, self).__init__()
         self.filter = LFilter(db3.decomp_lp._coeffs, db3.decomp_hp._coeffs, db3.decomp_hp.zero, db3.decomp_lp.zero, "filter")
-        #self.decomp_hp = LFilter(db3.decomp_hp._coeffs, db3.decomp_hp.zero, "decomp_hp")
-
         self.bias = tf.Variable( initial_value=tf.zeros(3*level+1),
             trainable=True,
             name="bias",
@@ -171,12 +153,6 @@ class FullWavelet(tf.keras.layers.Layer):
     def call(self, inp):
         t = self.dwt2(inp, wavelet=self,)
         t = tf.math.subtract(t, self.bias)
-        #t = self.split(t)
-
-
         t = tf.keras.activations.relu(t)
-        #self.recon_lp.coeffs = tf.reverse(self.decomp_lp.coeffs, tf.constant([0], dtype=tf.int32))
-        #self.recon_hp.coeffs = tf.reverse(self.decomp_hp.coeffs, tf.constant([0], dtype=tf.int32))
         t = self.idwt2d(t, wavelet=self)
-        #t = tf.keras.activations.sigmoid(t)
         return t

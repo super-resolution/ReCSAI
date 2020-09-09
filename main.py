@@ -8,8 +8,8 @@ import tfwavelets
 from tensorflow.keras.optimizers import Adam
 import os
 
-image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\coordinate_recon_flim.tif"
-truth = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\coordiante_recon_truth_n_bigtiff.tif"
+image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\maxi_batch\coordinate_reconstruction_flim.tif"
+truth = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\maxi_batch\coordinate_reconstruction_truth.tif"
 
 gen = data_generator_image(image, truth)
 image = np.zeros((100,64,64))
@@ -23,8 +23,9 @@ image_tf2 = tf.convert_to_tensor(image[50:100, :, :, np.newaxis])
 truth_tf1 = tf.convert_to_tensor(truth[0:50, :, :, np.newaxis])
 truth_tf2 = tf.convert_to_tensor(truth[50:100, :, :, np.newaxis])
 
+print("data loaded")
 #out_o = tfwavelets.nodes.dwt2d(image_tf1[0], tfwavelets.dwtcoeffs.haar)
-checkpoint_path = "training/cp-{epoch:04d}.ckpt"
+checkpoint_path = "training_lvl2/cp-{epoch:04d}.ckpt"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 
 # Create a callback that saves the model's weights every 5 epochs
@@ -36,7 +37,7 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(
 
 
 
-test = model()
+test = wavelet_ai()
 test.save_weights(checkpoint_path.format(epoch=0))
 
 test.compile(optimizer='adam',
@@ -59,7 +60,7 @@ axs[1,0].imshow(image_tf1[0,:,:,0])
 plt.show()
 print(tf.reduce_sum(test.trainable_weights[1][0]*test.trainable_weights[1][1]))
 
-history = test.fit(image_tf1, truth_tf1[:,:,:,:], epochs=100, validation_data=(image_tf2, truth_tf2), callbacks=[cp_callback])
+history = test.fit(image_tf1, truth_tf1[:,:,:,:], epochs=1000, validation_data=(image_tf2, truth_tf2), callbacks=[cp_callback])
 
 i = test.predict(image_tf2[0:1])
 

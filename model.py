@@ -3,6 +3,34 @@ from custom_layers import *
 
 OUTPUT_CHANNELS = 3
 
+def CompressedSensingNet():
+    inputs = tf.keras.layers.Input(shape=[9,9,3])
+    initializer = tf.random_normal_initializer(0., 0.02)
+    first = tf.keras.layers.Conv2DTranspose(1, 4,
+                                           strides=1,
+                                           padding='same',
+                                           kernel_initializer=initializer,
+                                           activation='tanh')
+
+def ConvNet():
+    #todo: adjust input size
+    inputs = tf.keras.layers.Input(shape=[9,9,3])
+    conv_stack = [
+        #downsample(64, 4, apply_batchnorm=False), # (bs, 128, 128, 64)
+
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(81, activation="relu"),
+        tf.keras.layers.Dense(64, activation="relu"),
+        tf.keras.layers.Dense(32, activation="relu"),
+        tf.keras.layers.Dense(8, activation="relu"),
+        tf.keras.layers.Dense(2)
+    ]
+    x=inputs
+    for conv in conv_stack:
+        x = conv(x)
+
+    return tf.keras.Model(inputs=inputs, outputs=x)
+
 @tf.function
 def train_step(model, x, optimizer):
     with tf.GradientTape() as tape:
@@ -162,9 +190,9 @@ def generator_loss(gen_output, target):
     return total_gen_loss
 
 
-def model():
+def wavelet_ai():
     inputs = tf.keras.layers.Input(shape=[64, 64, 1])
-    layer = FullWavelet(level=1)
+    layer = FullWavelet(level=4)
     x = inputs
     x = layer(x)
     return tf.keras.Model(inputs=inputs, outputs=x)
