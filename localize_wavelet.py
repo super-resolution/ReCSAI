@@ -4,6 +4,7 @@ from src.data import *
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from src.utility import bin_localisations
+from visualization import display_storm_data
 
 
 
@@ -32,6 +33,12 @@ def train_recon_net():
 
     for i in range(1000):
         image[i], truth[i],_ = gen.__next__()
+        fig,axs = plt.subplots(3)
+        axs[0].imshow(image[i,:,:,0])
+        axs[1].imshow(image[i,:,:,1])
+        axs[2].imshow(image[i,:,:,2])
+        plt.show()
+
 
 
     image_tf1 = tf.convert_to_tensor(image[0:900, :, :])
@@ -63,9 +70,10 @@ def predict_localizations(data_tensor):
     for i in range(result_tensor.shape[0]):
         result_array.append(coord_list[i]+np.array([result_tensor[i,0],result_tensor[i,1]]))
     result_array = np.array(result_array)
+    display_storm_data(result_array)
     np.save(os.getcwd()+r"\test.npy",result_array)
 
-train_recon_net()
+#train_recon_net()
 
 image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\real_data\Cy5.tif"
 image = data_generator_real(image)

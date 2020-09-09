@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tifffile import TiffFile as TIF
 import numpy as np
-from localisations import *
+
 OFFSET=8
 # def data_generator(file_path, loc_path):
 #     bin = Binning()
@@ -48,7 +48,7 @@ def data_generator_coords(file_path, loc_path, offset=0):
             im[OFFSET+n_x, OFFSET+n_y, 0] = 100
             im[OFFSET+n_x, OFFSET+n_y, 1] = r_x-0.5
             im[OFFSET+n_x, OFFSET+n_y, 2] = r_y-0.5
-        yield data[i],  im[:,:,:], px_coords
+        yield data[i+ offset],  im[:,:,:], px_coords
 
 def data_generator_image(file_path, truth_path):
     tif = TiffFile(file_path)
