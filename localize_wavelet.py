@@ -9,6 +9,7 @@ from src.visualization import display_storm_data
 
 
 
+
 #done: load wavelet checkpoints
 denoising = wavelet_ai()
 
@@ -38,7 +39,7 @@ def train_recon_net():
         axs[1].imshow(image[i,:,:,1])
         axs[2].imshow(image[i,:,:,2])
         plt.show()
-
+    del gen
 
 
     image_tf1 = tf.convert_to_tensor(image[0:900, :, :])
@@ -61,24 +62,29 @@ def train_recon_net():
     recon_net.fit(train_new, truth_new, epochs=500, callbacks=[cp_callback],validation_data=[test_new, truth_test_new] )
 
 
-def predict_localizations(data_tensor):
+def predict_localizations(path):
     result_array = []
-
-    crop_tensor, _, coord_list = bin_localisations(data_tensor, denoising, th=35.0)
-
-    result_tensor = recon_net.predict(crop_tensor)
-    for i in range(result_tensor.shape[0]):
-        result_array.append(coord_list[i]+np.array([result_tensor[i,0],result_tensor[i,1]]))
+    gen = generate_generator(path)
+    dataset = tf.data.Dataset.from_generator(gen, tf.float64)
+    for image in dataset:
+        crop_tensor, _, coord_list = bin_localisations(image, denoising, th=35.0)
+        result_tensor = recon_net.predict(crop_tensor)
+        del crop_tensor
+        for i in range(result_tensor.shape[0]):
+            result_array.append(coord_list[i]+np.array([result_tensor[i,0],result_tensor[i,1]]))
+        del result_tensor
     result_array = np.array(result_array)
     display_storm_data(result_array)
-    np.save(os.getcwd()+r"\test.npy",result_array)
+    #np.save(os.getcwd()+r"\test.npy",result_array)
+
+def predict_with_cs(data_tensor):
+    pass
 
 #train_recon_net()
 
 image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\real_data\Cy5.tif"
-image = data_generator_real(image)
-image_tf = tf.convert_to_tensor(image)
-predict_localizations(image_tf)
+image = r"F:\Daten\AI\COS7_LT1_beta-tub-Alexa647_new_D2O+MEA5mM_power6_OD0p6_3.tif"
+predict_localizations(image)
 
 
 #done: binnin here

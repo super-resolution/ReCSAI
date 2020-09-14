@@ -5,12 +5,13 @@ from tensorflow.keras.layers import *
 from .utility import *
 from . import custom_nodes as nodes
 
+
 class CompressedSensing(tf.keras.layers.Layer):
     def __init__(self):
-        #todo: gaussian as initial value
+        #done: gaussian as initial value
         self.mat = tf.Variable(initial_value=self.psf_initializer())
         self.mu = tf.constant(np.ones((1)), dtype=tf.float64)
-        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64)*0.12
+        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64)*0.5
         self.t = tf.Variable(np.array([1]),dtype=tf.float64)
 
     def psf_initializer(self):
@@ -22,12 +23,13 @@ class CompressedSensing(tf.keras.layers.Layer):
         two = simulate_where_add(input, tf.constant([-np.inf],dtype=tf.float64), -lam, lam)
         return one+two
 
+    @tf.function
     def __call__(self, input):
-        #todo: fista here
-        y = tf.constant(np.zeros((5184)))
-        for i in range(100):
-            #todo: has to work for image stack
-            re =tf.linalg.matvec(self.mat[:,:,0], tf.keras.backend.flatten(input)- tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y))
+        #done: fista here
+        y = tf.constant(np.zeros((5184)))[tf.newaxis,:]
+        input = tf.reshape(input, (input.shape[0], input.shape[1]*input.shape[2]))
+        for i in range(20):
+            re =tf.linalg.matvec(self.mat[:,:,0], input- tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y))
             w = y+1/self.mu*re
             y_new = self.softthresh(w, self.lam/self.mu)
             t_n = (1+tf.math.sqrt(1+self.t**2))/2
@@ -128,7 +130,6 @@ class IDWT2(tf.keras.layers.Layer):
         self.idwt2d = nodes.IDWT2D(level=3)
 
     def call(self, input):
-        #print(input.shape)
         t = self.idwt2d(input, wavelet=self)
         return t
 
@@ -150,8 +151,10 @@ class FullWavelet(tf.keras.layers.Layer):
         self.dwt2 = nodes.DWT2D(level=level)
 
     def call(self, inp):
+
         t = self.dwt2(inp, wavelet=self,)
         t = tf.math.subtract(t, self.bias)
         t = tf.keras.activations.relu(t)
         t = self.idwt2d(t, wavelet=self)
+
         return t

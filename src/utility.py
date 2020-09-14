@@ -1,6 +1,6 @@
 from .data import *
 from .localisations import *
-
+import matplotlib.pyplot as plt
 
 def bin_localisations(data_tensor, denoising, truth_tensor=None, th=8.0):
     train_new = []
@@ -11,16 +11,17 @@ def bin_localisations(data_tensor, denoising, truth_tensor=None, th=8.0):
     one = denoising.predict(data_tensor[:, :, :, 0:1])
     two = denoising.predict(data_tensor[:, :, :, 1:2])
     three = denoising.predict(data_tensor[:, :, :, 2:3])
-    im = tf.concat([one, two, three], -1)
+    im = tf.concat([one, two, three], -1)*25
+
 
     for i in range(im.shape[0]):
-        # fig,ax = plt.subplots(1)
         # todo: denoise all at once
 
         wave = im[i:i + 1, :, :, 1:2]
         y = tf.constant([th])
         mask = tf.greater(wave, y)
         wave_mask = wave * tf.cast(mask, tf.float32)
+
         # ax.imshow(wave[0,:,:,0])
         coords = bining.get_coords(wave_mask.numpy()[0, :, :, 0])
         # todo: crop PSFs done here
@@ -64,23 +65,22 @@ def generate_tf_dataset(image, truth):
 
 def simulate_where_add(input, lo_lim, up_lim, val):
     condition = tf.logical_and(input>lo_lim,input<up_lim)
-    indices_t = tf.where(condition)[:,0]
-    indices_f = tf.where(tf.logical_not(condition))[:,0]
+    indices_t = tf.where(condition)#[:,-1]
+    indices_f = tf.where(tf.logical_not(condition))#[:,-1]
 
     values_remove = tf.tile([0], [tf.shape(indices_f)[0]])
     values_remove = tf.cast(values_remove, tf.float64)
 
-    value = tf.gather(input, indices_t)
+    value = tf.gather_nd(input, indices_t)
     value += val
 
-    zeros_remove = tf.zeros_like(indices_f)
-    zeros_keep = tf.zeros_like(indices_t)
-    idx_remove = tf.stack([zeros_remove, indices_f],axis=1)
-    idx_keep = tf.stack([zeros_keep, indices_t], axis=1)
+    idx_remove = indices_f#tf.stack([zeros_remove, indices_f],axis=1)
+    idx_keep = indices_t#tf.stack([zeros_keep, indices_t], axis=1)
 
-    out = tf.sparse.add(tf.SparseTensor(idx_remove, values_remove, tf.shape(input[tf.newaxis,:], out_type = tf.int64)),
-                        tf.SparseTensor(idx_keep, value, tf.shape(input[tf.newaxis,:], out_type = tf.int64)))
-    return tf.sparse.to_dense(out)[0,:]
+    out = tf.sparse.add(tf.SparseTensor(idx_remove, values_remove, tf.shape(input, out_type=tf.int64)),
+                        tf.SparseTensor(idx_keep, value, tf.shape(input, out_type=tf.int64)))
+    return tf.sparse.to_dense(out)
+
 
 def get_psf(sigma, px_size):
     size = 256 # should always be enough
@@ -112,7 +112,7 @@ def create_psf_block(idy, size_x, magnification, psf):
 def create_psf_matrix(size_x, magnification):
     size_y = size_x*magnification
     matrix = np.zeros((size_y**2, size_x**2))
-    psf = get_psf(100, 100)
+    psf = get_psf(170, 100)
     for i in range(size_x):
         for j in range(size_y):
             matrix[j * size_y:(j + 1) * size_y, i * size_x:(i + 1) * size_x] = create_psf_block(abs(magnification * i - j), size_x, magnification, psf)

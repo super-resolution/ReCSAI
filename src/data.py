@@ -18,14 +18,19 @@ OFFSET=8
 #         coords = bin.get_coords(reconstruct)
 #         yield data[...,1], coords, truth_cords[i][:,0:2]/100
 
-def data_generator_real(file_path):
-    with TIF(file_path) as tif:
-        dat = tif.asarray()[::2]
-    data = np.zeros((dat.shape[0],64, 64, 3))#todo: this is weird data
-    data[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = dat
-    data[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = dat[:-1]
-    data[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = dat[1:]
-    return data[0:5000]
+
+
+def generate_generator(file_path):
+    def data_generator_real():
+        for i in range(3):
+            with TIF(file_path) as tif:
+                dat = tif.asarray()[i * 5000:(i + 1) * 5000, 0:45, 0:45]
+            data = np.zeros((dat.shape[0], 64, 64, 3))  # todo: this is weird data
+            data[:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 1] = dat
+            data[1:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 0] = dat[:-1]
+            data[:-1, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 2] = dat[1:]
+            yield data
+    return data_generator_real
 
 def data_generator_coords(file_path, loc_path, offset=0):
     with TIF(file_path) as tif:
@@ -51,15 +56,17 @@ def data_generator_coords(file_path, loc_path, offset=0):
         yield data[i+ offset],  im[:,:,:], px_coords
 
 def data_generator_image(file_path, truth_path):
-    tif = TiffFile(file_path)
-    truth = TiffFile(truth_path)
-    for i in range(len(tif.frames)):
-        data = np.zeros((64, 64))
-        data_truth = np.zeros((64,64))
-        image = tif.read_frame(i, 0)[0].astype(np.float32)
-        image_truth = truth.read_frame(i, 0)[0].astype(np.float32)
-        data[OFFSET:OFFSET+tif.frames[0].tags[256][1], OFFSET:OFFSET+tif.frames[0].tags[256][1]] = image
-        data_truth[OFFSET:OFFSET+tif.frames[0].tags[256][1], OFFSET:OFFSET+tif.frames[0].tags[256][1]] = image_truth
-        data = (data)/data.max()
-        data_truth = (data_truth)/data_truth.max()
-        yield data, data_truth
+    with TIF(file_path) as tif:
+        dat = tif.asarray()
+    data = np.zeros((dat.shape[0],64, 64, 3))#todo: this is weird data
+    data[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = dat
+    data[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = dat[:-1]
+    data[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = dat[1:]
+    with TIF(truth_path) as tif:
+        tru = tif.asarray()
+    data_truth = np.zeros((dat.shape[0],64, 64, 3))#todo: this is weird data
+    data_truth[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = tru
+    data_truth[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = tru[:-1]
+    data_truth[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = tru[1:]
+    for i in range(data.shape[0]):
+        yield data[i], data_truth[i]

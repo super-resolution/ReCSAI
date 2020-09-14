@@ -6,6 +6,11 @@ OUTPUT_CHANNELS = 3
 def CompressedSensingNet():
     inputs = tf.keras.layers.Input(shape=[9,9,3])
     initializer = tf.random_normal_initializer(0., 0.02)
+    layer = CompressedSensing()
+    x = layer(inputs)
+    #todo: estimate maximum from here?
+
+
     first = tf.keras.layers.Conv2DTranspose(1, 4,
                                            strides=1,
                                            padding='same',
@@ -191,8 +196,10 @@ def generator_loss(gen_output, target):
 
 
 def wavelet_ai():
-    inputs = tf.keras.layers.Input(shape=[64, 64, 1])
+    inputs = tf.keras.layers.Input(shape=[64, 64, 1])#todo: input 3 output 1
     layer = FullWavelet(level=4)
     x = inputs
     x = layer(x)
+    #initializer = tf.random_normal_initializer(0., 0.02)
+    #x = tf.math.reduce_sum(x, axis=-1, keepdims=True)
     return tf.keras.Model(inputs=inputs, outputs=x)

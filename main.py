@@ -7,20 +7,21 @@ image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\maxi_batch\coordin
 truth = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\maxi_batch\coordinate_reconstruction_truth.tif"
 
 gen = data_generator_image(image, truth)
-image = np.zeros((100,64,64))
-truth = np.zeros((100,64,64))
+image = np.zeros((1000,64,64,3))
+truth = np.zeros((1000,64,64,3))
 
-for i in range(100):
+for i in range(1000):
     image[i],truth[i] = gen.__next__()
+del gen
 
-image_tf1 = tf.convert_to_tensor(image[0:50, :, :, np.newaxis])
-image_tf2 = tf.convert_to_tensor(image[50:100, :, :, np.newaxis])
-truth_tf1 = tf.convert_to_tensor(truth[0:50, :, :, np.newaxis])
-truth_tf2 = tf.convert_to_tensor(truth[50:100, :, :, np.newaxis])
+image_tf1 = tf.convert_to_tensor(image[0:500, :, :, :])
+image_tf2 = tf.convert_to_tensor(image[500:1000, :, :, :])
+truth_tf1 = tf.convert_to_tensor(truth[0:500, :, :, :])
+truth_tf2 = tf.convert_to_tensor(truth[500:1000, :, :, :])
 
 print("data loaded")
 #out_o = tfwavelets.nodes.dwt2d(image_tf1[0], tfwavelets.dwtcoeffs.haar)
-checkpoint_path = "training_lvl2/cp-{epoch:04d}.ckpt"
+checkpoint_path = "training_lvl3/cp-{epoch:04d}.ckpt"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 
 # Create a callback that saves the model's weights every 5 epochs
@@ -48,24 +49,24 @@ layer = DWT2()
 layer2 = IDWT2()
 # print(image_tf1[0:1])
 
-out = layer(image_tf1[0:1])
+out = layer(image_tf1[1:2,:,:,0:1])
 out = layer2(out)
 axs[0,0].imshow(out[0,:,:,0])
-axs[1,0].imshow(image_tf1[0,:,:,0])
+axs[1,0].imshow(image_tf1[1,:,:,0])
 plt.show()
 print(tf.reduce_sum(test.trainable_weights[1][0]*test.trainable_weights[1][1]))
 
-history = test.fit(image_tf1, truth_tf1[:,:,:,:], epochs=1000, validation_data=(image_tf2, truth_tf2), callbacks=[cp_callback])
+history = test.fit(image_tf1, truth_tf1[:,:,:,1:2], epochs=100, validation_data=(image_tf2, truth_tf2), callbacks=[cp_callback])
 
-i = test.predict(image_tf2[0:1])
+i = test.predict(image_tf2[1:2])
 
 print(tf.reduce_sum(test.trainable_weights[1][0]*test.trainable_weights[1][1]))
 
 fig, axs = plt.subplots(3)
 
-axs[0].imshow(image_tf2[0,:,:,0])
+axs[0].imshow(image_tf2[1,:,:,1])
 axs[1].imshow(i[0,:,:,0])
-axs[2].imshow(truth_tf2[0,:,:,0])
+axs[2].imshow(truth_tf2[1,:,:,1])
 plt.show()
 
 plt.plot(history.history['accuracy'], label='accuracy')
