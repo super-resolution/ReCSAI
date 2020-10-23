@@ -3,21 +3,21 @@ from src.model import *
 from src.custom_layers import *
 import os
 
-image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\maxi_batch\coordinate_reconstruction_flim.tif"
-truth = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\maxi_batch\coordinate_reconstruction_truth.tif"
+image = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100mini_batch\coordinate_reconstruction_flim.tif"
+truth = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100mini_batch\coordinate_reconstruction_truth.tif"
 
 gen = data_generator_image(image, truth)
-image = np.zeros((1000,64,64,3))
-truth = np.zeros((1000,64,64,3))
+image = np.zeros((1000,128,128,3))
+truth = np.zeros((1000,128,128,3))
 
 for i in range(1000):
     image[i],truth[i] = gen.__next__()
 del gen
 
-image_tf1 = tf.convert_to_tensor(image[0:500, :, :, :])
-image_tf2 = tf.convert_to_tensor(image[500:1000, :, :, :])
-truth_tf1 = tf.convert_to_tensor(truth[0:500, :, :, :])
-truth_tf2 = tf.convert_to_tensor(truth[500:1000, :, :, :])
+image_tf1 = tf.convert_to_tensor(image[0:500, :, :, :]/image.max())
+image_tf2 = tf.convert_to_tensor(image[500:1000, :, :, :]/image.max())
+truth_tf1 = tf.convert_to_tensor(truth[0:500, :, :, :]/truth.max())
+truth_tf2 = tf.convert_to_tensor(truth[500:1000, :, :, :]/truth.max())
 
 print("data loaded")
 #out_o = tfwavelets.nodes.dwt2d(image_tf1[0], tfwavelets.dwtcoeffs.haar)
@@ -46,7 +46,7 @@ fig, axs = plt.subplots(2,5)
 # LL, (LH, HL, HH) = coeffs2
 #
 layer = DWT2()
-layer2 = IDWT2()
+layer2 = IDWT2(128)
 # print(image_tf1[0:1])
 
 out = layer(image_tf1[1:2,:,:,0:1])
@@ -56,9 +56,9 @@ axs[1,0].imshow(image_tf1[1,:,:,0])
 plt.show()
 print(tf.reduce_sum(test.trainable_weights[1][0]*test.trainable_weights[1][1]))
 
-history = test.fit(image_tf1, truth_tf1[:,:,:,1:2], epochs=100, validation_data=(image_tf2, truth_tf2), callbacks=[cp_callback])
+history = test.fit(image_tf1[:,:,:,1:2], truth_tf1[:,:,:,1:2], epochs=1000, validation_data=(image_tf2[:,:,:,1:2], truth_tf2[:,:,:,1:2]), callbacks=[cp_callback])
 
-i = test.predict(image_tf2[1:2])
+i = test.predict(image_tf2[1:2,:,:,1:2])
 
 print(tf.reduce_sum(test.trainable_weights[1][0]*test.trainable_weights[1][1]))
 
@@ -70,7 +70,7 @@ axs[2].imshow(truth_tf2[1,:,:,1])
 plt.show()
 
 plt.plot(history.history['accuracy'], label='accuracy')
-plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
+plt.plot(history.history['val_accuracy'], label='val_accuracy')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.ylim([0.5, 1])

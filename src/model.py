@@ -3,28 +3,56 @@ from .custom_layers import *
 
 OUTPUT_CHANNELS = 3
 
-def CompressedSensingNet():
+def ShiftNet():
     inputs = tf.keras.layers.Input(shape=[9,9,3])
-    initializer = tf.random_normal_initializer(0., 0.02)
-    layer = CompressedSensing()
-    x = layer(inputs)
+    x=inputs
+    conv_stack = [tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding="same"),
+    tf.keras.layers.MaxPooling2D((3, 3)),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding="same"),
+    tf.keras.layers.MaxPooling2D((3, 3)),
+    tf.keras.layers.Flatten(),
+
+    tf.keras.layers.Dense(64, activation="relu"),
+    tf.keras.layers.Dense(32, activation="relu"),
+    tf.keras.layers.Dense(1)]
+    for conv in conv_stack:
+        x = conv(x)
+    return tf.keras.Model(inputs=inputs, outputs=x)
+
+def CompressedSensingNet(cs_layer):
+    inputs = tf.keras.layers.Input(shape=[9,9,3])
+    x = cs_layer(inputs)#72x72
     #todo: estimate maximum from here?
+    conv_stack = [
+    tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding="same"),
+    tf.keras.layers.MaxPooling2D((3, 3)),
+    tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding="same"),
+    tf.keras.layers.MaxPooling2D((3, 3)),
+    tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding="same"),
+    tf.keras.layers.MaxPooling2D((2, 2)),
+    tf.keras.layers.Flatten(),
 
+    tf.keras.layers.Dense(64, activation="relu"),
+    tf.keras.layers.Dense(32, activation="relu"),
+    tf.keras.layers.Dense(8, activation="relu"),
+    tf.keras.layers.Dense(3)
+    ]
+    for conv in conv_stack:
+        x = conv(x)
 
-    first = tf.keras.layers.Conv2DTranspose(1, 4,
-                                           strides=1,
-                                           padding='same',
-                                           kernel_initializer=initializer,
-                                           activation='tanh')
+    return tf.keras.Model(inputs=inputs, outputs=x)
 
 def ConvNet():
     #todo: adjust input size
     inputs = tf.keras.layers.Input(shape=[9,9,3])
     conv_stack = [
         #downsample(64, 4, apply_batchnorm=False), # (bs, 128, 128, 64)
+        # downsample(64, 4, apply_batchnorm=False)
+        tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=(9, 9, 3), padding="same"),
+        tf.keras.layers.MaxPooling2D((3, 3)),
+        tf.keras.layers.Conv2D(64, (3, 3), padding="same"),
 
         tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(81, activation="relu"),
         tf.keras.layers.Dense(64, activation="relu"),
         tf.keras.layers.Dense(32, activation="relu"),
         tf.keras.layers.Dense(8, activation="relu"),
@@ -196,10 +224,12 @@ def generator_loss(gen_output, target):
 
 
 def wavelet_ai():
-    inputs = tf.keras.layers.Input(shape=[64, 64, 1])#todo: input 3 output 1
-    layer = FullWavelet(level=4)
+    inputs = tf.keras.layers.Input(shape=[128, 128, 1])#todo: input 3 output 1
+    layer = FullWavelet(128,level=4,)
+    final = tf.keras.layers.ReLU()
     x = inputs
     x = layer(x)
+    x = final(x)
     #initializer = tf.random_normal_initializer(0., 0.02)
     #x = tf.math.reduce_sum(x, axis=-1, keepdims=True)
     return tf.keras.Model(inputs=inputs, outputs=x)

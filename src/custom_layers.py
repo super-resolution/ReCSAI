@@ -2,39 +2,85 @@ from tfwavelets.dwtcoeffs import haar, db3
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import *
+import tensorflow_addons as tfa
 from .utility import *
 from . import custom_nodes as nodes
+
+class Shifting(tf.keras.layers.Layer):
+    def __init__(self):
+        def layer(inp):
+            return tfa.image.translate(inp[0],inp[1],"BILINEAR")
+        self.shift_layer = tf.keras.layers.Lambda(layer)
+
+    def restack(self, in1, in2):
+        columns = []
+
+        for i,col in enumerate(tf.unstack(in2, axis=1)):
+            columns.extend([in1[:,i], col])
+        columns.append(in1[:,i+1])
+        return tf.stack(columns,axis=1)
+
+    def __call__(self, input,shift):
+        odd = True
+        if input[0,0,0,0] ==0:
+            odd = False
+        substack1 = input[:,::2]
+        substack2 = input[:,1::2]
+        if odd:
+            substack2 = self.shift_layer((substack2, shift))
+        else:
+            substack1 = self.shift_layer((substack1, shift))
+        substack1 = tf.cast(substack1,tf.float64)
+        substack2 = tf.cast(substack2,tf.float64)
+        return self.restack(substack1, substack2)
 
 
 class CompressedSensing(tf.keras.layers.Layer):
     def __init__(self):
         #done: gaussian as initial value
-        self.mat = tf.Variable(initial_value=self.psf_initializer())
+        self.psf = get_psf(150, 100)  # todo: change psf matrix on the run?
+
+        self.mat = tf.Variable(initial_value=self.psf_initializer(),trainable=False)
         self.mu = tf.constant(np.ones((1)), dtype=tf.float64)
-        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64)*0.5
+        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64, name="lambda", trainable=True)*0.003
         self.t = tf.Variable(np.array([1]),dtype=tf.float64)
+        dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
+        self.sparse_dense = tf.keras.layers.Lambda(dense)
+
+    def update_psf(self, psf):
+        self.psf = psf
+        self.mat = tf.Variable(initial_value=self.psf_initializer(),trainable=False)
 
     def psf_initializer(self):
-        mat = create_psf_matrix(9, 8)
+        mat = create_psf_matrix(9, 8, self.psf)
         return tf.constant(mat)[:,:,tf.newaxis]
 
     def softthresh(self, input, lam):
-        one = simulate_where_add(input, lam, tf.constant([np.inf],dtype=tf.float64), -lam)
-        two = simulate_where_add(input, tf.constant([-np.inf],dtype=tf.float64), -lam, lam)
+        one = simulate_where_add(input, lam, tf.constant([np.inf],dtype=tf.float64), -lam, self.sparse_dense)
+        two = simulate_where_add(input, tf.constant([-np.inf],dtype=tf.float64), -lam, lam, self.sparse_dense)
         return one+two
 
-    @tf.function
+    #@tf.function
     def __call__(self, input):
         #done: fista here
-        y = tf.constant(np.zeros((5184)))[tf.newaxis,:]
-        input = tf.reshape(input, (input.shape[0], input.shape[1]*input.shape[2]))
-        for i in range(20):
-            re =tf.linalg.matvec(self.mat[:,:,0], input- tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y))
-            w = y+1/self.mu*re
-            y_new = self.softthresh(w, self.lam/self.mu)
-            t_n = (1+tf.math.sqrt(1+self.t**2))/2
-            y = y_new+ (self.t-1)/t_n*(y_new-y)
-            self.t = t_n
+        input = tf.cast(input, tf.float64)
+        inp = tf.unstack(input, axis=-1)
+        y = tf.constant(np.zeros((5329,3)))[tf.newaxis, :]
+        y_n = tf.unstack(y, axis=-1)
+        for i in range(len(inp)):
+            x = inp[i]
+            inp[i] = tf.reshape(x, (tf.shape(input)[0], input.shape[1]*input.shape[2]))
+            for j in range(40):
+                re =tf.linalg.matvec(self.mat[:,:,0], inp[i]- tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y_n[i]))
+                w = y_n[i]+1/self.mu*re
+                y_new = self.softthresh(w, self.lam/self.mu)
+                y_new = tf.cast(y_new, tf.float64)
+                t_n = (1+tf.math.sqrt(1+self.t**2))/2
+                y_n[i] = y_new+ (self.t-1)/t_n*(y_new-y_n[i])
+                self.t = t_n
+            y_n[i] = tf.reshape(y_n[i], (tf.shape(input)[0], 8*input.shape[1]+1,8*input.shape[2]+1))
+
+        y = tf.stack(y_n,axis=-1)
         return y
 
 
@@ -124,10 +170,10 @@ class DWT2(tf.keras.layers.Layer):
 
 class IDWT2(tf.keras.layers.Layer):
     """Inverse Wavelet transform"""
-    def __init__(self):
+    def __init__(self, shape):
         super(IDWT2, self).__init__()
         self.filter = LFilter(haar.decomp_lp._coeffs, haar.decomp_hp._coeffs, haar.decomp_lp.zero,haar.decomp_hp.zero, "filter")
-        self.idwt2d = nodes.IDWT2D(level=3)
+        self.idwt2d = nodes.IDWT2D(shape, level=3)
 
     def call(self, input):
         t = self.idwt2d(input, wavelet=self)
@@ -139,7 +185,7 @@ class FullWavelet(tf.keras.layers.Layer):
     """Wavelet transform + activation Layer + Inverse Wavelet transform.
        Recon Wavelet coefficients depend on decomp Wavelet coefficients
     """
-    def __init__(self, level=1):
+    def __init__(self, shape, level=1):
         super(FullWavelet, self).__init__()
         self.filter = LFilter(db3.decomp_lp._coeffs, db3.decomp_hp._coeffs, db3.decomp_hp.zero, db3.decomp_lp.zero, "filter")
         self.bias = tf.Variable( initial_value=tf.zeros(3*level+1),
@@ -147,7 +193,7 @@ class FullWavelet(tf.keras.layers.Layer):
             name="bias",
             dtype=tf.float32,)
         self.activation = tf.keras.layers.ReLU(max_value=1.0)
-        self.idwt2d = nodes.IDWT2D(level=level)
+        self.idwt2d = nodes.IDWT2D(shape, level=level )
         self.dwt2 = nodes.DWT2D(level=level)
 
     def call(self, inp):

@@ -77,7 +77,8 @@ class DWT2D(Layer):
         pad = 0
         for i in range(level):
             self.padding.append(ZeroPadding2D(padding=(int(pad), int(pad)), data_format="channels_last"))
-            pad += p/(i+1)
+            pad += int(2**(4-i))
+            #x=0
 
     def __call__(self, input_node, wavelet):
         """
@@ -133,13 +134,13 @@ class DWT2D(Layer):
         return last_level
 
 class IDWT1D(tf.keras.layers.Layer):
-    def __init__(self):
-        super(IDWT1D, self).__init__()
+    def __init__(self, h_shape):
+        super(IDWT1D, self).__init__()#todo: need shape here too
         #self.cyclconv = CYCLCONV()
         self.test_concat = tf.keras.layers.Concatenate(axis=2)
         no_crop = (0,-1)
-        self.crop1 = crop(axis1=no_crop, axis2=(0,32), axis3=no_crop)
-        self.crop2 = crop(axis1=no_crop, axis2=(32,64), axis3=no_crop)
+        self.crop1 = crop(axis1=no_crop, axis2=(0,h_shape), axis3=no_crop)
+        self.crop2 = crop(axis1=no_crop, axis2=(h_shape,2*h_shape), axis3=no_crop)
         self.concat = tf.keras.layers.Concatenate(axis=2)
 
     def cyclconv(self, input_node, filter_, mode):
@@ -233,18 +234,19 @@ def crop(axis1,axis2,axis3):
 
 
 class IDWT2D(tf.keras.layers.Layer):
-    def __init__(self, level):
+    def __init__(self,shape, level ):#todo: need shape here
         super(IDWT2D, self).__init__()
+        h_shape = int(shape/2)
         self.levels = level
-        self.idwt1d = IDWT1D()
+        self.idwt1d = IDWT1D(h_shape)
         self.concat1 = tf.keras.layers.Concatenate(axis=1)
         self.concat2 = tf.keras.layers.Concatenate(axis=2)
-        x = y = [int((32 - 32 * 0.5 ** (level-1))/2),32-int((32 - 32 * 0.5 ** (level-1))/2)]
+        x = y = [int((h_shape - h_shape * 0.5 ** (level-1))/2),h_shape-int((h_shape - h_shape * 0.5 ** (level-1))/2)]
         self.crops = [crop(x,y, [0,1])]
         j=0
         for i in range(level- 1, -1, -1):
-            n = int((32 - 32 * 0.5 ** (i))/2)
-            x = y = [n,32-n] # todo image size here
+            n = int((h_shape - h_shape * 0.5 ** (i))/2)
+            x = y = [n,h_shape-n] # done image size here
             self.crops.append(crop(x, y, [1 + j * 3, 2 + j * 3]))
             self.crops.append(crop(x, y, [2 + j * 3, 3 + j * 3]))
             self.crops.append(crop(x, y, [3 + j * 3, 4 + j * 3]))

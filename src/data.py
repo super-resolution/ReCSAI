@@ -1,8 +1,30 @@
 import tensorflow as tf
 from tifffile import TiffFile as TIF
 import numpy as np
+import matplotlib.pyplot as plt
+import scipy.ndimage
+from src.factory import Factory
 
 OFFSET=8
+def real_data_generator(im_shape):
+    x_shape=100
+    #todo: create dynamical
+
+    factory = Factory()
+    factory.shape= (im_shape*100,im_shape*100)
+    factory.image_shape = (im_shape,im_shape)# select points here
+    def generator():
+        points = factory.create_point_set()
+        init_indices = np.random.choice(points.shape[0], 10)
+        on_points = points[init_indices]
+        for i in range(10000): #todo: while loop here
+            print(i)
+            image, truth, on_points = factory.simulate_accurate_flimbi(points, on_points)
+            image = factory.reduce_size(image)
+            image = np.pad(factory.accurate_noise_simulations_camera(image),(14,14))
+            truth = np.pad(factory.reduce_size(truth).astype(np.int32),(14,14))
+            yield image, truth, np.array(on_points)
+    return generator
 # def data_generator(file_path, loc_path):
 #     bin = Binning()
 #     tif = TiffFile(file_path)
@@ -16,55 +38,63 @@ OFFSET=8
 #                 data[0:tif.frames[0].tags[256][1], 0:tif.frames[0].tags[256][1], j] = image
 #         reconstruct = bin.filter(data[...,1]/data[...,1].max()*255)#todo: crop image to coords!
 #         coords = bin.get_coords(reconstruct)
-#         yield data[...,1], coords, truth_cords[i][:,0:2]/100
+#         yield data[...,1], coords, truth_cords[i][:,0:2]/10
 
 
+def data_generator():
+    #todo: simulate acurate data here
+    pass
 
 def generate_generator(file_path):
     def data_generator_real():
-        for i in range(3):
+        for i in range(1):
             with TIF(file_path) as tif:
-                dat = tif.asarray()[i * 5000:(i + 1) * 5000, 0:45, 0:45]
-            data = np.zeros((dat.shape[0], 64, 64, 3))  # todo: this is weird data
+                dat = tif.asarray()[i * 20000:(i + 1) * 20000]
+            dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
+            #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
+            #dat[:,1::2,1:] = dat[:,1::2,:-1]
+            data = np.zeros((dat.shape[0], 128, 128, 3))  # todo: this is weird data
             data[:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 1] = dat
             data[1:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 0] = dat[:-1]
             data[:-1, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 2] = dat[1:]
             yield data
     return data_generator_real
 
-def data_generator_coords(file_path, loc_path, offset=0):
+def data_generator_coords(file_path, offset=0):
     with TIF(file_path) as tif:
         dat = tif.asarray()
-    truth_cords = np.load(loc_path, allow_pickle=True)['arr_0']
-
-    data = np.zeros((dat.shape[0],64, 64, 3))#todo: this is weird data
+    data = np.zeros((dat.shape[0],128, 128, 3))
     data[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = dat
     data[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = dat[:-1]
     data[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = dat[1:]
 
     for i in range(dat.shape[0]):
-        px_coords = truth_cords[i+offset] / 100
-        im = np.zeros((64, 64, 3))
-        for coord in px_coords:
-            n_x = int(coord[0])
-            n_y = int(coord[1])
-            r_x = coord[0] - n_x
-            r_y = coord[1] - n_y
-            im[OFFSET+n_x, OFFSET+n_y, 0] = 100
-            im[OFFSET+n_x, OFFSET+n_y, 1] = r_x-0.5
-            im[OFFSET+n_x, OFFSET+n_y, 2] = r_y-0.5
-        yield data[i+ offset],  im[:,:,:], px_coords
+        # px_coords = truth_cords[i+offset] / 100
+        # im = np.zeros((64, 64, 3))
+        # for coord in px_coords:
+        #     n_x = int(coord[0])
+        #     n_y = int(coord[1])
+        #     r_x = coord[0] - n_x
+        #     r_y = coord[1] - n_y
+        #     im[OFFSET+n_x, OFFSET+n_y, 0] = 100
+        #     im[OFFSET+n_x, OFFSET+n_y, 1] = r_x-0.5
+        #     im[OFFSET+n_x, OFFSET+n_y, 2] = r_y-0.5
+        # fig,axs = plt.subplots(2)
+        # axs[0].imshow(data[i,:,:,1])
+        # axs[1].imshow(im[:,:,1])
+        # plt.show()
+        yield data[i+ offset]#,  im[:,:,:], px_coords
 
 def data_generator_image(file_path, truth_path):
     with TIF(file_path) as tif:
         dat = tif.asarray()
-    data = np.zeros((dat.shape[0],64, 64, 3))#todo: this is weird data
+    data = np.zeros((dat.shape[0],128, 128, 3))#todo: this is weird data
     data[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = dat
     data[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = dat[:-1]
     data[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = dat[1:]
     with TIF(truth_path) as tif:
         tru = tif.asarray()
-    data_truth = np.zeros((dat.shape[0],64, 64, 3))#todo: this is weird data
+    data_truth = np.zeros((dat.shape[0],128, 128, 3))#todo: this is weird data
     data_truth[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = tru
     data_truth[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = tru[:-1]
     data_truth[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = tru[1:]
