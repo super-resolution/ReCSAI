@@ -222,7 +222,7 @@ def train_cs_net():
     #append last frame
     per_fram_locs.append(np.array(current_frame_locs))
 
-    per_fram_locs = np.array(per_fram_locs)*100
+    per_fram_locs = np.array(per_fram_locs)*100*73/72
     current_truth_coords = truth_coords[900:1000]
     current_truth_coords *=100
 
