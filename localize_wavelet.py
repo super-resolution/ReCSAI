@@ -137,7 +137,7 @@ def predict_localizations(path):
 
 def train_cs_net():
     #test dataset from generator
-    for i in range(10):
+    for i in range(100):
         generator = real_data_generator(100)
         gen = generator()
         #dataset = tf.data.Dataset.from_generator(generator, (tf.int32, tf.int32, tf.float64))
@@ -309,7 +309,7 @@ def train_nonlinear_shifter_ai():
         plt.show()
 
 
-#train_cs_net()
+train_cs_net()
 #train_nonlinear_shifter_ai()
 
 
