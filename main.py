@@ -6,18 +6,31 @@ import os
 image = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100mini_batch\coordinate_reconstruction_flim.tif"
 truth = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100mini_batch\coordinate_reconstruction_truth.tif"
 
-gen = data_generator_image(image, truth)
-image = np.zeros((1000,128,128,3))
-truth = np.zeros((1000,128,128,3))
+gen = real_data_generator(100)()
+image = np.zeros((1000,128,128))
+truth = np.zeros((1000,128,128))
 
 for i in range(1000):
-    image[i],truth[i] = gen.__next__()
-del gen
+    image[i],truth[i],_ = gen.__next__()
+    image[i] /= image[i].max()+0.0001
+    truth[i] /= truth[i].max()+0.0001
 
-image_tf1 = tf.convert_to_tensor(image[0:500, :, :, :]/image.max())
-image_tf2 = tf.convert_to_tensor(image[500:1000, :, :, :]/image.max())
-truth_tf1 = tf.convert_to_tensor(truth[0:500, :, :, :]/truth.max())
-truth_tf2 = tf.convert_to_tensor(truth[500:1000, :, :, :]/truth.max())
+data = np.zeros((image.shape[0], 128, 128, 3))  # todo: this is weird data
+data[:, :image.shape[1], : image.shape[2], 1] = image
+data[1:, : image.shape[1], : image.shape[2], 0] = image[:-1]
+data[:-1, : image.shape[1], : image.shape[2], 2] = image[1:]
+image = data
+
+data = np.zeros((truth.shape[0], 128, 128, 3))  # todo: this is weird data
+data[:, :truth.shape[1], : truth.shape[2], 1] = truth
+data[1:, : truth.shape[1], : truth.shape[2], 0] = truth[:-1]
+data[:-1, : truth.shape[1], : truth.shape[2], 2] = truth[1:]
+truth = data
+
+image_tf1 = tf.convert_to_tensor(image[0:900, :, :, :])
+image_tf2 = tf.convert_to_tensor(image[900:1000, :, :, :])
+truth_tf1 = tf.convert_to_tensor(truth[0:900, :, :, :])
+truth_tf2 = tf.convert_to_tensor(truth[900:1000, :, :, :])
 
 print("data loaded")
 #out_o = tfwavelets.nodes.dwt2d(image_tf1[0], tfwavelets.dwtcoeffs.haar)
@@ -34,7 +47,7 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(
 
 
 test = wavelet_ai()
-test.save_weights(checkpoint_path.format(epoch=0))
+test.load_weights("training_lvl3/cp-1000.ckpt")
 
 test.compile(optimizer='adam',
             loss=tf.keras.losses.MSE,
@@ -51,12 +64,12 @@ layer2 = IDWT2(128)
 
 out = layer(image_tf1[1:2,:,:,0:1])
 out = layer2(out)
-axs[0,0].imshow(out[0,:,:,0])
-axs[1,0].imshow(image_tf1[1,:,:,0])
-plt.show()
+#axs[0,0].imshow(out[0,:,:,0])
+#axs[1,0].imshow(image_tf1[1,:,:,0])
+#plt.show()
 print(tf.reduce_sum(test.trainable_weights[1][0]*test.trainable_weights[1][1]))
 
-history = test.fit(image_tf1[:,:,:,1:2], truth_tf1[:,:,:,1:2], epochs=1000, validation_data=(image_tf2[:,:,:,1:2], truth_tf2[:,:,:,1:2]), callbacks=[cp_callback])
+history = test.fit(image_tf1[:,:,:,1:2], truth_tf1[:,:,:,1:2], epochs=10000, validation_data=(image_tf2[:,:,:,1:2], truth_tf2[:,:,:,1:2]), callbacks=[cp_callback])
 
 i = test.predict(image_tf2[1:2,:,:,1:2])
 

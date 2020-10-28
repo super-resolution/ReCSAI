@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import scipy.ndimage
 from src.factory import Factory
 
-OFFSET=8
+OFFSET=14
 def real_data_generator(im_shape):
     x_shape=100
     #todo: create dynamical

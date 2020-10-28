@@ -15,9 +15,9 @@ def jaccard_index(reconstruction,ground_truth):
     this_ground_truth = copy.deepcopy(ground_truth)
     for k in range(reconstruction.shape[0]):
         for i in range(reconstruction[k].shape[0]):
-            distance = 200
+            distance = 100
             current_j = -1
-            for j in range(this_ground_truth[k].shape[0]-1):
+            for j in range(this_ground_truth[k].shape[0]):
                 current_ground_truth = this_ground_truth[k][:,0:2]
                 #dis = np.linalg.norm(reconstruction[i] - this_ground_truth[j])
                 if np.linalg.norm(reconstruction[k][i] - current_ground_truth[j]) < distance:
@@ -26,7 +26,7 @@ def jaccard_index(reconstruction,ground_truth):
                     vec = reconstruction[k][i] - current_ground_truth[j]
             if current_j != -1:
                 result.append(np.array([*reconstruction[k][i],*vec]))
-                this_ground_truth[k] = np.delete(this_ground_truth[k], current_j, axis=0)
+                #this_ground_truth[k] = np.delete(this_ground_truth[k], current_j, axis=0)
             else:
                 false_positive.append(reconstruction[k][i])
 

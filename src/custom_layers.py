@@ -37,6 +37,8 @@ class Shifting(tf.keras.layers.Layer):
 
 class CompressedSensing(tf.keras.layers.Layer):
     def __init__(self):
+        super(CompressedSensing, self).__init__()
+
         #done: gaussian as initial value
         self.psf = get_psf(150, 100)  # todo: change psf matrix on the run?
 
@@ -70,7 +72,7 @@ class CompressedSensing(tf.keras.layers.Layer):
         for i in range(len(inp)):
             x = inp[i]
             inp[i] = tf.reshape(x, (tf.shape(input)[0], input.shape[1]*input.shape[2]))
-            for j in range(40):
+            for j in range(100):
                 re =tf.linalg.matvec(self.mat[:,:,0], inp[i]- tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y_n[i]))
                 w = y_n[i]+1/self.mu*re
                 y_new = self.softthresh(w, self.lam/self.mu)

@@ -7,6 +7,8 @@ from src.utility import bin_localisations
 from src.visualization import display_storm_data
 import pandas as pd
 from src.result_evaluation import jaccard_index
+from datetime import datetime
+#import tensorboard
 
 
 
@@ -14,7 +16,7 @@ from src.result_evaluation import jaccard_index
 #done: load wavelet checkpoints
 denoising = wavelet_ai()
 
-checkpoint_path = "training_lvl3/cp-1000.ckpt"
+checkpoint_path = "training_lvl3/cp-10000.ckpt"
 
 denoising.load_weights(checkpoint_path)
 
@@ -91,7 +93,7 @@ def predict_localizations(path):
         # plt.show()
         # plt.imshow(image[2,:,:,1])
         # plt.show()
-        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.35)
+        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.3)
         for z in range(len(coord_list)):
             coord_list[z][2] += j*5000
         print(crop_tensor.shape[0])
@@ -135,61 +137,65 @@ def predict_localizations(path):
 
 def train_cs_net():
     #test dataset from generator
-    generator = real_data_generator(100)
-    gen = generator()
-    #dataset = tf.data.Dataset.from_generator(generator, (tf.int32, tf.int32, tf.float64))
-    image = np.zeros((1000, 128, 128))
+    for i in range(10):
+        generator = real_data_generator(100)
+        gen = generator()
+        #dataset = tf.data.Dataset.from_generator(generator, (tf.int32, tf.int32, tf.float64))
+        image = np.zeros((1000, 128, 128))
 
-    truth_coords = []
-    #im,truth,locs = dataset.batch(10)
-    for i in range(1000):#todo: 1000 images learn redo...
-        image[i],_,loc = gen.__next__()
-        truth_coords.append(loc)
-    truth_coords = np.array(truth_coords)
-    truth_coords /= 100
-    truth_coords +=14
-    data = np.zeros((image.shape[0], 128, 128, 3))  # todo: this is weird data
-    data[:, :image.shape[1], : image.shape[2], 1] = image
-    data[1:, : image.shape[1], : image.shape[2], 0] = image[:-1]
-    data[:-1, : image.shape[1], : image.shape[2], 2] = image[1:]
-    image = data
-    # image = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction_flim.tif"
-    # truth = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction.npz"
-    # gen = data_generator_coords(image, offset=4000)
-    # image = np.zeros((1000, 128, 128, 3))
-    # #truth = np.zeros((100, 64, 64, 3))
-    # truth_coords = np.load(truth, allow_pickle=True)['arr_0']
-    # truth_coords /= 100
-    # truth_coords += 8#thats offset
-    # for i in range(1000):
-    #     image[i] = gen.__next__()
-    #    fig,axs = plt.subplots(3)
-    #     axs[0].imshow(image[i,:,:,0])
-    #     axs[1].imshow(image[i,:,:,1])
-    #     axs[2].imshow(image[i,:,:,2])
-    #     plt.show()
-    # del gen
+        truth_coords = []
+        #im,truth,locs = dataset.batch(10)
+        for i in range(1000):#todo: 1000 images learn redo...
+            image[i],_,loc = gen.__next__()
+            truth_coords.append(loc)
+        truth_coords = np.array(truth_coords)
+        truth_coords /= 100
+        truth_coords +=14.5
+        data = np.zeros((image.shape[0], 128, 128, 3))  # todo: this is weird data
+        data[:, :image.shape[1], : image.shape[2], 1] = image
+        data[1:, : image.shape[1], : image.shape[2], 0] = image[:-1]
+        data[:-1, : image.shape[1], : image.shape[2], 2] = image[1:]
+        image = data
 
-    checkpoint_path = "cs_training3/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
+        # image = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction_flim.tif"
+        # truth = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction.npz"
+        # gen = data_generator_coords(image, offset=0)
+        # image = np.zeros((1000, 128, 128, 3))
+        # #truth = np.zeros((100, 64, 64, 3))
+        # truth_coords = np.load(truth, allow_pickle=True)['arr_0']
+        # truth_coords /= 100
+        # truth_coords += 14.5#thats offset
+        # for i in range(1000):
+        #     image[i] = gen.__next__()
+        #    fig,axs = plt.subplots(3)
+        #     axs[0].imshow(image[i,:,:,0])
+        #     axs[1].imshow(image[i,:,:,1])
+        #     axs[2].imshow(image[i,:,:,2])
+        #     plt.show()
+        # del gen
 
-    image_tf1 = tf.convert_to_tensor(image[0:900, :, :])
-    image_tf2 = tf.convert_to_tensor(image[900:1000, :, :])#todo: use 20% test
-    #truth_tf1 = tf.convert_to_tensor(truth[0:90, :, :])
-    #truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :])#todo: use 20% test
+        checkpoint_path = "cs_training3/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
 
-    train_new, truth_new,_ = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:], th=0.3)
+        image_tf1 = tf.convert_to_tensor(image[0:900, :, :])
+        image_tf2 = tf.convert_to_tensor(image[900:1000, :, :])#todo: use 20% test
+        #truth_tf1 = tf.convert_to_tensor(truth[0:90, :, :])
+        #truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :])#todo: use 20% test
 
-    cp_callback = tf.keras.callbacks.ModelCheckpoint(
-        filepath=checkpoint_path,
-        verbose=1,
-        save_weights_only=True,
-        period=10)
-    cs_net.compile(optimizer='adam',
-                 loss=tf.keras.losses.MSE,
-                 metrics=['accuracy'])
-    test_new, truth_test_new, test_coord_list = bin_localisations_v2(image_tf2, denoising, truth_array=truth_coords[900:], th=0.25)#todo: train on localisations directly
+        train_new, truth_new,_ = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:], th=0.3)
+        #logdir = "logs/fit/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+        #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
 
-    cs_net.fit(train_new, truth_new, epochs=10, callbacks=[cp_callback],validation_data=[test_new, truth_test_new] )
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_path,
+            verbose=1,
+            save_weights_only=True,
+            period=10)
+        cs_net.compile(optimizer='adam',
+                     loss=tf.keras.losses.MSE,
+                     metrics=['accuracy'])
+        test_new, truth_test_new, test_coord_list = bin_localisations_v2(image_tf2, denoising, truth_array=truth_coords[900:], th=0.25)#todo: train on localisations directly
+
+        cs_net.fit(train_new, truth_new, epochs=10, callbacks=[cp_callback],validation_data=[test_new, truth_test_new] )
 
     result_array = cs_net.predict(test_new)
 
@@ -212,9 +218,9 @@ def train_cs_net():
     current_frame_locs = []
     for i in range(result_array.shape[0]):
         r = test_coord_list[i][0:2] + result_array[i,0:2]/8
-        if test_coord_list[i][2] == current_frame and result_array[i,2]>0.1:
+        if test_coord_list[i][2] == current_frame and result_array[i,2]>0.9:
             current_frame_locs.append(r)
-        elif result_array[i,2]>0.1:
+        elif result_array[i,2]>0.9:
             per_fram_locs.append(np.array(current_frame_locs))
             current_frame = test_coord_list[i][2]
             current_frame_locs = []
@@ -222,7 +228,7 @@ def train_cs_net():
     #append last frame
     per_fram_locs.append(np.array(current_frame_locs))
 
-    per_fram_locs = np.array(per_fram_locs)*100*73/72
+    per_fram_locs = np.array(per_fram_locs)*100
     current_truth_coords = truth_coords[900:1000]
     current_truth_coords *=100
 
@@ -303,7 +309,7 @@ def train_nonlinear_shifter_ai():
         plt.show()
 
 
-train_cs_net()
+#train_cs_net()
 #train_nonlinear_shifter_ai()
 
 

@@ -68,19 +68,22 @@ class Factory():
     def concolve_flimbi_style(self, image, ground_truth, points, on_points):
         line = self.shape[0]/self.image_shape[0]
         on_points = np.delete(on_points, np.where(on_points[...,2] < 0), axis=0)
+
+        n_on = self.rs.poisson(8.0)
+        if n_on > 0:
+            ind = self.rs.choice(points.shape[0], n_on)
+            # indices = line_point_indices[ind]
+            on_points = np.concatenate((on_points, points[ind]), axis=0)
+
         for i in range(self.image_shape[0]):
             #init points
             #line_point_indices = np.array(np.where(np.logical_and((points[...,0] < (i + 1) * line + 150),(points[...,0] > (i) * line - 150)))).astype(  np.int32)[0]
-            n_on = self.rs.poisson(0.1)
-            if n_on >0:
-                ind = self.rs.choice(points.shape[0], n_on)
-                #indices = line_point_indices[ind]
-                on_points = np.concatenate((on_points, points[ind]), axis=0)
+
                 #points = np.delete(points, indices, axis=0)
 
             image = Factory.flimbi_paint_locs(image, on_points[1:], self.kernel.array, line, i)
 
-        #ground_truth = self.create_points_add_photons(ground_truth, on_points[1:], np.ones(on_points.shape[0])*800)#todo: ground truth as points
+        ground_truth = self.create_points_add_photons(ground_truth, on_points[1:], np.ones(on_points.shape[0])*800)#todo: ground truth as points
         return image, ground_truth, on_points[1:]
 
     @staticmethod
