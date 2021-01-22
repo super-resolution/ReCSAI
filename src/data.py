@@ -4,8 +4,37 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.ndimage
 from src.factory import Factory
+import copy
+from astropy.convolution import Gaussian2DKernel
+
 
 OFFSET=14
+
+def crop_generator(im_shape, sigma_x=150, sigma_y=150):
+    #todo: create dynamical
+
+    factory = Factory()
+    factory.shape= (im_shape*100,im_shape*100)
+    factory.image_shape = (im_shape,im_shape)# select points here
+    def generator():
+        ph = np.random.randint(5000,30000)
+        points = factory.create_crop_point_set(photons=ph)
+        sigma_x = np.random.randint(100, 400)
+        sigma_y = np.random.randint(100, 400)
+        factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_y)
+
+        for i in range(10000): #todo: while loop here
+            print(i)
+
+            ind = np.random.randint(0,points.shape[0])
+            n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
+            image = factory.create_image()
+            image = factory.create_points_add_photons(image, points[ind:ind+n], points[ind:ind+n,2])
+            image = factory.reduce_size(image)
+            image = factory.accurate_noise_simulations_camera(image)
+            yield image, np.array([sigma_x,sigma_y,0])
+    return generator
+
 def real_data_generator(im_shape):
     x_shape=100
     #todo: create dynamical
@@ -19,7 +48,7 @@ def real_data_generator(im_shape):
         on_points = points[init_indices]
         for i in range(10000): #todo: while loop here
             print(i)
-            image, truth, on_points = factory.simulate_accurate_flimbi(points, on_points)
+            image, truth, on_points = factory.simulate_accurate_flimbi(points, on_points)#todo: simulate off
             image = factory.reduce_size(image)
             image = np.pad(factory.accurate_noise_simulations_camera(image),(14,14))
             truth = np.pad(factory.reduce_size(truth).astype(np.int32),(14,14))
@@ -49,8 +78,9 @@ def generate_generator(file_path):
     def data_generator_real():
         for i in range(1):
             with TIF(file_path) as tif:
-                dat = tif.asarray()[i * 20000:(i + 1) * 20000]
-            dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
+                dat = tif.asarray()[i * 10000:(i + 1) * 10000]
+            #dat = dat[:dat.shape[0]//4*4]
+            #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
             #dat[:,1::2,1:] = dat[:,1::2,:-1]
             data = np.zeros((dat.shape[0], 128, 128, 3))  # todo: this is weird data

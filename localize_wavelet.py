@@ -1,15 +1,13 @@
-import os
 from src.model import *
 from src.data import *
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from src.utility import bin_localisations
 from src.visualization import display_storm_data
 import pandas as pd
-from src.result_evaluation import jaccard_index
-from datetime import datetime
+from result_evaluation import jaccard_index
+#import result_evaluation
 #import tensorboard
-
+from tifffile import TiffWriter
 
 
 
@@ -28,7 +26,7 @@ checkpoint_path = "recon_training/cp-0100.ckpt" #todo: load latest checkpoint
 recon_net.load_weights(checkpoint_path)
 
 cs_net = CompressedSensingNet(CompressedSensing())
-checkpoint_path = "cs_training3/cp-0010.ckpt" #todo: load latest checkpoint
+checkpoint_path = "cs_training4/cp-0010.ckpt" #todo: load latest checkpoint
 # Create a callback that saves the model's weights every 5 epochs
 cs_net.load_weights(checkpoint_path)
 #print(cs_net.weights)
@@ -93,14 +91,24 @@ def predict_localizations(path):
         # plt.show()
         # plt.imshow(image[2,:,:,1])
         # plt.show()
-        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.3)
+        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.45)
         for z in range(len(coord_list)):
             coord_list[z][2] += j*5000
         print(crop_tensor.shape[0])
         result_tensor = cs_net.predict(crop_tensor)
         # todo: extrude psf without drift
+        checkpoint_path = "psf_training/cp-{epoch:04d}.ckpt"
 
-        # psf = extrude_perfect_psf(crop_tensor, result_tensor)
+        latest = tf.train.latest_checkpoint(
+            "psf_training", latest_filename=None
+        )
+        sigma_predict = ParamNet()
+
+        # Create a callback that saves the model's weights every 5 epochs
+        sigma_predict.load_weights(latest)
+        predict_sigma(crop_tensor, result_tensor, sigma_predict)
+        #
+        # #psf = extrude_perfect_psf(crop_tensor, result_tensor)
         #
         # new_layer = CompressedSensing()
         # new_layer.update_psf(psf/2)
@@ -112,19 +120,20 @@ def predict_localizations(path):
         # #                loss=tf.keras.losses.MSE,
         # #                metrics=['accuracy'])
         # result_tensor = cs_net_updated.predict(crop_tensor)
-        # fig, axs = plt.subplots(3)
-        # axs[0].imshow(crop_tensor[100,:,:,0])
-        # axs[0].scatter(result_tensor[100,0],result_tensor[10,1])
-        # axs[1].imshow(crop_tensor[100,:,:,1])
-        # axs[1].scatter(result_tensor[100,0],result_tensor[10,1])
-        # axs[2].imshow(crop_tensor[100,:,:,2])
-        # axs[2].scatter(result_tensor[100,0],result_tensor[10,1])
-        # plt.show()
-        del crop_tensor
+        # # fig, axs = plt.subplots(3)
+        # # axs[0].imshow(crop_tensor[100,:,:,0])
+        # # axs[0].scatter(result_tensor[100,0],result_tensor[10,1])
+        # # axs[1].imshow(crop_tensor[100,:,:,1])
+        # # axs[1].scatter(result_tensor[100,0],result_tensor[10,1])
+        # # axs[2].imshow(crop_tensor[100,:,:,2])
+        # # axs[2].scatter(result_tensor[100,0],result_tensor[10,1])
+        # # plt.show()
+        # del crop_tensor
         for i in range(result_tensor.shape[0]):
-            if result_tensor[i,2]>0.7:
+            if result_tensor[i,2]>0.5 :
                 current_drift = drift[int(coord_list[i][2]*0.4),1:3]
-                result_array.append(coord_list[i][0:2] + current_drift + np.array([result_tensor[i,0]/8,result_tensor[i,1]/8]))
+                #current_drift[1] *= -1
+                result_array.append(coord_list[i][0:2] + np.array([result_tensor[i,0]/8, result_tensor[i,1]/8]))
         del result_tensor
         j+=1
     result_array = np.array(result_array)
@@ -133,21 +142,145 @@ def predict_localizations(path):
 
     print("finished AI")
     display_storm_data(result_array)
-    np.save(os.getcwd()+r"\difficult2.npy",result_array)
+    np.save(os.getcwd()+r"\HDContest.npy",result_array)
 
-def train_cs_net():
-    #test dataset from generator
+def validate_cs_model():
+    image = os.getcwd() + r"\test_data\dataset9.tif"#r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction_flim.tif"
+    truth = os.getcwd() + r"\test_data\dataset9.npy"#r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction.npz"
+    gen = data_generator_coords(image, offset=0)
+    image = np.zeros((100, 128, 128, 3))
+    #truth = np.zeros((100, 64, 64, 3))
+    truth_coords = np.load(truth, allow_pickle=True)
+    truth_coords /= 100
+    truth_coords += 14.5#thats offset
     for i in range(100):
-        generator = real_data_generator(100)
-        gen = generator()
-        #dataset = tf.data.Dataset.from_generator(generator, (tf.int32, tf.int32, tf.float64))
-        image = np.zeros((1000, 128, 128))
+        image[i] = gen.__next__()
+
+    image_tf1 = tf.convert_to_tensor(image[0:100, :, :])
+    #image_tf2 = tf.convert_to_tensor(image[90:100, :, :])#todo: use 20% test
+    #truth_tf1 = tf.convert_to_tensor(truth[0:90, :, :])
+    #truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :])#todo: use 20% test
+
+    data, truth_new, coord_list = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:], th=0.25)
+    result_array = cs_net.predict(data)
+    per_fram_locs = []
+    current_frame = 0
+    current_frame_locs = []
+    per_frame_multifit = []
+    multifit = []
+    for i in range(result_array.shape[0]):
+        r = coord_list[i][0:2] + result_array[i,0:2]/8
+        if coord_list[i][2] == current_frame and result_array[i,2]>0.5:
+            if result_array[i,2]<1.4:
+                current_frame_locs.append(r)
+            else:
+                multifit.append(r*100)
+        elif result_array[i,2]>0.5:
+            per_fram_locs.append(np.array(current_frame_locs))
+            per_frame_multifit.append(np.array(multifit))
+            current_frame = coord_list[i][2]
+            current_frame_locs = []
+            multifit = []
+            if result_array[i,2]<1.4:
+                current_frame_locs.append(r)
+            else:
+                multifit.append(r*100)
+    #append last frame
+    per_frame_multifit.append(np.array(multifit))
+    per_fram_locs.append(np.array(current_frame_locs))
+    #todo: create a test function for jaccard
+    #per_frame_multifit = np.array(multifit)*100
+    per_fram_locs = np.array(per_fram_locs)*100
+    current_truth_coords = truth_coords[:100]
+    current_truth_coords *=100
+
+    result, false_positive, false_negative, jac, rmse = jaccard_index(per_fram_locs, current_truth_coords)
+    false_positive = false_positive[0]
+    false_negative = false_negative[0]
+    print(false_negative.shape[0], false_positive.shape[0])
+    for i in range(current_truth_coords.shape[0]):
+        fig,axs = plt.subplots(3)
+        if len(false_positive[i])>0:
+            fp = np.array(false_positive[i])
+            axs[1].scatter(fp[:, 0], fp[:, 1])
+        if false_negative[i].shape[0]>0:
+            fn = np.array(false_negative[i])
+            axs[2].scatter(fn[:, 0], fn[:, 1])
+
+        axs[1].imshow(image[i,:,:,1])
+        axs[0].scatter(current_truth_coords[i][:,0],current_truth_coords[i][:,1])
+        if per_fram_locs[i].shape[0] !=0:
+            axs[0].scatter(per_fram_locs[i][:,0], per_fram_locs[i][:,1])
+        if len(per_frame_multifit[i])!=0:
+            axs[0].scatter(per_frame_multifit[i][0][0], per_frame_multifit[i][0][1],c="g")
+        #plt.scatter(dat[0],dat[1])
+        plt.show()
+
+def learn_psf():
+    ai = ParamNet()
+
+    for i in range(100):
+        crops = np.zeros((11, 9, 9, 100))
+        truth = np.zeros((11,3))
 
         truth_coords = []
         #im,truth,locs = dataset.batch(10)
-        for i in range(1000):#todo: 1000 images learn redo...
+        for i in range(11):#todo: 1000 images learn redo...
+            generator = crop_generator(9)()
+            for j in range(100):
+                crops[i,:,:,j], truth[i] = generator.__next__()
+                #print(truth[i])
+                crops[i, :, :, j] /= crops[i, :, :, j].max()
+                # plt.imshow(crops[i,:,:,j])
+                # plt.show()
+
+        train_data = tf.convert_to_tensor(crops[0:10])
+        truth_data = tf.convert_to_tensor(truth[0:10]/100)
+        checkpoint_path = "psf_training/cp-{epoch:04d}.ckpt"
+
+        latest = tf.train.latest_checkpoint(
+            "psf_training", latest_filename=None
+        )
+
+        # Create a callback that saves the model's weights every 5 epochs
+        #ai.load_weights(latest)
+
+
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_path,
+            verbose=1,
+            save_weights_only=True,
+            period=100)
+
+
+        ai.compile(optimizer='adam',
+                     loss=tf.keras.losses.MSE,
+                     metrics=['accuracy'])
+        ai.fit(train_data, truth_data, callbacks=[cp_callback], epochs=1000)
+        test_data = tf.convert_to_tensor(crops[10:11])
+        test_truth_data = tf.convert_to_tensor(truth[10:11])
+        x = ai.predict(test_data)
+        print(x, test_truth_data/100)
+
+
+def train_cs_net():
+    #test dataset from generator
+    for i in range(1):
+        generator = real_data_generator(100)
+        gen = generator()
+        #dataset = tf.data.Dataset.from_generator(generator, (tf.int32, tf.int32, tf.float64))
+        image = np.zeros((100, 128, 128))
+
+        truth_coords = []
+        #im,truth,locs = dataset.batch(10)
+        for i in range(100):#todo: 1000 images learn redo...
             image[i],_,loc = gen.__next__()
             truth_coords.append(loc)
+        with TiffWriter(os.getcwd() + r"\dataset3.tif",
+                        bigtiff=True) as tif:
+            tif.save(image[:,14:-14,14:-14], photometric='minisblack')
+        np.save(os.getcwd() + r"\dataset3.npy", truth_coords)
+        break
         truth_coords = np.array(truth_coords)
         truth_coords /= 100
         truth_coords +=14.5
@@ -174,14 +307,14 @@ def train_cs_net():
         #     plt.show()
         # del gen
 
-        checkpoint_path = "cs_training3/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
+        checkpoint_path = "cs_training4/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
 
         image_tf1 = tf.convert_to_tensor(image[0:900, :, :])
         image_tf2 = tf.convert_to_tensor(image[900:1000, :, :])#todo: use 20% test
         #truth_tf1 = tf.convert_to_tensor(truth[0:90, :, :])
         #truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :])#todo: use 20% test
 
-        train_new, truth_new,_ = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:], th=0.3)
+        train_new, truth_new,_ = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:], th=0.2)
         #logdir = "logs/fit/" + datetime.now().strftime("%Y%m%d-%H%M%S")
         #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logdir)
 
@@ -227,18 +360,25 @@ def train_cs_net():
             current_frame_locs.append(r)
     #append last frame
     per_fram_locs.append(np.array(current_frame_locs))
-
+    #todo: create a test function for jaccard
     per_fram_locs = np.array(per_fram_locs)*100
     current_truth_coords = truth_coords[900:1000]
     current_truth_coords *=100
 
     result, false_positive, false_negative, jac, rmse = jaccard_index(per_fram_locs, current_truth_coords)
+    false_negative = false_negative[0]
+    false_positive = false_positive[0]
     print(false_negative.shape[0], false_positive.shape[0])
     dat = np.mean(result[:,2:4],axis=0)
     for i in range(current_truth_coords.shape[0]):
-        plt.scatter(current_truth_coords[i][:,0],current_truth_coords[i][:,1])
-        plt.scatter(per_fram_locs[i][:,0], per_fram_locs[i][:,1])
-        plt.scatter(dat[0],dat[1])
+        fp = np.array(false_positive[i])
+        fn = np.array(false_negative[i])
+        fig,axs = plt.subplots(3)
+        axs[0].scatter(current_truth_coords[i][:,0],current_truth_coords[i][:,1])
+        axs[0].scatter(per_fram_locs[i][:,0], per_fram_locs[i][:,1])
+        axs[1].scatter(fp[:,0],fp[:,1])
+        axs[2].scatter(fn[:,0],fn[:,1])
+        #plt.scatter(dat[0],dat[1])
         plt.show()
     for i in range(test_new.shape[0]):
         plt.imshow(test_new[i,:,:,1])
@@ -309,14 +449,17 @@ def train_nonlinear_shifter_ai():
         plt.show()
 
 
-train_cs_net()
+#learn_psf()
+#validate_cs_model()
+#train_cs_net()
 #train_nonlinear_shifter_ai()
 
 
 
 image = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
 #image = r"D:\Daten\AI\COS7_LT1_beta-tub-Alexa647_new_D2O+MEA5mM_power6_OD0p6_3_crop.tif"
-image = r"C:\Users\biophys\matlab\test2_crop_BP.tif"
+#image = r"C:\Users\biophys\matlab\test2_crop_BP.tif"
+#image = r"D:\Daten\Artificial\ContestHD.tif"
 predict_localizations(image)
 
 

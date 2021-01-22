@@ -3,12 +3,29 @@ from .localisations import *
 import matplotlib.pyplot as plt
 import os
 from scipy import interpolate
+import tensorflow as tf
+
+def predict_sigma(psf_crops, result_array, ai):
+    #perfect_result_array = []
+    perfect_psf_array = []
+    print("evaluated")
+    indices = tf.where(result_array[:,2]<1.3)
+    #x = psf_crops[indices[:,0]]
+    for i in range(result_array.shape[0]):
+        #print(i)
+        if result_array[i,2]>0.95 and result_array[i,2]<1.25:
+            #perfect_result_array.append(result_array[i,0:2])
+            perfect_psf_array.append(psf_crops[i,:,:,1].numpy())
+    perfect_psfs = np.transpose(np.array(perfect_psf_array),(1,2,0))
+    x=0
+    for i in range(perfect_psfs.shape[2]//100):
+        print(ai.predict(tf.convert_to_tensor(perfect_psfs[np.newaxis,:,:,i*100:100+i*100])))
 
 def extrude_perfect_psf(psf_crops, result_array):
     perfect_result_array = []
     perfect_psf_array = []
     for i in range(result_array.shape[0]):
-        if result_array[i,2]>0.95 and result_array[i,2]<1.05:
+        if result_array[i,2]>0.95 and result_array[i,2]<1.3:
             perfect_result_array.append(result_array[i,0:2])
             perfect_psf_array.append(psf_crops[i])
     coords = np.array(perfect_result_array)
@@ -62,7 +79,8 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
             # ax.add_patch(rect)
             # ax.set_title("original", fontsize=10)
             if coord[0] - 4 > 0 and coord[1] - 4 > 0 and coord[0] + 4 < im.shape[-2] and coord[1] + 4 < im.shape[-2]:
-                crop = current_data[coord[0] - 4:coord[0] + 5, coord[1] - 4:coord[1] + 5, :]#todo: append frame
+                crop = current_data[ coord[0] - 4:coord[0] + 5, coord[1] - 4:coord[1] + 5, :]#todo: set current data
+                crop = crop/tf.keras.backend.max(crop)
                 np.save(os.getcwd() + r"\crop.npy", crop)
                 #
                 # fig, axs = plt.subplots(3)

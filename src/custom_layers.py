@@ -40,11 +40,11 @@ class CompressedSensing(tf.keras.layers.Layer):
         super(CompressedSensing, self).__init__()
 
         #done: gaussian as initial value
-        self.psf = get_psf(150, 100)  # todo: change psf matrix on the run?
+        self.psf = get_psf(230, 100)  # todo: change psf matrix on the run?was 150
 
         self.mat = tf.Variable(initial_value=self.psf_initializer(),trainable=False)
         self.mu = tf.constant(np.ones((1)), dtype=tf.float64)
-        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64, name="lambda", trainable=True)*0.003
+        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64, name="lambda", trainable=True)*0.009#was0.005
         self.t = tf.Variable(np.array([1]),dtype=tf.float64)
         dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
         self.sparse_dense = tf.keras.layers.Lambda(dense)
@@ -72,18 +72,23 @@ class CompressedSensing(tf.keras.layers.Layer):
         for i in range(len(inp)):
             x = inp[i]
             inp[i] = tf.reshape(x, (tf.shape(input)[0], input.shape[1]*input.shape[2]))
+            y_new_last_it = tf.zeros_like(y_n[i])
             for j in range(100):
-                re =tf.linalg.matvec(self.mat[:,:,0], inp[i]- tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y_n[i]))
+                re =tf.linalg.matvec(self.mat[:,:,0], inp[i] - tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y_n[i]))
                 w = y_n[i]+1/self.mu*re
                 y_new = self.softthresh(w, self.lam/self.mu)
                 y_new = tf.cast(y_new, tf.float64)
-                t_n = (1+tf.math.sqrt(1+self.t**2))/2
-                y_n[i] = y_new+ (self.t-1)/t_n*(y_new-y_n[i])
+                t_n = (1+tf.math.sqrt(1+4*self.t**2))/2
+                y_n[i] = y_new+ (self.t-1)/t_n*(y_new-y_new_last_it)
+                y_new_last_it = y_new
                 self.t = t_n
-            y_n[i] = tf.reshape(y_n[i], (tf.shape(input)[0], 8*input.shape[1]+1,8*input.shape[2]+1))
-
+            y_n[i] = tf.reshape(y_new, (tf.shape(input)[0], 8*input.shape[1]+1,8*input.shape[2]+1))
         y = tf.stack(y_n,axis=-1)
-        return y
+        #b = tf.cast(y_n[0], tf.float64)
+        #i = tf.reduce_max(b)
+        #x = tf.keras.activations.sigmoid((b/i-0.8)*50).numpy()
+        return y#,tfa.image.connected_components(tf.cast(x+0.05, tf.int32))
+
 
 
 def downsample(filters, size, apply_batchnorm=True):

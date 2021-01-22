@@ -64,6 +64,28 @@ def ConvNet():
 
     return tf.keras.Model(inputs=inputs, outputs=x)
 
+def ParamNet():
+    #todo: adjust input size
+    inputs = tf.keras.layers.Input(shape=[9,9,100])
+    conv_stack = [
+        #downsample(64, 4, apply_batchnorm=False), # (bs, 128, 128, 64)
+        # downsample(64, 4, apply_batchnorm=False)
+        tf.keras.layers.Conv2D(1600, (3, 3), activation='relu', input_shape=(9, 9, 100), padding="same"),
+        tf.keras.layers.MaxPooling2D((3, 3)),
+        tf.keras.layers.Conv2D(3200, (3, 3), padding="same"),
+
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(1600, activation="relu", ),
+        tf.keras.layers.Dense(640, activation="relu"),
+        tf.keras.layers.Dense(160, activation="relu"),
+        tf.keras.layers.Dense(3)
+    ]
+    x=inputs
+    for conv in conv_stack:
+        x = conv(x)
+
+    return tf.keras.Model(inputs=inputs, outputs=x)
+
 @tf.function
 def train_step(model, x, optimizer):
     with tf.GradientTape() as tape:
@@ -94,13 +116,13 @@ class CVAE(tf.keras.Model):
         super(CVAE, self).__init__()
         self.latent_dim = latent_dim
         self.encoder = tf.keras.Sequential([
-            tf.keras.layers.InputLayer(input_shape=(64, 64, 3)),
+            tf.keras.layers.InputLayer(input_shape=(9, 9, 100)),
             tf.keras.layers.Conv2D(
-                filters=32, kernel_size=3, strides=(2, 2), activation='relu'),#32
+                filters=128, kernel_size=3, strides=(1, 1), activation='relu'),#32
             tf.keras.layers.Conv2D(
                 filters=64, kernel_size=3, strides=(2, 2), activation='relu'),#16
             tf.keras.layers.Conv2D(
-                filters=128, kernel_size=3, strides=(2, 2), activation='relu'),#8
+                filters=32, kernel_size=3, strides=(2, 2), activation='relu'),#8
             tf.keras.layers.Flatten(),
             # No activation
             tf.keras.layers.Dense(latent_dim + latent_dim),
@@ -108,19 +130,19 @@ class CVAE(tf.keras.Model):
 
         self.decoder = tf.keras.Sequential([
             tf.keras.layers.InputLayer(input_shape=(latent_dim,)),
-            tf.keras.layers.Dense(units=8 * 8 * 64, activation=tf.nn.relu),
-            tf.keras.layers.Reshape(target_shape=(8, 8, 64)),
+            tf.keras.layers.Dense(units=5, activation=tf.nn.relu),
+            tf.keras.layers.Reshape(target_shape=(1, 1, 5)),
             tf.keras.layers.Conv2DTranspose(
-                filters=128, kernel_size=3, strides=2, padding='same'),  # 8
+                filters=128, kernel_size=3, strides=3, padding='same'),  # 8
             tf.keras.layers.Conv2DTranspose(
-                filters=64, kernel_size=3, strides=2, padding='same',
+                filters=64, kernel_size=3, strides=3, padding='same',
                 activation='relu'),
             tf.keras.layers.Conv2DTranspose(
-                filters=32, kernel_size=3, strides=2, padding='same',
+                filters=32, kernel_size=3, strides=4, padding='same',
                 activation='relu'),
             # No activation
             tf.keras.layers.Conv2DTranspose(
-                filters=1, kernel_size=3, strides=1, padding='same'),
+                filters=1, kernel_size=3, strides=4, padding='same'),
         ])
 
     @tf.function
