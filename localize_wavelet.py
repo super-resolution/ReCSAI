@@ -14,7 +14,7 @@ from tifffile import TiffWriter
 #done: load wavelet checkpoints
 denoising = wavelet_ai()
 
-checkpoint_path = "training_lvl3/cp-10000.ckpt"
+checkpoint_path = "training_lvl2/cp-10000.ckpt"
 
 denoising.load_weights(checkpoint_path)
 
@@ -91,7 +91,7 @@ def predict_localizations(path):
         # plt.show()
         # plt.imshow(image[2,:,:,1])
         # plt.show()
-        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.45)
+        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.55)
         for z in range(len(coord_list)):
             coord_list[z][2] += j*5000
         print(crop_tensor.shape[0])
@@ -130,7 +130,7 @@ def predict_localizations(path):
         # # plt.show()
         # del crop_tensor
         for i in range(result_tensor.shape[0]):
-            if result_tensor[i,2]>0.5 :
+            if result_tensor[i,2]>1.2 :
                 current_drift = drift[int(coord_list[i][2]*0.4),1:3]
                 #current_drift[1] *= -1
                 result_array.append(coord_list[i][0:2] + np.array([result_tensor[i,0]/8, result_tensor[i,1]/8]))
@@ -142,7 +142,7 @@ def predict_localizations(path):
 
     print("finished AI")
     display_storm_data(result_array)
-    np.save(os.getcwd()+r"\HDContest.npy",result_array)
+    np.save(os.getcwd()+r"\DNApaint.npy",result_array)
 
 def validate_cs_model():
     image = os.getcwd() + r"\test_data\dataset9.tif"#r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction_flim.tif"
@@ -219,7 +219,7 @@ def validate_cs_model():
 def learn_psf():
     ai = ParamNet()
 
-    for i in range(100):
+    for i in range(2):
         crops = np.zeros((11, 9, 9, 100))
         truth = np.zeros((11,3))
 
@@ -230,7 +230,9 @@ def learn_psf():
             for j in range(100):
                 crops[i,:,:,j], truth[i] = generator.__next__()
                 #print(truth[i])
+                crops[i, :, :, j] -= crops[i, :, :, j].min()
                 crops[i, :, :, j] /= crops[i, :, :, j].max()
+                #
                 # plt.imshow(crops[i,:,:,j])
                 # plt.show()
 
@@ -449,7 +451,7 @@ def train_nonlinear_shifter_ai():
         plt.show()
 
 
-#learn_psf()
+learn_psf()
 #validate_cs_model()
 #train_cs_net()
 #train_nonlinear_shifter_ai()
@@ -460,6 +462,7 @@ image = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7
 #image = r"D:\Daten\AI\COS7_LT1_beta-tub-Alexa647_new_D2O+MEA5mM_power6_OD0p6_3_crop.tif"
 #image = r"C:\Users\biophys\matlab\test2_crop_BP.tif"
 #image = r"D:\Daten\Artificial\ContestHD.tif"
+image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
 predict_localizations(image)
 
 

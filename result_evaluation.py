@@ -47,10 +47,12 @@ def create_test_data(im_shape=100):
             image_stack.append(image)
             coord.append(np.array(on_points))
         image_array = np.array(image_stack)
-        with TiffWriter(r"C:\Users\biophys\PycharmProjects\TfWaveletLayers\test_data\dataset_n" + str(j) + ".tif",
+        if os.path.exists(os.getcwd() +r"\test_data"):
+            os.mkdir(os.getcwd() +r"\test_data")
+        with TiffWriter(os.getcwd() +r"\test_data" + str(j) + ".tif",
                         bigtiff=True) as tif:
             tif.save(image_array[:,14:-14,14:-14], photometric='minisblack')
-        np.save(r"C:\Users\biophys\PycharmProjects\TfWaveletLayers\test_data\dataset_n" + str(j) + ".npy", coord)
+        np.save(os.getcwd() +r"\test_data" + str(j) + ".npy", coord)
 
 def jaccard_index(reconstruction,ground_truth):
     """
@@ -105,7 +107,7 @@ def jaccard_index(reconstruction,ground_truth):
 def validate_rapidstorm():
     result_list_rapid = [] #jac,rmse,fp,fn,tp
     for i in range(10):
-        path = os.getcwd() + r"\test_data\rapidstorm\free_PSF_xy_200-800nm\dataset_n"+str(i)+"_free PSF_200-800nm_x-y.txt"
+        path = os.getcwd() + r"\test_data\rapidstorm\new\dataset_n"+str(i)+"_free PSF_200-800nm.txt"
         p = read_Rapidstorm(path)
         truth = os.getcwd() + r"\test_data\dataset_n"+str(i)+".npy"  # r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction.npz"
         truth_coords = np.load(truth, allow_pickle=True)
@@ -207,7 +209,7 @@ def validate_cs_model():
 if __name__ == '__main__':
     #create_test_data()
     #validate_cs_model()
-    #validate_rapidstorm()
+    validate_rapidstorm()
     rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
     ai = np.load(os.getcwd() +r"\test_data\ai_results.npy", allow_pickle=True)
     ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)

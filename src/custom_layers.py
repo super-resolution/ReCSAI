@@ -40,11 +40,11 @@ class CompressedSensing(tf.keras.layers.Layer):
         super(CompressedSensing, self).__init__()
 
         #done: gaussian as initial value
-        self.psf = get_psf(230, 100)  # todo: change psf matrix on the run?was 150
+        self.psf = get_psf(100, 128)  # todo: sigma px_size
 
         self.mat = tf.Variable(initial_value=self.psf_initializer(),trainable=False)
         self.mu = tf.constant(np.ones((1)), dtype=tf.float64)
-        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64, name="lambda", trainable=True)*0.009#was0.005
+        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64, name="lambda", trainable=True)*0.017#was0.005
         self.t = tf.Variable(np.array([1]),dtype=tf.float64)
         dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
         self.sparse_dense = tf.keras.layers.Lambda(dense)

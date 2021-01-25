@@ -70,17 +70,18 @@ def ParamNet():
     conv_stack = [
         #downsample(64, 4, apply_batchnorm=False), # (bs, 128, 128, 64)
         # downsample(64, 4, apply_batchnorm=False)
-        tf.keras.layers.Conv2D(1600, (3, 3), activation='relu', input_shape=(9, 9, 100), padding="same"),
+        tf.keras.layers.Conv2D(16, (3, 3), activation='relu', input_shape=(9, 9, 100), padding="same"),
         tf.keras.layers.MaxPooling2D((3, 3)),
-        tf.keras.layers.Conv2D(3200, (3, 3), padding="same"),
+        tf.keras.layers.Conv2D(32, (3, 3), padding="same"),
 
         tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(1600, activation="relu", ),
-        tf.keras.layers.Dense(640, activation="relu"),
-        tf.keras.layers.Dense(160, activation="relu"),
+        tf.keras.layers.Dense(300, activation="relu"),
+        tf.keras.layers.Dropout(0.4),
+        tf.keras.layers.Dense(30, activation="relu"),
+        tf.keras.layers.Dropout(0.4),
         tf.keras.layers.Dense(3)
     ]
-    x=inputs
+    x=inputs/tf.keras.backend.max(inputs)
     for conv in conv_stack:
         x = conv(x)
 
@@ -249,7 +250,7 @@ def wavelet_ai():
     inputs = tf.keras.layers.Input(shape=[128, 128, 1])#todo: input 3 output 1
     layer = FullWavelet(128,level=4,)
     final = tf.keras.layers.ReLU()
-    x = inputs
+    x = inputs/tf.keras.backend.max(inputs)
     x = layer(x)
     x = final(x)
     #initializer = tf.random_normal_initializer(0., 0.02)

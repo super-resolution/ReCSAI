@@ -3,17 +3,16 @@ from src.model import *
 from src.custom_layers import *
 import os
 
-image = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100mini_batch\coordinate_reconstruction_flim.tif"
-truth = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100mini_batch\coordinate_reconstruction_truth.tif"
+generator = real_data_generator(100)
+gen = generator()
+# dataset = tf.data.Dataset.from_generator(generator, (tf.int32, tf.int32, tf.float64))
+image = np.zeros((1000, 128, 128))
+truth = np.zeros((1000, 128, 128))
 
-gen = real_data_generator(100)()
-image = np.zeros((1000,128,128))
-truth = np.zeros((1000,128,128))
-
-for i in range(1000):
-    image[i],truth[i],_ = gen.__next__()
-    image[i] /= image[i].max()+0.0001
-    truth[i] /= truth[i].max()+0.0001
+truth_coords = []
+# im,truth,locs = dataset.batch(10)
+for i in range(100):  # todo: 1000 images learn redo...
+    image[i], truth[i], loc = gen.__next__()
 
 data = np.zeros((image.shape[0], 128, 128, 3))  # todo: this is weird data
 data[:, :image.shape[1], : image.shape[2], 1] = image
@@ -21,20 +20,21 @@ data[1:, : image.shape[1], : image.shape[2], 0] = image[:-1]
 data[:-1, : image.shape[1], : image.shape[2], 2] = image[1:]
 image = data
 
+
 data = np.zeros((truth.shape[0], 128, 128, 3))  # todo: this is weird data
 data[:, :truth.shape[1], : truth.shape[2], 1] = truth
 data[1:, : truth.shape[1], : truth.shape[2], 0] = truth[:-1]
 data[:-1, : truth.shape[1], : truth.shape[2], 2] = truth[1:]
 truth = data
 
-image_tf1 = tf.convert_to_tensor(image[0:900, :, :, :])
-image_tf2 = tf.convert_to_tensor(image[900:1000, :, :, :])
-truth_tf1 = tf.convert_to_tensor(truth[0:900, :, :, :])
-truth_tf2 = tf.convert_to_tensor(truth[900:1000, :, :, :])
+image_tf1 = tf.convert_to_tensor(image[0:90, :, :, :])
+image_tf2 = tf.convert_to_tensor(image[90:100, :, :, :])
+truth_tf1 = tf.convert_to_tensor(truth[0:90, :, :, :])
+truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :, :])
 
 print("data loaded")
 #out_o = tfwavelets.nodes.dwt2d(image_tf1[0], tfwavelets.dwtcoeffs.haar)
-checkpoint_path = "training_lvl3/cp-{epoch:04d}.ckpt"
+checkpoint_path = "training_lvl2/cp-{epoch:04d}.ckpt"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 
 # Create a callback that saves the model's weights every 5 epochs
@@ -47,7 +47,7 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(
 
 
 test = wavelet_ai()
-test.load_weights("training_lvl3/cp-1000.ckpt")
+#test.load_weights("training_lvl3/cp-1000.ckpt")
 
 test.compile(optimizer='adam',
             loss=tf.keras.losses.MSE,

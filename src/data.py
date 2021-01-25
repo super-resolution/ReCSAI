@@ -31,11 +31,13 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
             image = factory.create_image()
             image = factory.create_points_add_photons(image, points[ind:ind+n], points[ind:ind+n,2])
             image = factory.reduce_size(image)
+            image += 1/3*image.max()
+            image*=3
             image = factory.accurate_noise_simulations_camera(image)
             yield image, np.array([sigma_x,sigma_y,0])
     return generator
 
-def real_data_generator(im_shape):
+def real_data_generator(im_shape, switching_rate=0.2):
     x_shape=100
     #todo: create dynamical
 
@@ -48,8 +50,10 @@ def real_data_generator(im_shape):
         on_points = points[init_indices]
         for i in range(10000): #todo: while loop here
             print(i)
-            image, truth, on_points = factory.simulate_accurate_flimbi(points, on_points)#todo: simulate off
-            image = factory.reduce_size(image)
+            image, truth, on_points = factory.simulate_accurate_flimbi(points, on_points, switching_rate=switching_rate)#todo: simulate off
+            image = factory.reduce_size(image)#todo: background base lvl?
+            image += 1/3*image.max()
+            image*=3
             image = np.pad(factory.accurate_noise_simulations_camera(image),(14,14))
             truth = np.pad(factory.reduce_size(truth).astype(np.int32),(14,14))
             yield image, truth, np.array(on_points)
@@ -78,7 +82,7 @@ def generate_generator(file_path):
     def data_generator_real():
         for i in range(1):
             with TIF(file_path) as tif:
-                dat = tif.asarray()[i * 10000:(i + 1) * 10000]
+                dat = tif.asarray()[i * 1000:(i + 1) * 1000,14:-14,14:-14]
             #dat = dat[:dat.shape[0]//4*4]
             #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
