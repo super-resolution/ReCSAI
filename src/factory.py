@@ -101,7 +101,7 @@ class Factory():
             exclude += ex
         exclude = list(set(exclude))
         exclude = [i+1 for i in exclude]
-        print(exclude)
+        print("localization " + str(exclude) + " was not painted")
         on_points = np.delete(on_points, exclude, axis=0)
         ground_truth = self.create_points_add_photons(ground_truth, on_points[1:], np.ones(on_points.shape[0])*800)#todo: ground truth as points
         return image, ground_truth, on_points[1:]
