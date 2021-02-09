@@ -17,24 +17,53 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
     factory.shape= (im_shape*100,im_shape*100)
     factory.image_shape = (im_shape,im_shape)# select points here
     def generator():
-        ph = np.random.randint(5000,30000)
-        points = factory.create_crop_point_set(photons=ph)
-        sigma_x = np.random.randint(100, 400)
-        sigma_y = np.random.randint(100, 400)
-        factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_y)
+        for z in range(100):
+            ph = np.random.randint(1000,2000)
+            points = factory.create_crop_point_set(photons=ph)
+            #sigma_y = np.random.randint(100, 250)
+            factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_x)
+            points_list = []
+            image_list = []
+            for i in range(100): #todo: while loop here
+                print(i)
 
-        for i in range(10000): #todo: while loop here
-            print(i)
+                ind = np.random.randint(0,points.shape[0])
+                n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
+                if n>3:
+                    n=3
+                def build_image(ind):
+                    image = factory.create_image()
+                    p = np.zeros(9)
+                    for i in range(n):
+                        p[6+n] = 1
+                    p[0:ind.shape[0]*2] = points[ind,0:2].flatten()
+                    image = factory.create_points_add_photons(image, points[ind], points[ind,2])
+                    image = factory.reduce_size(image).astype(np.float32)
+                    image += 3
+                    image = factory.accurate_noise_simulations_camera(image)
+                    return image, p
 
-            ind = np.random.randint(0,points.shape[0])
-            n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
-            image = factory.create_image()
-            image = factory.create_points_add_photons(image, points[ind:ind+n], points[ind:ind+n,2])
-            image = factory.reduce_size(image)
-            image += 1/3*image.max()
-            image*=3
-            image = factory.accurate_noise_simulations_camera(image)
-            yield image, np.array([sigma_x,sigma_y,0])
+                ind = np.arange(ind, ind + n, 1).astype(np.int32)
+                image_s = np.zeros((im_shape,im_shape, 3))
+
+                image_s[:, :, 1],p = build_image(ind)
+
+                bef_after = np.random.randint(0,2,2*n)
+                image_list.append(image_s)
+                ind_new_b = ind
+                ind_new_a = ind
+                ind_new_b = np.delete(ind_new_b, np.where(bef_after[:n]==0))
+                ind_new_a = np.delete(ind_new_a, np.where(bef_after[n:]==0))
+                image_s[:, :, 2],_ = build_image(ind_new_a)
+                image_s[:, :, 0],_ = build_image(ind_new_b)
+
+
+                #todo:create before image
+
+
+                #todo: random new noise in next image random switch off
+                points_list.append(p)
+            yield tf.convert_to_tensor(image_list), tf.constant(sigma_x), tf.convert_to_tensor(np.array(points_list))#todo: why does this run 10 times?
     return generator
 
 def real_data_generator(im_shape, switching_rate=0.2):
@@ -82,11 +111,12 @@ def generate_generator(file_path):
     def data_generator_real():
         for i in range(1):
             with TIF(file_path) as tif:
-                dat = tif.asarray()[i * 1000:(i + 1) * 1000,14:-14,14:-14]
+                dat = tif.asarray()[i * 1000:(i + 1) * 1000,]#14:-14,14:-14]
             #dat = dat[:dat.shape[0]//4*4]
             #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
             #dat[:,1::2,1:] = dat[:,1::2,:-1]
+            dat -= dat.min()
             data = np.zeros((dat.shape[0], 128, 128, 3))  # todo: this is weird data
             data[:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 1] = dat
             data[1:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 0] = dat[:-1]

@@ -17,9 +17,11 @@ def predict_sigma(psf_crops, result_array, ai):
             #perfect_result_array.append(result_array[i,0:2])
             perfect_psf_array.append(psf_crops[i,:,:,1].numpy())
     perfect_psfs = np.transpose(np.array(perfect_psf_array),(1,2,0))
-    x=0
-    for i in range(perfect_psfs.shape[2]//100):
-        print(ai.predict(tf.convert_to_tensor(perfect_psfs[np.newaxis,:,:,i*100:100+i*100])))
+    x=[]
+    for i in range(perfect_psfs.shape[2]//10):
+       x.append(ai.predict(tf.convert_to_tensor(perfect_psfs[np.newaxis,:,:,i*10:10+i*10])))
+    x = np.array(x)
+    print(np.mean(x,axis=0))
 
 def extrude_perfect_psf(psf_crops, result_array):
     perfect_result_array = []
@@ -281,13 +283,22 @@ def get_psf(sigma, px_size):
     sigma_x = sigma/(px_size)*8
     sigma_y = sigma_x
     psf = np.zeros((size, size))#todo: somewhere factor 2 missing!
+    psf_tf = tf.zeros((size,size))
+    # tf_sigma_x = sigma_x
+    # tf_sigma_y = sigma_y
+    # i = tf.cast(tf.square(tf.range(size)), tf.float32)
+    # j = tf.cast(tf.square(tf.range(size)), tf.float32)
+    # I,J = tf.meshgrid(i,j)
+    # PI = tf.constant(np.pi)
+    # psf_tf = 1  / (tf.sqrt(2.0 * PI * tf_sigma_x ** 2.0) * tf.sqrt(2.0 * PI * tf_sigma_y ** 2.0)) \
+    #                     * tf.exp(-(I/ (2.0 * tf_sigma_x ** 2.0) + J / (2.0 * tf_sigma_y** 2.0)))
     for i in range(psf.shape[0]):
         for j in range(psf.shape[1]):
             normed_i = (i ) ** 2
             normed_j = (j ) ** 2
             psf[i, j] = 1  / (np.sqrt(2 * np.pi * sigma_x ** 2) * np.sqrt(2 * np.pi * sigma_y ** 2)) \
                         * np.exp(-(normed_i / (2 * sigma_x ** 2) + normed_j / (2 * sigma_y ** 2)))
-    return psf*2
+    return psf
 
 def create_psf_block(idy, size_x, psf,size_y):
     #create row for one block in y direction
@@ -302,7 +313,7 @@ def create_psf_block(idy, size_x, psf,size_y):
 
 def create_psf_matrix(size_x, magnification, psf):
     size_y = size_x*magnification+1
-    matrix = np.zeros((size_y**2, size_x**2))
+    matrix = np.zeros((size_y**2, size_x**2)).astype(np.float32)
     for i in range(size_x):
         for j in range(size_y):
             matrix[j * size_y:(j + 1) * size_y, i * size_x:(i + 1) * size_x] = create_psf_block(abs(size_x * i - j), size_x, psf, size_y)

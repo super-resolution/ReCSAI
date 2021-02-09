@@ -36,58 +36,77 @@ class Shifting(tf.keras.layers.Layer):
 
 
 class CompressedSensing(tf.keras.layers.Layer):
-    def __init__(self):
-        super(CompressedSensing, self).__init__()
+    def __init__(self,*args, **kwargs):
+        super(CompressedSensing, self).__init__(*args, **kwargs, dtype="float32")
 
         #done: gaussian as initial value
-        self.psf = get_psf(100, 128)  # todo: sigma px_size
+        self.psf = get_psf(120, 100)  # todo: sigma px_size
+        #
+        self.mat = tf.Variable(initial_value=self.psf_initializer(), dtype=tf.float32, trainable=False)
+        self.mu = tf.Variable(initial_value=np.ones((1)), dtype=tf.float32, trainable=False)
+        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float32, name="lambda", trainable=True)*0.005#was0.005
+        self.t = tf.Variable(initial_value=np.ones((1)),dtype=tf.float32, trainable=True)
+        #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
+        #self.sparse_dense = tf.keras.layers.Lambda(dense)
+        self.y = tf.Variable(initial_value=np.zeros((5329,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]
+        #self.result = tf.Variable(np.zeros((73,73,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]
+        self.tcompute = tf.keras.layers.Lambda(lambda t: (1+tf.sqrt(1+4*tf.square(t)))/2)
+        self.flatten= tf.keras.layers.Flatten()
+        self.matmul = tf.keras.layers.Lambda(lambda x: tf.keras.backend.dot(x,x))
 
-        self.mat = tf.Variable(initial_value=self.psf_initializer(),trainable=False)
-        self.mu = tf.constant(np.ones((1)), dtype=tf.float64)
-        self.lam = tf.Variable(initial_value=np.ones((1)), dtype=tf.float64, name="lambda", trainable=True)*0.017#was0.005
-        self.t = tf.Variable(np.array([1]),dtype=tf.float64)
-        dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
-        self.sparse_dense = tf.keras.layers.Lambda(dense)
 
-    def update_psf(self, psf):
-        self.psf = psf
-        self.mat = tf.Variable(initial_value=self.psf_initializer(),trainable=False)
+    def update_psf(self, sigma, px_size):
+        self.psf = get_psf(sigma, 100)
+        self.mat = self.psf_initializer()
 
     def psf_initializer(self):
         mat = create_psf_matrix(9, 8, self.psf)
-        return tf.constant(mat)[:,:,tf.newaxis]
+        return mat
+
+    def softthresh2(self, input, lam):
+        one = tf.keras.activations.relu(input-lam, threshold=0)
+        two = tf.keras.activations.relu(-input-lam, threshold=0)
+        return one-two
 
     def softthresh(self, input, lam):
-        one = simulate_where_add(input, lam, tf.constant([np.inf],dtype=tf.float64), -lam, self.sparse_dense)
-        two = simulate_where_add(input, tf.constant([-np.inf],dtype=tf.float64), -lam, lam, self.sparse_dense)
+        one = simulate_where_add(input, lam, tf.constant([np.inf],dtype=tf.float32), -lam, self.sparse_dense)
+        two = simulate_where_add(input, tf.constant([-np.inf],dtype=tf.float32), -lam, lam, self.sparse_dense)
         return one+two
 
     #@tf.function
     def __call__(self, input):
         #done: fista here
-        input = tf.cast(input, tf.float64)
+        #input = tf.cast(input, tf.float32)
         inp = tf.unstack(input, axis=-1)
-        y = tf.constant(np.zeros((5329,3)))[tf.newaxis, :]
-        y_n = tf.unstack(y, axis=-1)
+        y_n = tf.unstack(self.y, axis=-1)
+        # print("a=" + str(len(inp)))
+        # print("b=" +str(len(y_n)))
+        r = []
         for i in range(len(inp)):
-            x = inp[i]
-            inp[i] = tf.reshape(x, (tf.shape(input)[0], input.shape[1]*input.shape[2]))
+        #     x = inp[i]
+            im = self.flatten(inp[i])
             y_new_last_it = tf.zeros_like(y_n[i])
+            y_tmp = y_n[i]
+            t = tf.constant((1.0),dtype=tf.float32)
             for j in range(100):
-                re =tf.linalg.matvec(self.mat[:,:,0], inp[i] - tf.linalg.matvec(tf.transpose(self.mat[:,:,0]), y_n[i]))
-                w = y_n[i]+1/self.mu*re
-                y_new = self.softthresh(w, self.lam/self.mu)
-                y_new = tf.cast(y_new, tf.float64)
-                t_n = (1+tf.math.sqrt(1+4*self.t**2))/2
-                y_n[i] = y_new+ (self.t-1)/t_n*(y_new-y_new_last_it)
+                re =tf.linalg.matvec(self.mat, im- tf.linalg.matvec(tf.transpose(self.mat), y_tmp))
+
+                w = y_tmp+1/self.mu*re
+                #if test:
+                y_new = self.softthresh2(w, self.lam/self.mu)#todo: not exactly the same as softthresh
+                # else:
+                #     y_new = self.softthresh(w, self.lam/self.mu)
+                #y_new = w#tf.cast(w, tf.float64)
+                t_n = self.tcompute(t)
+                y_tmp = y_new+ (self.t-1)/t_n*(y_new-y_new_last_it)
                 y_new_last_it = y_new
-                self.t = t_n
-            y_n[i] = tf.reshape(y_new, (tf.shape(input)[0], 8*input.shape[1]+1,8*input.shape[2]+1))
-        y = tf.stack(y_n,axis=-1)
+                t = t_n
+        #x = tf.tensordot(self.mat, input[:,:,:,0], 1)
+            #r.append(tf.einsum('nm,im->in', self.mat, im))
+            r.append(y_new)
+
         #b = tf.cast(y_n[0], tf.float64)
-        #i = tf.reduce_max(b)
-        #x = tf.keras.activations.sigmoid((b/i-0.8)*50).numpy()
-        return y#,tfa.image.connected_components(tf.cast(x+0.05, tf.int32))
+        return tf.stack(r,axis=-1)
 
 
 
