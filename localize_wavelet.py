@@ -1,5 +1,7 @@
 from src.models.cs_model import CompressedSensingNet
 from src.models.wavelet_model import WaveletAI
+from src.trainings.train_cs_net import train_cs_net
+from src.trainings.train_wavelet_ai import train as train_wavelet_ai
 from src.data import *
 from src.utility import *
 from src.visualization import display_storm_data
@@ -115,7 +117,7 @@ def predict_localizations(path):
 
 
 #validate_cs_model()
-#train_cs_net()
+train_cs_net(crop_generator)
 #train_nonlinear_shifter_ai()
 #learn_psf()
 
@@ -128,90 +130,3 @@ image = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
 predict_localizations(image)
 
-
-#done: binnin here
-#fig,ax = plt.subplots(1)
-image = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\maxi_batch\coordinate_reconstruction_flim.tif"
-truth = r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\maxi_batch\coordinate_reconstruction.npz"
-bin = Binning()
-gen = data_generator_coords(image, truth, offset=900)
-image = np.zeros((50, 64, 64, 3))
-truth = np.zeros((50, 64, 64, 3))
-
-for i in range(50):
-    image[i], truth[i], _ = gen.__next__()
-
-    # todo: wavelet prediciton here
-
-#todo: this is plotting and testing
-image_tf2 = tf.convert_to_tensor(image[:50, :, :])
-truth_tf2 = tf.convert_to_tensor(truth[:50, :, :])
-test_new = []
-truth_test = []
-result_array = []
-i=7
-one = denoising.predict(image_tf2[i:i + 1, :, :, 0:1])
-two = denoising.predict(image_tf2[i:i + 1, :, :, 1:2])
-three = denoising.predict(image_tf2[i:i + 1, :, :, 2:3])
-im = tf.concat([one, two, three], -1)
-
-#wave = image_tf1[i:i + 1, :, :, 1:2]
-wave = denoising.predict(image_tf2[i:i+1,:,:,1:2])
-y = tf.constant([8])
-mask = tf.greater(wave,y)
-wave_masked = wave*tf.cast(mask,tf.float32)
-#ax.imshow(wave[0,:,:,0])
-coords = bin.get_coords(wave_masked.numpy()[0,:,:,0])
-# todo: crop PSFs done here
-plt.imshow(image_tf2[i, :, :, 1])
-plt.show()
-#plt.imshow(im[0, :, :, 1:2])
-#plt.show()
-fig, ax = plt.subplots(1)
-
-for coord in coords:
-    rect = patches.Rectangle((coord[1] - 3, coord[0] - 3), 6, 6, linewidth=0.5, edgecolor='r', facecolor='none')
-    # ax.add_patch(rect)
-    # ax.set_title("original", fontsize=10)
-    if coord[0]-4>0 and coord[1]-4>0and coord[0]+4<64 and coord[1]+4<64:
-        crop = im[0,coord[0]-4:coord[0]+5,coord[1]-4:coord[1]+5, :]
-        np.save(os.getcwd() + r"\crop.npy", crop)
-
-        #crop_wave = wave[0,coord[0]-4:coord[0]+5,coord[1]-4:coord[1]+5, :]
-        #crop = tf.concat([crop, crop_wave], -1)
-        truth = truth_tf2[i:i+1,coord[0]-1:coord[0]+2,coord[1]-1:coord[1]+2, :]
-        ind = tf.argmax(tf.reshape(truth[0,:,:,0],[-1]))
-        x = ind // truth.shape[2]
-        y = ind % truth.shape[2]
-        x_f = tf.cast(x, tf.float64)
-        y_f = tf.cast(y, tf.float64)
-        x_f += truth[0,x,y,1] + 3 #add difference to crop dimension
-        y_f += truth[0,x,y,2] + 3
-        test_new.append(crop)
-        truth_test.append(tf.stack([x_f,y_f]))
-        result = recon_net.predict(tf.expand_dims(crop,0))
-        current_entry = np.array([[float(result[0,0]),float(result[0,1])],[float(x_f),float(y_f)]])
-        current_entry[:,0] += coord[0]-4
-        current_entry[:,1] += coord[1]-4
-        result_array.append(current_entry)
-
-result_array = np.array(result_array)
-ax.imshow(im[0,:, :, 1])
-
-ax.scatter(result_array[:,0,1], result_array[:,0,0])
-ax.scatter(result_array[:,1,1], result_array[:,1,0])
-
-plt.show()
-#todo: back to coordinates
-
-test_new = tf.stack(test_new)
-x = recon_net.predict(test_new)
-y=0
-
-#todo: ne+w dataset with psf[i],i-1,i+
-#todo: new truth with adjusted values
-
-
-
-
-#todo: learn reconstruction on coordinates and compare to data
