@@ -34,8 +34,8 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
                 def build_image(ind):
                     image = factory.create_image()
                     p = np.zeros(9)
-                    for i in range(n):
-                        p[6+n] = 1
+                    for z in range(n):
+                        p[6+z] = 1
                     p[0:ind.shape[0]*2] = points[ind,0:2].flatten()
                     image = factory.create_points_add_photons(image, points[ind], points[ind,2])
                     image = factory.reduce_size(image).astype(np.float32)
@@ -56,6 +56,8 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
                 ind_new_a = np.delete(ind_new_a, np.where(bef_after[n:]==0))
                 image_s[:, :, 2],_ = build_image(ind_new_a)
                 image_s[:, :, 0],_ = build_image(ind_new_b)
+                image_s -= image_s.min()
+                image_s /= image_s.max()
 
 
                 #todo:create before image
@@ -111,7 +113,7 @@ def generate_generator(file_path):
     def data_generator_real():
         for i in range(1):
             with TIF(file_path) as tif:
-                dat = tif.asarray()[i * 1000:(i + 1) * 1000,]#14:-14,14:-14]
+                dat = tif.asarray()[i * 10000:(i + 1) * 10000,]#14:-14,14:-14]
             #dat = dat[:dat.shape[0]//4*4]
             #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))

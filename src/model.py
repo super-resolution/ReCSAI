@@ -20,70 +20,10 @@ def ShiftNet():
         x = conv(x)
     return tf.keras.Model(inputs=inputs, outputs=x)
 
-class CompressedSensingNet(tf.keras.Model):
-    def __init__(self):
-        super(CompressedSensingNet, self).__init__()
-        self.cs_layer = CompressedSensing()
-        self.reshape = tf.keras.layers.Reshape((73, 73, 3), )
-
-        self.conv1 = Conv2D(32, (3, 3), activation='relu', padding="same")
-        self.s_dropout = tf.keras.layers.SpatialDropout2D(0.2)
-        self.pooling_3 = tf.keras.layers.MaxPooling2D((3, 3))
-        self.pooling_2 = tf.keras.layers.MaxPooling2D((2, 2))
-
-        self.conv2 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding="same")
-        self.conv3 = tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding="same")
-        self.conv4 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding="same")
+class CompressedSensingInception(tf.keras.Model):
+    pass
 
 
-        self.dense1 = tf.keras.layers.Dense(64, activation="relu")
-        self.dense2 = tf.keras.layers.Dense(32, activation="relu")
-        self.dense3 = tf.keras.layers.Dense(16, activation="relu")
-        self.dense4 = tf.keras.layers.Dense(9)
-
-
-    def update(self, sigma, px_size):
-        self.cs_layer.update_psf(sigma, px_size)
-
-    def __call__(self, inputs):
-        #x = tf.keras.layers.Input(shape=[9,9,3])(inputs)
-        #x = tf.keras.layers.Input(shape=[9,9,3], batch_size=10, tensor=inputs)
-        x = self.cs_layer(inputs)
-        x = self.reshape(x)#72x72
-        x = self.conv1(x)
-        x = self.pooling_2(x)#36x36
-        x = self.conv2(x)
-        x = self.pooling_2(x)#18x18
-        x = self.s_dropout(x)
-        x = self.conv3(x)
-        x = self.pooling_2(x)#9x9
-        #x = tf.keras.layers.concatenate([x,inputs],axis=-1)
-        x = self.conv4(x)
-        x = self.pooling_3(x)
-        x = tf.keras.layers.Flatten()(x)
-
-        x = self.dense1(x)
-        x = self.dense2(x)
-        x = self.dense3(x)
-        x = tf.keras.layers.Dropout(0.4)(x)
-        x = self.dense4(x)
-
-        #todo: estimate maximum from here?
-        #tf.keras.layers.Conv2D(64, (3, 3), activation='relu', padding="same"),
-        # tf.keras.layers.SpatialDropout2D(0.2),
-        # tf.keras.layers.MaxPooling2D((3, 3)),
-        # tf.keras.layers.Conv2D(128, (3, 3), activation='relu', padding="same"),
-        # tf.keras.layers.MaxPooling2D((2, 2)),
-        # tf.keras.layers.Flatten(),
-        # tf.keras.layers.Dropout(0.5),
-        #
-        # tf.keras.layers.Dense(64, activation="relu"),
-        # tf.keras.layers.Dense(32, activation="relu"),
-        # tf.keras.layers.Dropout(0.2),
-        #
-        # tf.keras.layers.Dense(16, activation="relu"),
-        # tf.keras.layers.Dense(9)
-        return x
 
 def ConvNet():
     #todo: adjust input size
@@ -151,13 +91,6 @@ def log_normal_pdf(sample, mean, logvar, raxis=1):
     return tf.reduce_sum(
         -.5 * ((sample - mean) ** 2. * tf.exp(-logvar) + logvar + log2pi),
         axis=raxis)
-
-def compute_cs_loss(truth_p, predict_p, truth_c, predict_c):
-    l2 = tf.keras.losses.MeanSquaredError()
-    ce = tf.keras.losses.BinaryCrossentropy()
-    RMSE = l2(truth_p, predict_p)#*tf.repeat(truth_c, repeats=[2,2,2],axis=1)
-    BCE = ce(truth_c, predict_c,)
-    return 10*RMSE+BCE
 
 def compute_loss(model, x):
     x = tf.cast(x, tf.float32)
@@ -304,13 +237,4 @@ def generator_loss(gen_output, target):
     return total_gen_loss
 
 
-def wavelet_ai():
-    inputs = tf.keras.layers.Input(shape=[128, 128, 1])#todo: input 3 output 1
-    layer = FullWavelet(128,level=4,)
-    final = tf.keras.layers.ReLU()
-    x = inputs/tf.keras.backend.max(inputs)
-    x = layer(x)
-    x = final(x)
-    #initializer = tf.random_normal_initializer(0., 0.02)
-    #x = tf.math.reduce_sum(x, axis=-1, keepdims=True)
-    return tf.keras.Model(inputs=inputs, outputs=x)
+

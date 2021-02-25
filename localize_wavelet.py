@@ -12,11 +12,11 @@ from tifffile import TiffWriter
 
 
 #done: load wavelet checkpoints
-#denoising = wavelet_ai()
+denoising = wavelet_ai()
 
-#checkpoint_path = "training_lvl2/cp-10000.ckpt"
+checkpoint_path = "training_lvl2/cp-10000.ckpt"
 
-#denoising.load_weights(checkpoint_path)
+denoising.load_weights(checkpoint_path)
 
 
 
@@ -77,6 +77,19 @@ def train_recon_net():
 
 
 def predict_localizations(path):
+    cs_net = CompressedSensingNet()
+
+    # checkpoint_path = "cs_training/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
+    optimizer = tf.keras.optimizers.Adam()
+    # accuracy = tf.metrics.Accuracy()
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
+    manager = tf.train.CheckpointManager(ckpt, './cs_training2', max_to_keep=3)
+    ckpt.restore(manager.latest_checkpoint)
+    if manager.latest_checkpoint:
+        print("Restored from {}".format(manager.latest_checkpoint))
+    else:
+        print("Initializing from scratch.")
+
     drift = pd.read_csv(r"C:\Users\biophys\Downloads\confocalSTORM_beads+MT\alpha_drift.csv").as_matrix()
     result_array = []
     gen = generate_generator(path)
@@ -95,14 +108,14 @@ def predict_localizations(path):
         # todo: extrude psf without drift
         checkpoint_path = "psf_training/cp-{epoch:04d}.ckpt"
 
-        latest = tf.train.latest_checkpoint(
-            "psf_training", latest_filename=None
-        )
-        sigma_predict = ParamNet()
+        #latest = tf.train.latest_checkpoint(
+        #    "psf_training", latest_filename=None
+        #)
+        #sigma_predict = ParamNet()
 
         # Create a callback that saves the model's weights every 5 epochs
-        sigma_predict.load_weights(latest)
-        predict_sigma(crop_tensor, result_tensor, sigma_predict)
+        #sigma_predict.load_weights(latest)
+        #predict_sigma(crop_tensor, result_tensor, sigma_predict)
         #
         # #psf = extrude_perfect_psf(crop_tensor, result_tensor)
         #
@@ -127,11 +140,14 @@ def predict_localizations(path):
         # del crop_tensor
         frame=0
         for i in range(result_tensor.shape[0]):
-            if result_tensor[i,2]>0.6 :
+            #if result_tensor[i,2]>0.6 :
                 current_drift = drift[int(coord_list[i][2]*0.4),1:3]
                 #current_drift[1] *= -1
 #                if coord_list[i][2] == frame:
-                result_array.append(coord_list[i][0:2] + np.array([result_tensor[i,0]/8, result_tensor[i,1]/8]))
+                for n in range(3):
+                    #if result_tensor[i,2*n]/8 >1 and result_tensor[i,2*n+1]/8>1:
+                    if result_tensor[i, 6 + n] > 40.0:
+                        result_array.append(coord_list[i][0:2] + np.array([result_tensor[i,2*n]/8, result_tensor[i,2*n+1]/8]))
                 # else:
                 #     frame +=1
                 #     result_array = np.array(result_array)
@@ -326,7 +342,7 @@ def train_cs_net():
         step = tf.Variable(1, name="global_step")
         #accuracy = tf.metrics.Accuracy()
         ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './cs_training', max_to_keep=3)
+        manager = tf.train.CheckpointManager(ckpt, './cs_training2', max_to_keep=3)
 
 
         @tf.function
@@ -366,6 +382,11 @@ def train_cs_net():
                 dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32), output_shapes=((100,9,9,3),(),(100,9)))
                 cs_net.update(sigma, 100)
                 loop(dataset)
+            sigma = np.random.randint(100, 250)
+            generator = crop_generator(9, sigma_x=sigma)
+            dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
+                                                     output_shapes=((100, 9, 9, 3), (), (100, 9)))
+            cs_net.update(sigma, 100)
             test(dataset)
 
         def test(dataset):
@@ -376,7 +397,7 @@ def train_cs_net():
                     plt.imshow(train_image[i, :, :, 1])
                     for n in range(3):
                         plt.scatter(truth[i,2*n+1],truth[i,2*n], c="r")
-                        if result[i,6+n]<0.5:
+                        if result[i,6+n]>0.8:
                             plt.scatter(result[i,2*n+1],result[i,2*n], c="g")
                     plt.show()
 
@@ -523,7 +544,7 @@ def train_nonlinear_shifter_ai():
 
 
 #validate_cs_model()
-train_cs_net()
+#train_cs_net()
 #train_nonlinear_shifter_ai()
 #learn_psf()
 
