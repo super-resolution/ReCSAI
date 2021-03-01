@@ -47,6 +47,10 @@ class TestCompressedSensingLayer(tf.test.TestCase):
         self.assertLess(tf.where(output>=0.01).shape[0],tf.where(output<0.01).shape[0], msg="Result is not sparse" )
 
     @skip
+    def test_perfect_reconstruction_from_noiseless_data(self):
+        self.fail()
+
+    @skip
     def test_psf_matrix(self):
         #todo: how do I test the psf matrix??
         self.fail()
@@ -54,6 +58,10 @@ class TestCompressedSensingLayer(tf.test.TestCase):
     @skip
     def test_lambda(self):
         #todo: properties for cs layer...
+        self.fail()
+
+    @skip
+    def test_fista_converges_after_finite_iteration(self):
         self.fail()
 
     def test_different_iterations_have_different_outputs(self):
@@ -69,33 +77,31 @@ class TestCompressedSensingInceptionLayer(tf.test.TestCase):
         self.layer = CompressedSensingInception()
 
     def test_cs_layer_properties(self):
+        #todo: can CompressedSensing Properties be updated?
+        #todo: i.e. iteration count, psf, lambda, mu
         self.fail()
 
     def test_all_branches_produce_nonzero_output(self):
+        #todo: simply check outputs of layer for zero
         self.fail()
 
     def test_shapes_after_each_layer(self):
+        #todo: acess sublayers and check shape is as expected
         self.fail()
 
-    def test_one_one_convolution(self):
-        self.fail()
-
-    def test_pooling_layers(self):
-        self.fail()
 
 class TestLossFunction(tf.test.TestCase):
     def setUp(self):
         pass
 
     def test_permutation_is_ok(self):
+        #todo: it should be neglectable wether the position is reconstructed in vector 1 2 or 3
         self.fail()
 
     def test_if_coords_permute_classifier_permuts(self):
+        #todo: classifier has to match the vector of reconstruction
         self.fail()
 
-
-def test_matrix():
-    mat = create_psf_matrix(9, 8)
 
 
 def create(im_shape):
@@ -118,6 +124,7 @@ def create(im_shape):
     return image
 
 def test_output():
+    #todo: useful for debugging might be outsourced to display?
     #done input bigger tensor
     crop = create(9)
     crop_new = np.zeros((crop.shape[0], crop.shape[1],3))
@@ -148,11 +155,5 @@ def test_output():
     #done: load file
     #done: run layer
 
-def test_layer():
-    layer = CompressedSensing()
-    im = tf.constant(np.zeros((9,9)),dtype=tf.float64)
-    x = layer(im)
-    y=0
 
-if __name__ == '__main__':
-    test_output()
+
