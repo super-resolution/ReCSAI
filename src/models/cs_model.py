@@ -1,5 +1,7 @@
-from ..custom_layers import *
-from tensorflow.keras.layers import *
+from src.custom_layers.cs_layers import CompressedSensing
+#from tensorflow.keras.layers import *
+import tensorflow as tf
+import tensorflow_addons as tfa
 
 class CompressedSensingNet(tf.keras.Model):
     def __init__(self):
@@ -7,7 +9,7 @@ class CompressedSensingNet(tf.keras.Model):
         self.cs_layer = CompressedSensing()
         self.reshape = tf.keras.layers.Reshape((73, 73, 3), )
 
-        self.conv1 = Conv2D(32, (3, 3), activation='relu', padding="same")
+        self.conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding="same")
         self.pooling_3 = tf.keras.layers.MaxPooling2D((3, 3))
         self.pooling_2 = tf.keras.layers.MaxPooling2D((2, 2))
         self.batch_norm = tf.keras.layers.BatchNormalization()
@@ -58,7 +60,7 @@ class CompressedSensingNet(tf.keras.Model):
 
 def compute_cs_loss(truth_p, predict_p, truth_c, predict_c):
     l2 = tf.keras.losses.MeanSquaredError()
-    ce = tf.keras.losses.CategoricalCrossentropy()
-    RMSE = l2(truth_p, predict_p)#*tf.repeat(truth_c, repeats=[2,2,2],axis=1)
-    BCE = ce(truth_c, predict_c,)
-    return 5*RMSE+BCE
+    ce = tfa.losses.SigmoidFocalCrossEntropy()
+    RMSE = l2(truth_p, predict_p)#*tf.repeat(truth_c, repeats=[2,2,2],axis=1))
+    BCE = tf.reduce_sum(ce(truth_c, predict_c,))
+    return 3*RMSE+BCE

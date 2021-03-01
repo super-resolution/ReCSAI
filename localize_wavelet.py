@@ -29,7 +29,7 @@ def predict_localizations(path):
     optimizer = tf.keras.optimizers.Adam()
     # accuracy = tf.metrics.Accuracy()
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-    manager = tf.train.CheckpointManager(ckpt, './cs_training2', max_to_keep=3)
+    manager = tf.train.CheckpointManager(ckpt, './cs_training3', max_to_keep=3)
     ckpt.restore(manager.latest_checkpoint)
     if manager.latest_checkpoint:
         print("Restored from {}".format(manager.latest_checkpoint))
@@ -90,9 +90,10 @@ def predict_localizations(path):
                 current_drift = drift[int(coord_list[i][2]*0.4),1:3]
                 #current_drift[1] *= -1
 #                if coord_list[i][2] == frame:
+                limit = [3.0,1.5,0.3]
                 for n in range(3):
                     #if result_tensor[i,2*n]/8 >1 and result_tensor[i,2*n+1]/8>1:
-                    if result_tensor[i, 6 + n] > 40.0:
+                    if result_tensor[i, 6 + n] > limit[n]:
                         result_array.append(coord_list[i][0:2] + np.array([result_tensor[i,2*n]/8, result_tensor[i,2*n+1]/8]))
                 # else:
                 #     frame +=1
@@ -117,7 +118,7 @@ def predict_localizations(path):
 
 
 #validate_cs_model()
-train_cs_net(crop_generator)
+#train_cs_net(crop_generator)
 #train_nonlinear_shifter_ai()
 #learn_psf()
 

@@ -1,5 +1,8 @@
+#DEPRECATED
+
 import tensorflow as tf
-from .custom_layers import *
+from src.custom_layers.cs_layers import CompressedSensing
+from src.custom_layers.wavelet_layers import FullWavelet
 from tensorflow.keras.layers import *
 
 OUTPUT_CHANNELS = 3

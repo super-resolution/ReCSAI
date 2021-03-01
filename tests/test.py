@@ -12,6 +12,7 @@ from scipy.signal import find_peaks
 import tensorflow
 import matplotlib.patches as patches
 
+#todo: not actually a test...
 
 class HaarFilterBank(object):
     @property

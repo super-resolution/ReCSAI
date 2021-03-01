@@ -1,7 +1,7 @@
 from src.models.cs_model import CompressedSensingNet, compute_cs_loss
 import tensorflow as tf
 import numpy as np
-import matplotlib as plt #todo: plot in main?
+import matplotlib.pyplot as plt #todo: plot in main?
 
 
 
@@ -38,13 +38,13 @@ def train_cs_net(crop_generator):
             print("Restored from {}".format(manager.latest_checkpoint))
         else:
             print("Initializing from scratch.")
-        for j in range(5):
-            sigma = np.random.randint(100, 250)
-            generator = crop_generator(9, sigma_x=sigma)
-            dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
-                                                     output_shapes=((100, 9, 9, 3), (), (100, 9)))
-            cs_net.update(sigma, 100)
-            loop(dataset)
+        # for j in range(5):
+        #     sigma = np.random.randint(100, 250)
+        #     generator = crop_generator(9, sigma_x=sigma)
+        #     dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
+        #                                              output_shapes=((100, 9, 9, 3), (), (100, 9)))
+        #     cs_net.update(sigma, 100)
+        #     loop(dataset)
         sigma = np.random.randint(100, 250)
         generator = crop_generator(9, sigma_x=sigma)
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
@@ -60,7 +60,7 @@ def train_cs_net(crop_generator):
                 plt.imshow(train_image[i, :, :, 1])
                 for n in range(3):
                     plt.scatter(truth[i, 2 * n + 1], truth[i, 2 * n], c="r")
-                    if result[i, 6 + n] > 0.8:
+                    if result[i, 6 + n] > 0.1:
                         plt.scatter(result[i, 2 * n + 1], result[i, 2 * n], c="g")
                 plt.show()
 
@@ -71,6 +71,6 @@ def train_cs_net(crop_generator):
         optimizer = tf.keras.optimizers.Adam()
         step = tf.Variable(1, name="global_step")
         ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './cs_training2', max_to_keep=3)
+        manager = tf.train.CheckpointManager(ckpt, './cs_training3', max_to_keep=3)
 
         outer_loop()
