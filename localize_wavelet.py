@@ -90,7 +90,7 @@ def predict_localizations(path):
                 current_drift = drift[int(coord_list[i][2]*0.4),1:3]
                 #current_drift[1] *= -1
 #                if coord_list[i][2] == frame:
-                limit = [3.0,1.5,0.3]
+                limit = [4,1,0.3]
                 for n in range(3):
                     #if result_tensor[i,2*n]/8 >1 and result_tensor[i,2*n+1]/8>1:
                     if result_tensor[i, 6 + n] > limit[n]:

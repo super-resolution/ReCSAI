@@ -113,7 +113,7 @@ class CompressedSensing(tf.keras.layers.Layer):
             y_new_last_it = tf.zeros_like(y_n[i])
             y_tmp = y_n[i]
             t = tf.constant((1.0),dtype=tf.float32)
-            for j in range(self.iterations):
+            for j in range(100):
                 re =tf.linalg.matvec(self.mat, im- tf.linalg.matvec(tf.transpose(self.mat), y_tmp))
 
                 w = y_tmp+1/self.mu*re

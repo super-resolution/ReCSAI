@@ -38,13 +38,13 @@ def train_cs_net(crop_generator):
             print("Restored from {}".format(manager.latest_checkpoint))
         else:
             print("Initializing from scratch.")
-        # for j in range(5):
-        #     sigma = np.random.randint(100, 250)
-        #     generator = crop_generator(9, sigma_x=sigma)
-        #     dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
-        #                                              output_shapes=((100, 9, 9, 3), (), (100, 9)))
-        #     cs_net.update(sigma, 100)
-        #     loop(dataset)
+        for j in range(5):
+            sigma = np.random.randint(100, 250)
+            generator = crop_generator(9, sigma_x=sigma)
+            dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
+                                                     output_shapes=((100, 9, 9, 3), (), (100, 9)))
+            cs_net.update(sigma, 100)
+            loop(dataset)
         sigma = np.random.randint(100, 250)
         generator = crop_generator(9, sigma_x=sigma)
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
