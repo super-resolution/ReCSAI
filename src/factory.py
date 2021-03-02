@@ -90,7 +90,7 @@ class Factory():
                 ind = self.rs.choice(points.shape[0], n_on)
                 invalid_ind = []
                 for k in range(ind.shape[0]):
-                    if points[ind[k],0]+600 < i*line:
+                    if points[ind[k],0]+450 < i*line:
                         invalid_ind.append(k)
                 ind = np.delete(ind, invalid_ind)
                 # indices = line_point_indices[ind]
@@ -126,7 +126,7 @@ class Factory():
                 if on_points[i,2] < 0:#todo kick point if it wasnt painted
                     off.append(i)
 
-                    if j * line < y - 600:
+                    if j * line < y - 450:
                         exclude.append(i)
                     continue
             #if line %2 ==0:
