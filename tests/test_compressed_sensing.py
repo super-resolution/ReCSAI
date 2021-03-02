@@ -1,42 +1,20 @@
-from src.custom_layers import *
-from src.utility import *
-import os
-import matplotlib.pyplot as plt
-from scipy import interpolate
-from src.factory import Factory
 import tensorflow as tf
 from src.custom_layers.cs_layers import CompressedSensingInception, CompressedSensing
 from unittest import skip
+from tests.test import BaseTest
 
 #done: unit test should extend tf test case
-class TestCompressedSensingLayer(tf.test.TestCase):
+class TestCompressedSensingLayer(BaseTest):
     def setUp(self):
         self.layer = CompressedSensing()
 
         #create random test_data
-    def create_random_data_crop(self, im_shape, sigma, px_size, batch_size=1):
-        factory = Factory()
-        factory.shape = (im_shape * px_size, im_shape * px_size)
-        factory.image_shape = (im_shape, im_shape)
-        ph = np.random.randint(5000, 30000)
-        points = factory.create_crop_point_set(photons=ph)
-        sigma_x = sigma
-        sigma_y = sigma
-        factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_y)
-        ind = np.random.randint(0, points.shape[0])
-        n = 2  # np.random.poisson(1.7)
-        image = factory.create_image()
-        image = factory.create_points_add_photons(image, points[ind:ind + n], points[ind:ind + n, 2])
-        image = factory.reduce_size(image)
-        tf_image = tf.constant(factory.accurate_noise_simulations_camera(image), dtype=tf.float64)
-        tf_stack = tf.expand_dims(tf.stack([tf_image, tf_image, tf_image], axis=-1),axis=0)
-        tf_stack /= tf.keras.backend.max(tf_stack)
-        return tf_stack#todo return tensor
+
 
 
     def test_output_is_sparse(self):
         #cropsize = 9; sigma= 150; px_size= 100
-        data = self.create_random_data_crop(9, sigma=150, px_size=100)
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
 
         self.layer.update_psf(sigma=150, px_size=100)
         output = self.layer(data)
@@ -45,6 +23,14 @@ class TestCompressedSensingLayer(tf.test.TestCase):
         self.assertNotAllEqual(output, tf.zeros_like(output), msg="All entries of output equal zero")
         #numbers of pixels ==0 > numbers of pixels !=0
         self.assertLess(tf.where(output>=0.01).shape[0],tf.where(output<0.01).shape[0], msg="Result is not sparse" )
+
+    def test_different_iterations_have_different_outputs(self):
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
+        self.layer.set_iteration_count(5)
+        output1 = self.layer(data)
+        self.layer.set_iteration_count(100)
+        output2 = self.layer(data)
+        self.assertNotAllClose(output1, output2, msg="Different iterations yiel the same output...")
 
     @skip
     def test_perfect_reconstruction_from_noiseless_data(self):
@@ -64,25 +50,66 @@ class TestCompressedSensingLayer(tf.test.TestCase):
     def test_fista_converges_after_finite_iteration(self):
         self.fail()
 
-    def test_different_iterations_have_different_outputs(self):
-        data = self.create_random_data_crop(9, sigma=150, px_size=100)
-        self.layer.set_iteration_count(5)
-        output1 = self.layer(data)
-        self.layer.set_iteration_count(100)
-        output2 = self.layer(data)
-        self.assertNotAllClose(output1, output2, msg="Different iterations yiel the same output...")
 
-class TestCompressedSensingInceptionLayer(tf.test.TestCase):
+
+class TestCompressedSensingInceptionLayer(BaseTest):
     def setUp(self):
         self.layer = CompressedSensingInception()
 
+    def test_w_output_has_expected_shape_(self):
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
+        output = self.layer.convolution1x1_w1(data)
+        self.assertListEqual(list(output.shape), [data.shape[0],data.shape[1], data.shape[2], 1], msg="path w has unexpected output shape")
+
+    def test_x_path_has_expected_shape(self):
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
+        layers = self.layer.x_path
+        x = data
+        for layer in layers:
+            x = layer(x)
+        self.assertListEqual(list(x.shape), [data.shape[0],data.shape[1], data.shape[2], 2], msg="path x has unexpected output shape")
+
+    def test_y_path_has_expected_shape(self):
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
+        layers = self.layer.y_path
+        y = data
+        for layer in layers:
+            y = layer(y)
+        self.assertListEqual(list(y.shape), [data.shape[0],data.shape[1], data.shape[2], 1], msg="path y has unexpected output shape")
+
+    def test_z_path_has_expected_shape(self):
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
+        z = data
+        skips = []
+        for layer in self.layer.z_path_down:
+            z = layer(z)
+            skips.append(z)
+
+        skip = skips[0]
+
+        z = self.layer.up1(z)
+        z = self.layer.concat([z,skip])
+        z = self.layer.up2(z)
+
+        self.assertListEqual(list(z.shape), [data.shape[0],data.shape[1], data.shape[2], 1], msg="path z has unexpected output shape")
+
+
+    @skip
     def test_cs_layer_properties(self):
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
+        output = self.layer(data)
+        for i in range(output.shape[0]):
+            self.assertAllClose(output[i])
         #todo: can CompressedSensing Properties be updated?
         #todo: i.e. iteration count, psf, lambda, mu
         self.fail()
 
     def test_all_branches_produce_nonzero_output(self):
+
         #todo: simply check outputs of layer for zero
+        self.fail()
+
+    def test_u_net_has_skip_layers(self):
         self.fail()
 
     def test_shapes_after_each_layer(self):
@@ -104,56 +131,7 @@ class TestLossFunction(tf.test.TestCase):
 
 
 
-def create(im_shape):
-    factory = Factory()
-    factory.shape= (im_shape*100,im_shape*100)
-    factory.image_shape = (im_shape,im_shape)
-    ph = np.random.randint(5000, 30000)
-    points = factory.create_crop_point_set(photons=ph)
-    sigma_x = 150
-    sigma_y = 150
-    factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_y)
 
-
-    ind = np.random.randint(0, points.shape[0])
-    n = 2  # np.random.poisson(1.7)
-    image = factory.create_image()
-    image = factory.create_points_add_photons(image, points[ind:ind + n], points[ind:ind + n, 2])
-    image = factory.reduce_size(image)
-    image = factory.accurate_noise_simulations_camera(image)
-    return image
-
-def test_output():
-    #todo: useful for debugging might be outsourced to display?
-    #done input bigger tensor
-    crop = create(9)
-    crop_new = np.zeros((crop.shape[0], crop.shape[1],3))
-    for i in range(3):
-        crop_new[:,:,i] = crop
-    crop = crop_new.astype(np.float32)
-    crop/=crop.max()
-
-    #crop = np.load(os.getcwd() + r"\crop.npy")
-    layer = CompressedSensing()
-    crop_tensor = tf.constant((crop),dtype=tf.float64)
-    im = tf.stack([crop_tensor, crop_tensor])
-    y = layer(im)
-    x = layer(im)
-    fig,axs = plt.subplots(3)
-    y = tf.reshape(y, (-1, 73,73,3))
-    x = tf.reshape(x, (-1, 73,73,3))
-
-    c_spline = interpolate.interp2d(np.arange(0,9,1), np.arange(0,9,1), crop[:,:,1], kind='cubic')
-
-    new = c_spline(np.arange(0,9,0.125),np.arange(0,9,0.125))
-
-    axs[0].imshow(x[0,:,:,1])
-    axs[1].imshow(y[0,:,:,1])
-    axs[2].imshow(new)
-    plt.show()
-    x=0
-    #done: load file
-    #done: run layer
 
 
 
