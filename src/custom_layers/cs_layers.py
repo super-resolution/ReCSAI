@@ -72,7 +72,7 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         # y = self.convolution7x7_y1(y)
         #todo: input path w no path because it's pass through
         w = self.convolution1x1_w1(input)
-        
+
         #todo: input path z
         z = input
         skips = []
@@ -94,12 +94,12 @@ class CompressedSensingInception(tf.keras.layers.Layer):
 class CompressedSensing(tf.keras.layers.Layer):
     def __init__(self,*args, **kwargs):
         super(CompressedSensing, self).__init__(*args, **kwargs, dtype="float32")
+        self._iterations = tf.constant(100, dtype=tf.int32)
 
-        self.iterations = tf.constant(100, dtype=tf.int32)
-        #done: gaussian as initial value
-        self.psf = get_psf(180, 100)  # todo: sigma px_size
-        #
-        self.mat = tf.Variable(initial_value=self.psf_initializer(), dtype=tf.float32, trainable=False)
+        self._sigma = 180
+        self._px_size = 100
+        self.matrix_update()#mat and psf defined outside innit
+
         self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
         self.lam = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, name="lambda", trainable=True)*0.005#was0.005
         self.t = tf.Variable(initial_value=tf.ones((1)),dtype=tf.float32, trainable=False)
@@ -107,12 +107,37 @@ class CompressedSensing(tf.keras.layers.Layer):
         #self.sparse_dense = tf.keras.layers.Lambda(dense)
         self.y = tf.Variable(initial_value=tf.zeros((5329,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]#todo: use input dim
         #self.result = tf.Variable(np.zeros((73,73,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]
-        self.tcompute = tf.keras.layers.Lambda(lambda t: (1+tf.sqrt(1+4*tf.square(t)))/2)
         self.flatten= tf.keras.layers.Flatten()
+        self.tcompute = tf.keras.layers.Lambda(lambda t: (1+tf.sqrt(1+4*tf.square(t)))/2)
         self.matmul = tf.keras.layers.Lambda(lambda x: tf.keras.backend.dot(x,x))
 
-    def set_iteration_count(self, value):
-        self.iterations = tf.constant(value, dtype=tf.int32)
+    @property
+    def px_size(self):
+        return self._px_size
+
+    @property
+    def sigma(self):
+        return self._sigma
+
+    @px_size.setter
+    def px_size(self, value):
+        self._px_size = value
+
+    @sigma.setter
+    def sigma(self, value):
+        self._sigma = value
+
+    @property
+    def iterations(self):
+        return self._iterations.numpy()
+
+    @iterations.setter
+    def iterations(self, value):
+        self._iterations = tf.constant(value, dtype=tf.int32)
+
+    def matrix_update(self):
+        self.psf = get_psf(self._sigma, self._px_size)
+        self.mat = tf.Variable(initial_value=self.psf_initializer(), dtype=tf.float32, trainable=False)
 
     def update_psf(self, sigma, px_size):
         self.psf = get_psf(sigma, 100)
@@ -129,35 +154,23 @@ class CompressedSensing(tf.keras.layers.Layer):
 
     #@tf.function
     def __call__(self, input):
-        #done: fista here
-        #input = tf.cast(input, tf.float32)
         inp = tf.unstack(input, axis=-1)
         y_n = tf.unstack(self.y, axis=-1)
-        # print("a=" + str(len(inp)))
-        # print("b=" +str(len(y_n)))
         r = []
         for i in range(len(inp)):
-        #     x = inp[i]
             im = self.flatten(inp[i])
             y_new_last_it = tf.zeros_like(y_n[i])
             y_tmp = y_n[i]
+            y_new = tf.zeros_like(y_tmp)
             t = tf.constant((1.0),dtype=tf.float32)
-            for j in range(100):
+            for j in range(self.iterations):#todo iteration as variable
                 re =tf.linalg.matvec(self.mat, im- tf.linalg.matvec(tf.transpose(self.mat), y_tmp))
-
                 w = y_tmp+1/self.mu*re
-                #if test:
                 y_new = self.softthresh2(w, self.lam/self.mu)#todo: not exactly the same as softthresh
-                # else:
-                #     y_new = self.softthresh(w, self.lam/self.mu)
-                #y_new = w#tf.cast(w, tf.float64)
                 t_n = self.tcompute(t)
                 y_tmp = y_new+ (self.t-1)/t_n*(y_new-y_new_last_it)
                 y_new_last_it = y_new
                 t = t_n
-        #x = tf.tensordot(self.mat, input[:,:,:,0], 1)
-            #r.append(tf.einsum('nm,im->in', self.mat, im))
             r.append(y_new)
 
-        #b = tf.cast(y_n[0], tf.float64)
         return tf.stack(r,axis=-1)

@@ -19,9 +19,6 @@ checkpoint_path = "training_lvl2/cp-10000.ckpt"
 denoising.load_weights(checkpoint_path)
 
 
-
-
-
 def predict_localizations(path):
     cs_net = CompressedSensingNet()
 

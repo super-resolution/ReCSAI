@@ -26,9 +26,9 @@ class TestCompressedSensingLayer(BaseTest):
 
     def test_different_iterations_have_different_outputs(self):
         data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
-        self.layer.set_iteration_count(5)
+        self.layer.iterations = 5
         output1 = self.layer(data)
-        self.layer.set_iteration_count(100)
+        self.layer.iterations = 100
         output2 = self.layer(data)
         self.assertNotAllClose(output1, output2, msg="Different iterations yiel the same output...")
 
