@@ -7,7 +7,7 @@ class CompressedSensingNet(tf.keras.Model):
     def __init__(self):
         super(CompressedSensingNet, self).__init__()
         self.cs_layer = CompressedSensing()
-        self.reshape = tf.keras.layers.Reshape((73, 73, 3), )
+        self.reshape = tf.keras.layers.Reshape((72, 72, 3), )
 
         self.conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding="same")
         self.pooling_3 = tf.keras.layers.MaxPooling2D((3, 3))
@@ -30,7 +30,8 @@ class CompressedSensingNet(tf.keras.Model):
 
 
     def update(self, sigma, px_size):
-        self.cs_layer.update_psf(sigma, px_size)
+        self.cs_layer.sigma = sigma
+        #self.cs_layer.px_size = px_size todo: not yet needed
 
     def __call__(self, inputs):
 

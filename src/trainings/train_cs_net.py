@@ -71,6 +71,6 @@ def train_cs_net(crop_generator):
         optimizer = tf.keras.optimizers.Adam()
         step = tf.Variable(1, name="global_step")
         ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './cs_training3', max_to_keep=3)
+        manager = tf.train.CheckpointManager(ckpt, './cs_training4', max_to_keep=3)
 
         outer_loop()

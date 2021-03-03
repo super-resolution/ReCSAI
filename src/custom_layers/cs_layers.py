@@ -145,7 +145,8 @@ class CompressedSensing(tf.keras.layers.Layer):
 
     def psf_initializer(self):
         #mat1 = create_psf_matrix(9, 8, self.psf)
-        mat = old_psf_matrix(9,9,72,72, 1.50*8/(81),1.50*8/(81)).T#todo: depending on sigma and px_size
+        v = self._sigma/self._px_size
+        mat = old_psf_matrix(9,9,72,72, v*8/(81),v*8/(81)).T#todo: depending on sigma and px_size
         # mat1 /= mat1[0,0]
         # mat1 *= mat[0,0]
         return mat
