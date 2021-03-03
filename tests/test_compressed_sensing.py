@@ -4,6 +4,8 @@ from unittest import skip
 from tests.test import BaseTest
 import matplotlib.pyplot as plt
 
+
+
 #done: unit test should extend tf test case
 class TestCompressedSensingLayer(BaseTest):
     def setUp(self):
@@ -44,6 +46,7 @@ class TestCompressedSensingLayer(BaseTest):
     @skip
     def test_psf_matrix(self):
         #todo: how do I test the psf matrix??
+        #todo: rewrite psf matrix creater to output the same as old...
         self.fail()
 
     @skip
@@ -51,9 +54,7 @@ class TestCompressedSensingLayer(BaseTest):
         #todo: properties for cs layer...
         self.fail()
 
-    @skip
-    def test_fista_converges_after_finite_iteration(self):
-        self.fail()
+
 
 
 

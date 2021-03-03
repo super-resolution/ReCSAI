@@ -59,9 +59,9 @@ class CompressedSensingNet(tf.keras.Model):
 
         return x
 
-def compute_cs_loss(truth_p, predict_p, truth_c, predict_c):
-    l2 = tf.keras.losses.MeanSquaredError()
-    ce = tfa.losses.SigmoidFocalCrossEntropy()
-    RMSE = l2(truth_p, predict_p)#*tf.repeat(truth_c, repeats=[2,2,2],axis=1))
-    BCE = tf.reduce_sum(ce(truth_c, predict_c,))
-    return 3*RMSE+BCE
+    def compute_loss(self, truth_p, predict_p, truth_c, predict_c):
+        l2 = tf.keras.losses.MeanSquaredError()
+        ce = tfa.losses.SigmoidFocalCrossEntropy()
+        RMSE = l2(truth_p, predict_p)#*tf.repeat(truth_c, repeats=[2,2,2],axis=1))
+        BCE = tf.reduce_sum(ce(truth_c, predict_c,))
+        return 3*RMSE+BCE

@@ -13,7 +13,7 @@ def train_cs_net(crop_generator):
             truth_p = truth[:, 0:6] / 100
             logits = cs_net(train_image)
             logits_p = logits[:, 0:6] / 8
-            loss = compute_cs_loss(truth_p, logits_p, truth[:, 6:], logits[:, 6:], )
+            loss = cs_net.compute_loss(truth_p, logits_p, truth[:, 6:], logits[:, 6:], )
         gradients = tape.gradient(loss, cs_net.trainable_variables)
         optimizer.apply_gradients(zip(gradients, cs_net.trainable_variables))
         # step.assign_add(1)
