@@ -2,6 +2,7 @@ import tensorflow as tf
 from src.custom_layers.cs_layers import CompressedSensingInception, CompressedSensing
 from unittest import skip
 from tests.test import BaseTest
+import matplotlib.pyplot as plt
 
 #done: unit test should extend tf test case
 class TestCompressedSensingLayer(BaseTest):
@@ -32,9 +33,13 @@ class TestCompressedSensingLayer(BaseTest):
         output2 = self.layer(data)
         self.assertNotAllClose(output1, output2, msg="Different iterations yiel the same output...")
 
-    @skip
     def test_perfect_reconstruction_from_noiseless_data(self):
-        self.fail()
+        #todo: simulate perfect psf use cs high iteration receive sparse result
+        data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
+        self.layer.iterations = 4000#todo: 4000 is close to sparse
+        output = self.layer(data)
+        output = tf.reshape(output, (1,72,72,3))
+        self.assertGreater(tf.where(output>0).shape[0], 50)
 
     @skip
     def test_psf_matrix(self):

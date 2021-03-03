@@ -48,30 +48,6 @@ def predict_localizations(path):
             coord_list[z][2] += j*5000
         print(crop_tensor.shape[0])
         result_tensor = cs_net.predict(crop_tensor)
-        # todo: extrude psf without drift
-        checkpoint_path = "psf_training/cp-{epoch:04d}.ckpt"
-
-        #latest = tf.train.latest_checkpoint(
-        #    "psf_training", latest_filename=None
-        #)
-        #sigma_predict = ParamNet()
-
-        # Create a callback that saves the model's weights every 5 epochs
-        #sigma_predict.load_weights(latest)
-        #predict_sigma(crop_tensor, result_tensor, sigma_predict)
-        #
-        # #psf = extrude_perfect_psf(crop_tensor, result_tensor)
-        #
-        # new_layer = CompressedSensing()
-        # new_layer.update_psf(psf/2)
-        # cs_net_updated = CompressedSensingNet(new_layer)
-        # checkpoint_path = "cs_training3/cp-0010.ckpt"  # todo: load latest checkpoint
-        # # Create a callback that saves the model's weights every 5 epochs
-        # cs_net_updated.load_weights(checkpoint_path)
-        # # cs_net_updated.compile(optimizer='adam',
-        # #                loss=tf.keras.losses.MSE,
-        # #                metrics=['accuracy'])
-        # result_tensor = cs_net_updated.predict(crop_tensor)
         fig, axs = plt.subplots(3)
         axs[0].imshow(crop_tensor[100,:,:,0])
         axs[0].scatter(result_tensor[100,1]/8,result_tensor[100,0]/8)
@@ -83,7 +59,6 @@ def predict_localizations(path):
         # del crop_tensor
         frame=0
         for i in range(result_tensor.shape[0]):
-            #if result_tensor[i,2]>0.6 :
                 current_drift = drift[int(coord_list[i][2]*0.4),1:3]
                 #current_drift[1] *= -1
 #                if coord_list[i][2] == frame:

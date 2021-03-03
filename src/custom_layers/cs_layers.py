@@ -1,5 +1,5 @@
 import tensorflow as tf
-from src.utility import get_psf,create_psf_matrix
+from src.utility import get_psf,create_psf_matrix,old_psf_matrix
 from src.custom_layers.utility_layer import downsample,upsample
 
 class CompressedSensingInception(tf.keras.layers.Layer):
@@ -96,20 +96,20 @@ class CompressedSensing(tf.keras.layers.Layer):
         super(CompressedSensing, self).__init__(*args, **kwargs, dtype="float32")
         self._iterations = tf.constant(100, dtype=tf.int32)
 
-        self._sigma = 180
+        self._sigma = 150
         self._px_size = 100
         self.matrix_update()#mat and psf defined outside innit
 
         self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
         self.lam = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, name="lambda", trainable=True)*0.005#was0.005
-        self.t = tf.Variable(initial_value=tf.ones((1)),dtype=tf.float32, trainable=False)
         #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
         #self.sparse_dense = tf.keras.layers.Lambda(dense)
-        self.y = tf.Variable(initial_value=tf.zeros((5329,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]#todo: use input dim
+        self.y = tf.Variable(initial_value=tf.zeros((5184,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]#todo: use input dim
         #self.result = tf.Variable(np.zeros((73,73,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]
         self.flatten= tf.keras.layers.Flatten()
         self.tcompute = tf.keras.layers.Lambda(lambda t: (1+tf.sqrt(1+4*tf.square(t)))/2)
         self.matmul = tf.keras.layers.Lambda(lambda x: tf.keras.backend.dot(x,x))
+        #todo: add reshape
 
     @property
     def px_size(self):
@@ -144,7 +144,10 @@ class CompressedSensing(tf.keras.layers.Layer):
         self.mat = self.psf_initializer()
 
     def psf_initializer(self):
-        mat = create_psf_matrix(9, 8, self.psf)
+        #mat1 = create_psf_matrix(9, 8, self.psf)
+        mat = old_psf_matrix(9,9,72,72, 1.50*8/(81),1.50*8/(81)).T#todo: depending on sigma and px_size
+        # mat1 /= mat1[0,0]
+        # mat1 *= mat[0,0]
         return mat
 
     def softthresh2(self, input, lam):
@@ -161,14 +164,13 @@ class CompressedSensing(tf.keras.layers.Layer):
             im = self.flatten(inp[i])
             y_new_last_it = tf.zeros_like(y_n[i])
             y_tmp = y_n[i]
-            y_new = tf.zeros_like(y_tmp)
             t = tf.constant((1.0),dtype=tf.float32)
             for j in range(self.iterations):#todo iteration as variable
-                re =tf.linalg.matvec(self.mat, im- tf.linalg.matvec(tf.transpose(self.mat), y_tmp))
+                re =tf.linalg.matvec(self.mat, im - tf.linalg.matvec(tf.transpose(self.mat), y_tmp))
                 w = y_tmp+1/self.mu*re
                 y_new = self.softthresh2(w, self.lam/self.mu)#todo: not exactly the same as softthresh
                 t_n = self.tcompute(t)
-                y_tmp = y_new+ (self.t-1)/t_n*(y_new-y_new_last_it)
+                y_tmp = y_new+ (t-1)/t_n*(y_new-y_new_last_it)
                 y_new_last_it = y_new
                 t = t_n
             r.append(y_new)
