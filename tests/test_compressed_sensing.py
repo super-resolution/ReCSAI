@@ -127,13 +127,7 @@ class TestLossFunction(tf.test.TestCase):
     def setUp(self):
         pass
 
-    def test_permutation_is_ok(self):
-        #todo: it should be neglectable wether the position is reconstructed in vector 1 2 or 3
-        self.fail()
 
-    def test_if_coords_permute_classifier_permuts(self):
-        #todo: classifier has to match the vector of reconstruction
-        self.fail()
 
 
 

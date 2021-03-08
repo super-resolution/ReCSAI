@@ -43,7 +43,7 @@ def predict_localizations(path):
         # plt.show()
         # plt.imshow(image[2,:,:,1])
         # plt.show()
-        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.35)
+        crop_tensor, _, coord_list = bin_localisations_v2(image, denoising, th=0.2)
         for z in range(len(coord_list)):
             coord_list[z][2] += j*5000
         print(crop_tensor.shape[0])
@@ -63,7 +63,7 @@ def predict_localizations(path):
                 #current_drift[1] *= -1
 #                if coord_list[i][2] == frame:
                 #limit = [4,1,0.3]
-                limit = [1, 1, 0.3]
+                limit = [0.8, 0.6, 0.5]
                 for n in range(3):
                     #if result_tensor[i,2*n]/8 >1 and result_tensor[i,2*n+1]/8>1:
                     if result_tensor[i, 6 + n] > limit[n]:
@@ -83,7 +83,7 @@ def predict_localizations(path):
 
     print("finished AI")
     display_storm_data(result_array)
-    np.save(os.getcwd()+r"\DNApaint.npy",result_array)
+    np.save(os.getcwd()+r"\cy5_flim.npy",result_array)
 
 
 

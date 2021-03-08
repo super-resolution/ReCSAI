@@ -292,6 +292,5 @@ def old_psf_matrix(M_x,M_y,N_x,N_y,sigma_x,sigma_y):
                                         # Zahlenfolge N_y-1:-1:0
     for i in range(m):   # i-te Zeile
         for j in range(N):   # j-te Spalte
-            print(K[i,0]*h_M_x-L[j,0]*h_N_x)
             A[i,j] = gaus_kernel(K[i,0]*h_M_x-L[j,0]*h_N_x,  K[i,1]*h_M_y-L[j,1]*h_N_y)
     return A

@@ -96,19 +96,20 @@ class CompressedSensing(tf.keras.layers.Layer):
         super(CompressedSensing, self).__init__(*args, **kwargs, dtype="float32")
         self._iterations = tf.constant(100, dtype=tf.int32)
 
-        self._sigma = 150
+        self._sigma = 130
         self._px_size = 100
         self.matrix_update()#mat and psf defined outside innit
 
         self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
-        self.lam = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, name="lambda", trainable=True)*0.005#was0.005
+        self.lam = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, name="lambda", trainable=False)*0.005#was0.005
         #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
         #self.sparse_dense = tf.keras.layers.Lambda(dense)
-        self.y = tf.Variable(initial_value=tf.zeros((5184,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]#todo: use input dim
+        self.y = tf.constant(tf.zeros((5184,3)), dtype=tf.float32)[tf.newaxis, :]#todo: use input dim
         #self.result = tf.Variable(np.zeros((73,73,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]
         self.flatten= tf.keras.layers.Flatten()
         self.tcompute = tf.keras.layers.Lambda(lambda t: (1+tf.sqrt(1+4*tf.square(t)))/2)
         self.matmul = tf.keras.layers.Lambda(lambda x: tf.keras.backend.dot(x,x))
+
         #todo: add reshape
 
     @property
@@ -122,10 +123,13 @@ class CompressedSensing(tf.keras.layers.Layer):
     @px_size.setter
     def px_size(self, value):
         self._px_size = value
+        self.matrix_update()
+
 
     @sigma.setter
     def sigma(self, value):
         self._sigma = value
+        self.matrix_update()
 
     @property
     def iterations(self):
@@ -137,7 +141,7 @@ class CompressedSensing(tf.keras.layers.Layer):
 
     def matrix_update(self):
         self.psf = get_psf(self._sigma, self._px_size)
-        self.mat = tf.Variable(initial_value=self.psf_initializer(), dtype=tf.float32, trainable=False)
+        self.mat = tf.constant(self.psf_initializer(), dtype=tf.float32)
 
     def update_psf(self, sigma, px_size):
         self.psf = get_psf(sigma, 100)

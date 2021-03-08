@@ -5,7 +5,8 @@ from factory import Factory
 import os
 from tifffile import TiffWriter
 from src.utility import *
-from src.model import CompressedSensingNet,CompressedSensing,wavelet_ai
+from src.models.cs_model import CompressedSensingNet
+from src.models.wavelet_model import WaveletAI
 from Thunderstorm_jaccard import read_Thunderstorm
 import pandas as pd
 
@@ -117,17 +118,7 @@ def validate_rapidstorm():
 
     np.save(os.getcwd() +r"\test_data\rapidstorm_results.npy", rapidstorm_final)
 
-def validate_cs_model():
-    cs_net = CompressedSensingNet(CompressedSensing())
-    checkpoint_path = "cs_training4/cp-0010.ckpt"  # todo: load latest checkpoint
-    # Create a callback that saves the model's weights every 5 epochs
-    cs_net.load_weights(checkpoint_path)
-    denoising = wavelet_ai()
-
-    checkpoint_path = "training_lvl3/cp-10000.ckpt"
-
-    denoising.load_weights(checkpoint_path)
-
+def validate_thunderstorm():
     result_list_th = [] #jac,rmse,fp,fn,tp
     for i in range(10):
         path = os.getcwd() + r"\test_data\thunderstorm_results_dataset"+str(i)+".csv"
@@ -140,9 +131,23 @@ def validate_cs_model():
 
     np.save(os.getcwd() +r"\test_data\thunderstorm_results.npy", thunderstorm_final)
 
+def validate_cs_model():
+    cs_net = CompressedSensingNet()
+    cs_net.update(150,100)
+    # Create a callback that saves the model's weights every 5 epochs
+    optimizer = tf.keras.optimizers.Adam()
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
+    manager = tf.train.CheckpointManager(ckpt, './cs_training4', max_to_keep=3)
+    ckpt.restore(manager.latest_checkpoint)
+    if manager.latest_checkpoint:
+        print("Restored from {}".format(manager.latest_checkpoint))
+    else:
+        print("Initializing from scratch.")
+    denoising = WaveletAI()
 
+    checkpoint_path = "training_lvl3/cp-10000.ckpt"
 
-
+    denoising.load_weights(checkpoint_path)
     result_list_ai = [] #jac,rmse,fp,fn,tp
 
     for i in range(10):
@@ -163,31 +168,29 @@ def validate_cs_model():
         #truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :])#todo: use 20% test
 
         data, truth_new, coord_list = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:], th=0.25)
-        result_array = cs_net.predict(data)
+        result_tensor = cs_net.predict(data)
         per_fram_locs = []
         current_frame = 0
         current_frame_locs = []
         per_frame_multifit = []
         multifit = []
-        for i in range(result_array.shape[0]):
-            r = coord_list[i][0:2] + result_array[i,0:2]/8
-            if coord_list[i][2] == current_frame and result_array[i,2]>0.5:
-                if result_array[i,2]<1.4:
-                    current_frame_locs.append(r)
-                else:
-                    multifit.append(r*100)
-            elif result_array[i,2]>0.5:
+        limit = [0.8, 0.6, 0.5]
+
+        for i in range(result_tensor.shape[0]):
+            if coord_list[i][2] == current_frame:
+                for n in range(3):
+                    #if result_tensor[i,2*n]/8 >1 and result_tensor[i,2*n+1]/8>1:
+                    if result_tensor[i, 6 + n] > limit[n]:
+                        current_frame_locs.append(coord_list[i][0:2] + np.array([result_tensor[i,2*n]/8, result_tensor[i,2*n+1]/8]))
+            else:
                 per_fram_locs.append(np.array(current_frame_locs))
-                per_frame_multifit.append(np.array(multifit))
                 current_frame = coord_list[i][2]
                 current_frame_locs = []
-                multifit = []
-                if result_array[i,2]<1.4:
-                    current_frame_locs.append(r)
-                else:
-                    multifit.append(r*100)
+                for n in range(3):
+                    #if result_tensor[i,2*n]/8 >1 and result_tensor[i,2*n+1]/8>1:
+                    if result_tensor[i, 6 + n] > limit[n]:
+                        current_frame_locs.append(coord_list[i][0:2] + np.array([result_tensor[i,2*n]/8, result_tensor[i,2*n+1]/8]))
         #append last frame
-        per_frame_multifit.append(np.array(multifit))
         per_fram_locs.append(np.array(current_frame_locs))
         #todo: create a test function for jaccard
         #per_frame_multifit = np.array(multifit)*100
@@ -202,16 +205,16 @@ def validate_cs_model():
 
     ai_final = np.array(result_list_ai).T
 
-    np.save(os.getcwd() +r"\test_data\ai_results.npy", ai_final)
+    np.save(os.getcwd() +r"\test_data\ai_results_cs4.npy", ai_final)
 
 
 
 if __name__ == '__main__':
     #create_test_data()
-    #validate_cs_model()
+    validate_cs_model()
     validate_rapidstorm()
     rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
-    ai = np.load(os.getcwd() +r"\test_data\ai_results.npy", allow_pickle=True)
+    ai = np.load(os.getcwd() +r"\test_data\ai_results_cs4.npy", allow_pickle=True)
     ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)
 
     thund = np.load(os.getcwd() +r"\test_data\thunderstorm_results.npy", allow_pickle=True)

@@ -22,12 +22,17 @@ class CompressedSensingNet(tf.keras.Model):
         self.conv4 = tf.keras.layers.Conv2D(256, (3, 3), activation='relu', padding="same")
 
 
-        self.dense1 = tf.keras.layers.Dense(64, activation="relu")
-        self.dense2 = tf.keras.layers.Dense(32, activation="relu")
-        self.dense3 = tf.keras.layers.Dense(16, activation="relu")
+        self.dense1 = tf.keras.layers.Dense(64, activation="relu")#todo: add l1 regularization
+        self.dense2 = tf.keras.layers.Dense(32, activation="relu")#todo: add l1 regularization
+        self.dense3 = tf.keras.layers.Dense(16, activation="relu")#todo: add l1 regularization
         self.dense4 = tf.keras.layers.Dense(9)
-        self.preparation = tf.keras.layers.Lambda(lambda x: (x-tf.keras.backend.min(x))/tf.keras.backend.max(x-tf.keras.backend.min(x)))
 
+        def activation(tensor):
+            x = tf.unstack(tensor, axis=-1)
+            for i in range(3):
+                x[6+i] = tf.keras.activations.sigmoid(x[6+i])
+            return tf.stack(x, axis=-1)
+        self.activation = tf.keras.layers.Lambda(activation)
 
     def update(self, sigma, px_size):
         self.cs_layer.sigma = sigma
@@ -46,6 +51,7 @@ class CompressedSensingNet(tf.keras.Model):
         x = self.conv3(x)
         x = self.pooling_2(x)#9x9
         x = tf.keras.layers.concatenate([x,inputs],axis=-1)
+        #x = self.dropout(x)
         x = self.conv4(x)
         x = self.pooling_3(x)
         x = self.batch_norm3(x)
@@ -55,6 +61,8 @@ class CompressedSensingNet(tf.keras.Model):
         x = self.dense2(x)
         x = self.dense3(x)
         x = self.dense4(x)
+        #todo: sigmoid activation for dense(6:)
+        x = self.activation(x)
 
 
         return x
@@ -65,3 +73,33 @@ class CompressedSensingNet(tf.keras.Model):
         RMSE = l2(truth_p, predict_p)#*tf.repeat(truth_c, repeats=[2,2,2],axis=1))
         BCE = tf.reduce_sum(ce(truth_c, predict_c,))
         return 3*RMSE+BCE
+
+    def sort(self, tensor):
+        x = tf.unstack(tensor, axis=-1)
+        squ = []
+        for i in range(len(x)//2):
+            i*=2
+            squ.append(x[i]**2+x[i+1]**2)
+        new = tf.stack(squ, axis=-1)
+        return tf.argsort(new, axis=-1, direction='ASCENDING', stable=False, name=None)
+
+    def permute_tensor_structure(self, tensor, indices):
+        c = indices+6
+        x = indices*2
+        y = indices*2+1
+        v = tf.transpose([x,y])
+        v = tf.reshape(v, [indices.shape[0],-1])
+        perm = tf.concat([v,c],axis=-1)
+        return tf.gather(tensor, perm, batch_dims=1, name=None, axis=-1)
+
+    def compute_permute_loss(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        ce = tfa.losses.SigmoidFocalCrossEntropy()
+        indices = self.sort(predict[:,0:6])
+        indices2 = self.sort(truth[:,0:6])
+        predict = self.permute_tensor_structure(predict, indices)
+        truth = self.permute_tensor_structure(truth, indices2)
+        L2 = l2(predict[:,0:6], truth[:,0:6])
+        BCE = tf.reduce_sum(ce(truth[:,6:], predict[:,6:],))
+        return 3*L2+BCE
+        #todo: test this
