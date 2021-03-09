@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 #done: unit test should extend tf test case
 class TestCompressedSensingLayer(BaseTest):
+
     def setUp(self):
         self.layer = CompressedSensing()
 
@@ -44,7 +45,7 @@ class TestCompressedSensingLayer(BaseTest):
         self.assertGreater(tf.where(output>0).shape[0], 50)
 
     @skip
-    def test_psf_matrix(self):
+    def test_different_sigma_have_different_outputs(self):
         #todo: how do I test the psf matrix??
         #todo: rewrite psf matrix creater to output the same as old...
         self.fail()

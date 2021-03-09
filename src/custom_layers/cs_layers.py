@@ -96,7 +96,7 @@ class CompressedSensing(tf.keras.layers.Layer):
         super(CompressedSensing, self).__init__(*args, **kwargs, dtype="float32")
         self._iterations = tf.constant(100, dtype=tf.int32)
 
-        self._sigma = 130
+        self._sigma =150
         self._px_size = 100
         self.matrix_update()#mat and psf defined outside innit
 
@@ -140,7 +140,7 @@ class CompressedSensing(tf.keras.layers.Layer):
         self._iterations = tf.constant(value, dtype=tf.int32)
 
     def matrix_update(self):
-        self.psf = get_psf(self._sigma, self._px_size)
+        self.psf = get_psf(self.sigma, self._px_size)
         self.mat = tf.constant(self.psf_initializer(), dtype=tf.float32)
 
     def update_psf(self, sigma, px_size):

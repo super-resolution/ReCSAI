@@ -42,19 +42,19 @@ def train_cs_net(crop_generator):
         for j in range(5):
             sigma = np.random.randint(100, 250)
             generator = crop_generator(9, sigma_x=sigma)
-            dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
-                                                     output_shapes=((100, 9, 9, 3), (), (100, 9)))
+            dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
+                                                     output_shapes=((100, 9, 9, 3),  (100, 9)))
             cs_net.update(sigma, 100)
             loop(dataset)
         sigma = np.random.randint(100, 250)
         generator = crop_generator(9, sigma_x=sigma)
-        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
-                                                 output_shapes=((100, 9, 9, 3), (), (100, 9)))
+        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
+                                                 output_shapes=((100, 9, 9, 3),  (100, 9)))
         cs_net.update(sigma, 100)
         test(dataset)
 
     def test(dataset):
-        for train_image, sigma, truth in dataset.take(20):
+        for train_image, truth in dataset.take(20):
             truth = truth.numpy() / 100
             result = cs_net.predict(train_image) / 8
             for i in range(truth.shape[0]):

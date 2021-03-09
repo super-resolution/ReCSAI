@@ -3,6 +3,7 @@ from src.factory import Factory
 import numpy as np
 from astropy.convolution import Gaussian2DKernel
 from unittest import skip
+from src.data import crop_generator
 
 
 class TestArtificialDataCreation(tf.test.TestCase):
@@ -34,7 +35,6 @@ class TestArtificialDataCreation(tf.test.TestCase):
         image2 = self.factory.create_points_add_photons(image2, point, point[:, 2])
         image2 = self.factory.reduce_size(image2)
         self.assertAllClose(image,image2)
-        #todo: flip output without noise lr or td and compare with simulation to that coordinates...
 
     def test_only_painted_localisations_are_in_list(self):
         init_indices = np.random.choice(self.points.shape[0], 10)
@@ -74,16 +74,35 @@ class TestArtificialDataCreation(tf.test.TestCase):
 
 class TestCropGenerator(tf.test.TestCase):
     def setUp(self):
-        pass
+        self.generator = crop_generator(9)
 
     def test_noise_lvl_is_randomized(self):
-        self.fail()
+        data,_ = self.generator().__next__()
+        images = []
+        set_ = data[0:4]
+        images.append(set_[0])
+        images.append(tf.image.flip_left_right(set_[1]))
+        images.append(tf.image.flip_up_down(set_[2]))
+        images.append(tf.image.flip_up_down(tf.image.flip_left_right(set_[3])))
+        for i in range(4):
+            for j in range(4):
+                if i!=j:
+                    self.assertNotAllClose(images[j], images[i])
+        for i in range(4):
+            for j in range(4):
+                if i!=j:
+                    self.assertAllClose(images[j], images[i], atol=0.1, rtol=100.0)
+        #todo: each of 4 consecutive images has different noise
+        #todo: undo flip and comapare
 
-    def test_max_three_localizations_per_crop(self):
-        self.fail()
+    def test_none_of_three_channels_is_empty(self):
+        data,_ = self.generator().__next__()
+        for i in range(data.shape[0]):
+            for j in range(3):
+                self.assertAllClose(data[i,:,:,j])
 
-    def test_shape(self):
-        self.fail()
+        #todo: check for zeros
 
-    def test_localisations_are_distributed_equally_on_three_channels(self):
+    def test_flip_is_working_as_expected(self):
+        #todo: images are not equal on noise lvl comparison
         self.fail()

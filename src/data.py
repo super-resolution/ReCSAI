@@ -40,7 +40,6 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
                     image = factory.create_points_add_photons(image, points[ind], points[ind,2])
                     image = factory.reduce_size(image).astype(np.float32)
                     image += 3
-                    image = factory.accurate_noise_simulations_camera(image)
                     return image, p
 
                 ind = np.arange(ind, ind + n, 1).astype(np.int32)
@@ -49,23 +48,38 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
                 image_s[:, :, 1],p = build_image(ind)
 
                 bef_after = np.random.randint(0,2,2*n)
-                image_list.append(image_s)
                 ind_new_b = ind
                 ind_new_a = ind
                 ind_new_b = np.delete(ind_new_b, np.where(bef_after[:n]==0))
                 ind_new_a = np.delete(ind_new_a, np.where(bef_after[n:]==0))
                 image_s[:, :, 2],_ = build_image(ind_new_a)
                 image_s[:, :, 0],_ = build_image(ind_new_b)
-                image_s -= image_s.min()
-                image_s /= image_s.max()
 
 
-                #todo:create before image
+                #done: random new noise in next image random switch off
+                for t in range(4):
+                    image_s_copy = copy.deepcopy(image_s)
+                    p = copy.deepcopy(p)
+                    for k in range(3):
+                        image_s_copy[:,:,k] = factory.accurate_noise_simulations_camera(image_s_copy[:,:,k])
+
+                    image_s_copy -= image_s_copy.min()
+                    image_s_copy /= image_s_copy.max()
+                    if t == 1:
+                        image_s_copy = np.fliplr(image_s_copy)
+                        p[1::2] = (factory.shape[1] - 1) - p[1::2]
+                    elif t == 2:
+                        image_s_copy = np.flipud(image_s_copy)
+                        p[0::2] = (factory.shape[0] - 1) - p[0::2]
+                    elif t == 3:
+                        image_s_copy = np.flipud(np.fliplr(image_s_copy))
+                        p[1::2] = (factory.shape[1] - 1) - p[1::2]
+                        p[0::2] = (factory.shape[0] - 1) - p[0::2]
+                    points_list.append(p)
+                    image_list.append(image_s_copy)
 
 
-                #todo: random new noise in next image random switch off
-                points_list.append(p)
-            yield tf.convert_to_tensor(image_list), tf.constant(sigma_x), tf.convert_to_tensor(np.array(points_list))#todo: why does this run 10 times?
+            yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(np.array(points_list))#todo: why does this run 10 times?
     return generator
 
 def real_data_generator(im_shape, switching_rate=0.2):

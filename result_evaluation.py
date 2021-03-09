@@ -98,8 +98,11 @@ def jaccard_index(reconstruction,ground_truth):
     false_negative = this_ground_truth
     jac = result.shape[0] / (result.shape[0] + f_p_count + f_n)
     error = 0
+    vec = []
     for i in result:
         error += i[2] ** 2 + i[3] ** 2
+        vec.append(i[-2:])
+    print(np.mean(np.array(vec),axis=0))
     rmse = np.sqrt(error / result.shape[0])
     print("Jaccard index: = ", jac, " rmse = ", rmse)
 
@@ -111,7 +114,7 @@ def validate_rapidstorm():
         path = os.getcwd() + r"\test_data\rapidstorm\new\dataset_n"+str(i)+"_free PSF_200-800nm.txt"
         p = read_Rapidstorm(path)
         truth = os.getcwd() + r"\test_data\dataset_n"+str(i)+".npy"  # r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction.npz"
-        truth_coords = np.load(truth, allow_pickle=True)
+        truth_coords = np.load(truth, allow_pickle=True)-50
         result, false_positive, false_negative, jac, rmse = jaccard_index(p, truth_coords)
         result_list_rapid.append(np.array([jac, rmse, false_positive[1], false_negative[1], result.shape[0]]))
     rapidstorm_final = np.array(result_list_rapid).T
@@ -133,7 +136,6 @@ def validate_thunderstorm():
 
 def validate_cs_model():
     cs_net = CompressedSensingNet()
-    cs_net.update(150,100)
     # Create a callback that saves the model's weights every 5 epochs
     optimizer = tf.keras.optimizers.Adam()
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
@@ -143,6 +145,8 @@ def validate_cs_model():
         print("Restored from {}".format(manager.latest_checkpoint))
     else:
         print("Initializing from scratch.")
+    cs_net.update(150,100)
+
     denoising = WaveletAI()
 
     checkpoint_path = "training_lvl3/cp-10000.ckpt"
@@ -158,7 +162,10 @@ def validate_cs_model():
         #truth = np.zeros((100, 64, 64, 3))
         truth_coords = np.load(truth, allow_pickle=True)
         truth_coords /= 100
-        truth_coords += 14.5#thats offset
+        for frame in truth_coords:
+            frame[:,0] += 14#thats offset
+            frame[:,1] += 14#thats offset
+
         for i in range(100):
             image[i] = gen.__next__()
 
@@ -172,9 +179,17 @@ def validate_cs_model():
         per_fram_locs = []
         current_frame = 0
         current_frame_locs = []
-        per_frame_multifit = []
-        multifit = []
-        limit = [0.8, 0.6, 0.5]
+        limit = [0.8, 1.8, 1.8]
+        t_array = truth_new.numpy()
+        # for i in range(result_tensor.shape[0]):
+        #     plt.imshow(data[i, :, :, 1])
+        #     plt.scatter(t_array[i, 1]/8, t_array[i, 0]/8)
+        #
+        #     for n in range(3):
+        #         if result_tensor[i, 6 + n] > 0.1:
+        #             plt.scatter(result_tensor[i, 2 * n + 1]/8, result_tensor[i, 2 * n]/8, c="g")
+        #     plt.show()
+
 
         for i in range(result_tensor.shape[0]):
             if coord_list[i][2] == current_frame:
