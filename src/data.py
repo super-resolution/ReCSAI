@@ -7,7 +7,7 @@ from src.factory import Factory
 import copy
 from astropy.convolution import Gaussian2DKernel
 
-
+CROP_TRANSFORMS = 4
 OFFSET=14
 
 def crop_generator(im_shape, sigma_x=150, sigma_y=150):
@@ -57,9 +57,9 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
 
 
                 #done: random new noise in next image random switch off
-                for t in range(4):
+                for t in range(CROP_TRANSFORMS):
                     image_s_copy = copy.deepcopy(image_s)
-                    p = copy.deepcopy(p)
+                    p_n = copy.deepcopy(p)
                     for k in range(3):
                         image_s_copy[:,:,k] = factory.accurate_noise_simulations_camera(image_s_copy[:,:,k])
 
@@ -67,19 +67,19 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
                     image_s_copy /= image_s_copy.max()
                     if t == 1:
                         image_s_copy = np.fliplr(image_s_copy)
-                        p[1::2] = (factory.shape[1] - 1) - p[1::2]
+                        p_n[1:6:2] = ((factory.shape[1] ) - p_n[1:6:2])*p[6:]
                     elif t == 2:
                         image_s_copy = np.flipud(image_s_copy)
-                        p[0::2] = (factory.shape[0] - 1) - p[0::2]
+                        p_n[0:6:2] = ((factory.shape[0] - 1) - p_n[0:6:2])*p[6:]
                     elif t == 3:
                         image_s_copy = np.flipud(np.fliplr(image_s_copy))
-                        p[1::2] = (factory.shape[1] - 1) - p[1::2]
-                        p[0::2] = (factory.shape[0] - 1) - p[0::2]
-                    points_list.append(p)
+                        p_n[1:6:2] = ((factory.shape[1] - 1) - p_n[1:6:2])*p[6:]
+                        p_n[0:6:2] = ((factory.shape[0] - 1) - p_n[0:6:2])*p[6:]
+                    points_list.append(p_n)
                     image_list.append(image_s_copy)
 
 
-            yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(np.array(points_list))#todo: why does this run 10 times?
+            yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(np.array(points_list))#todo: shuffle?
     return generator
 
 def real_data_generator(im_shape, switching_rate=0.2):

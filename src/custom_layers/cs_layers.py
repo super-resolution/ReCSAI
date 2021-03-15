@@ -141,7 +141,8 @@ class CompressedSensing(tf.keras.layers.Layer):
 
     def matrix_update(self):
         self.psf = get_psf(self.sigma, self._px_size)
-        self.mat = tf.constant(self.psf_initializer(), dtype=tf.float32)
+        self.mat = tf.constant(self.psf_initializer(), dtype=tf.float32)#works in training
+
 
     def update_psf(self, sigma, px_size):
         self.psf = get_psf(sigma, 100)
@@ -150,7 +151,7 @@ class CompressedSensing(tf.keras.layers.Layer):
     def psf_initializer(self):
         #mat1 = create_psf_matrix(9, 8, self.psf)
         v = self._sigma/self._px_size
-        mat = old_psf_matrix(9,9,72,72, v*8/(81),v*8/(81)).T#todo: depending on sigma and px_size
+        mat = old_psf_matrix(9,9,72,72, v*9/(64),v*9/(64)).T#todo: WTF why is this like this???
         # mat1 /= mat1[0,0]
         # mat1 *= mat[0,0]
         return mat

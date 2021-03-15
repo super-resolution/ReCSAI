@@ -91,7 +91,7 @@ def predict_localizations(path):
 
 
 #validate_cs_model()
-train_cs_net(crop_generator)
+train_cs_net()
 #train_nonlinear_shifter_ai()
 #learn_psf()
 

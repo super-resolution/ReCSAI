@@ -39,9 +39,11 @@ class TestCompressedSensingLayer(BaseTest):
     def test_perfect_reconstruction_from_noiseless_data(self):
         #todo: simulate perfect psf use cs high iteration receive sparse result
         data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
-        self.layer.iterations = 4000#todo: 4000 is close to sparse
+        self.layer.iterations = 10000#todo: 4000 is close to sparse
         output = self.layer(data)
         output = tf.reshape(output, (1,72,72,3))
+        plt.imshow(output[0,:,:,1])
+        plt.show()
         self.assertGreater(tf.where(output>0).shape[0], 50)
 
     @skip

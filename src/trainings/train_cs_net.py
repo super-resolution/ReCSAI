@@ -2,10 +2,10 @@ from src.models.cs_model import CompressedSensingNet
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt #todo: plot in main?
+from src.data import crop_generator,CROP_TRANSFORMS
 
 
-
-def train_cs_net(crop_generator):
+def train_cs_net():
     #test dataset from generator
     @tf.function
     def train_step(train_image, truth):
@@ -14,7 +14,7 @@ def train_cs_net(crop_generator):
             logits = cs_net(train_image)
             logits_p = logits[:, 0:6] / 8
             #loss = cs_net.compute_loss(truth_p, logits_p, truth[:, 6:], logits[:, 6:], )#todo:change to permute loss
-            loss = cs_net.compute_loss(truth_p,logits_p, truth[:,6:],  logits[:,6:])
+            loss = cs_net.compute_permute_loss(tf.concat([truth_p, truth[:,6:]],axis=-1), tf.concat([logits_p, logits[:,6:]],axis=-1) )
         gradients = tape.gradient(loss, cs_net.trainable_variables)
         optimizer.apply_gradients(zip(gradients, cs_net.trainable_variables))
         # step.assign_add(1)
@@ -24,7 +24,7 @@ def train_cs_net(crop_generator):
 
     # @tf.function
     def loop(dataset):
-        for train_image, sigma, truth in dataset.take(15):
+        for train_image, truth in dataset.take(2):
             for i in range(50):
                 loss_value = train_step(train_image, truth)
                 ckpt.step.assign_add(1)
@@ -40,21 +40,21 @@ def train_cs_net(crop_generator):
         else:
             print("Initializing from scratch.")
         for j in range(5):
-            sigma = np.random.randint(100, 250)
+            sigma = np.random.randint(150, 200)
             generator = crop_generator(9, sigma_x=sigma)
             dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
-                                                     output_shapes=((100, 9, 9, 3),  (100, 9)))
+                                                     output_shapes=((CROP_TRANSFORMS*100, 9, 9, 3),  (CROP_TRANSFORMS*100, 9)))
             cs_net.update(sigma, 100)
             loop(dataset)
-        sigma = np.random.randint(100, 250)
+        sigma = np.random.randint(150, 200)
         generator = crop_generator(9, sigma_x=sigma)
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
-                                                 output_shapes=((100, 9, 9, 3),  (100, 9)))
+                                                 output_shapes=((CROP_TRANSFORMS*100, 9, 9, 3),  (CROP_TRANSFORMS*100, 9)))
         cs_net.update(sigma, 100)
         test(dataset)
 
     def test(dataset):
-        for train_image, truth in dataset.take(20):
+        for train_image, truth in dataset.take(1):
             truth = truth.numpy() / 100
             result = cs_net.predict(train_image) / 8
             for i in range(truth.shape[0]):
@@ -72,6 +72,6 @@ def train_cs_net(crop_generator):
         optimizer = tf.keras.optimizers.Adam()
         step = tf.Variable(1, name="global_step")
         ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './cs_training4', max_to_keep=3)
+        manager = tf.train.CheckpointManager(ckpt, './cs_training_permute_loss_downsample', max_to_keep=6)
 
         outer_loop()

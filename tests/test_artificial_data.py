@@ -10,7 +10,7 @@ class TestArtificialDataCreation(tf.test.TestCase):
 
     def setUp(self):
         im_shape = 100
-        px_size=100
+        px_size = 100
         sigma = 150
         self.factory = Factory()
         self.factory.shape = (im_shape * px_size, im_shape * px_size)
@@ -84,16 +84,21 @@ class TestCropGenerator(tf.test.TestCase):
         images.append(tf.image.flip_left_right(set_[1]))
         images.append(tf.image.flip_up_down(set_[2]))
         images.append(tf.image.flip_up_down(tf.image.flip_left_right(set_[3])))
+        #test data is not identical
         for i in range(4):
             for j in range(4):
                 if i!=j:
                     self.assertNotAllClose(images[j], images[i])
+        #test data is similar
         for i in range(4):
             for j in range(4):
                 if i!=j:
                     self.assertAllClose(images[j], images[i], atol=0.1, rtol=100.0)
-        #todo: each of 4 consecutive images has different noise
-        #todo: undo flip and comapare
+
+    def test_point_classifier_in_range(self):
+        _,points = self.generator().__next__()
+        self.assertAllInRange(points[:,6:],0,1,)
+
 
     def test_none_of_three_channels_is_empty(self):
         data,_ = self.generator().__next__()
