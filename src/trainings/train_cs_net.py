@@ -1,9 +1,74 @@
-from src.models.cs_model import CompressedSensingNet
+from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt #todo: plot in main?
-from src.data import crop_generator,CROP_TRANSFORMS
+from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net
 
+def train_cs_u_net():
+    #test dataset from generator
+    @tf.function
+    def train_step(train_image, truth):
+        with tf.GradientTape() as tape:
+            logits = cs_net(train_image)
+            loss = cs_net.compute_loss(truth, logits)
+        gradients = tape.gradient(loss, cs_net.trainable_variables)
+        optimizer.apply_gradients(zip(gradients, cs_net.trainable_variables))
+        # step.assign_add(1)
+
+        # accuracy_value = accuracy(truth, tf.argmax(logits, -1))
+        return loss  # , accuracy_value
+
+    # @tf.function
+    def loop(dataset):
+        for train_image, truth in dataset.take(5):
+            for i in range(100):
+                loss_value = train_step(train_image, truth)
+                ckpt.step.assign_add(1)
+                if int(ckpt.step) % 10 == 0:
+                    save_path = manager.save()
+                    print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
+                    print("loss {:1.2f}".format(loss_value.numpy()))
+
+    def outer_loop():
+        ckpt.restore(manager.latest_checkpoint)
+        if manager.latest_checkpoint:
+            print("Restored from {}".format(manager.latest_checkpoint))
+        else:
+            print("Initializing from scratch.")
+        # for j in range(15):
+        #     sigma = np.random.randint(150, 200)
+        #     generator = crop_generator_u_net(9, sigma_x=sigma)
+        #     dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
+        #                                              output_shapes=((1*100, 9, 9, 3),  (1*100, 9,9,3)))
+        #     cs_net.update(sigma, 100)
+        #     loop(dataset)
+        sigma = np.random.randint(150, 200)
+        generator = crop_generator_u_net(9, sigma_x=sigma)
+        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
+                                                 output_shapes=((1*100, 9, 9, 3),  (1*100, 9,9,3)))
+        cs_net.update(sigma, 100)
+        test(dataset)
+
+    def test(dataset):
+        for train_image, truth in dataset.take(1):
+            truth = truth.numpy()
+            result = cs_net.predict(train_image)
+            for i in range(truth.shape[0]):
+                fig,axs = plt.subplots(2)
+                axs[0].imshow(truth[i, :, :, 2])
+                axs[1].imshow(result[i,:,:,2])
+                plt.show()
+
+
+    for i in range(10):
+        cs_net = CompressedSensingCVNet()
+
+        optimizer = tf.keras.optimizers.Adam(1e-4)
+        step = tf.Variable(1, name="global_step")
+        ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
+        manager = tf.train.CheckpointManager(ckpt, './cs_training_u', max_to_keep=6)
+
+        outer_loop()
 
 def train_cs_net():
     #test dataset from generator
@@ -75,3 +140,6 @@ def train_cs_net():
         manager = tf.train.CheckpointManager(ckpt, './cs_training_permute_loss_downsample', max_to_keep=6)
 
         outer_loop()
+
+if __name__ == '__main__':
+    train_cs_u_net()

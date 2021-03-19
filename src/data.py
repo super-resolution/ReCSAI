@@ -9,6 +9,76 @@ from astropy.convolution import Gaussian2DKernel
 
 CROP_TRANSFORMS = 4
 OFFSET=14
+def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
+    #todo: create dynamical
+
+    factory = Factory()
+    factory.shape= (im_shape*100,im_shape*100)
+    factory.image_shape = (im_shape,im_shape)# select points here
+    def generator():
+        for z in range(100):
+            ph = np.random.randint(1000,2000)
+            points = factory.create_crop_point_set(photons=ph)
+            #sigma_y = np.random.randint(100, 250)
+            factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_x)
+            truth_cs_list = []
+            image_list = []
+            for i in range(100): #todo: while loop here
+                print(i)
+
+                ind = np.random.randint(0,points.shape[0])
+                n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
+                if n>3:
+                    n=3
+                def build_image(ind):#todo: points to image
+                    image = factory.create_image()
+                    truth_cs = factory.create_classifier_image((9,9), points[ind], 100)#todo: variable px_size
+                    image = factory.create_points_add_photons(image, points[ind], points[ind,2])
+                    image = factory.reduce_size(image).astype(np.float32)
+                    image += 2 #noise was 2
+                    return image, truth_cs
+
+                ind = np.arange(ind, ind + n, 1).astype(np.int32)
+                image_s = np.zeros((im_shape,im_shape, 3))
+
+                image_s[:, :, 1],truth_cs = build_image(ind)
+
+                bef_after = np.random.randint(0,2,2*n)
+                ind_new_b = ind
+                ind_new_a = ind
+                ind_new_b = np.delete(ind_new_b, np.where(bef_after[:n]==0))
+                ind_new_a = np.delete(ind_new_a, np.where(bef_after[n:]==0))
+                image_s[:, :, 2],_ = build_image(ind_new_a)
+                image_s[:, :, 0],_ = build_image(ind_new_b)
+                image_s -= image_s.min()
+                image_s += 0.0001
+                image_s /= image_s.max()
+
+                #done: random new noise in next image random switch off
+                # for t in range(CROP_TRANSFORMS):
+                #     image_s_copy = copy.deepcopy(image_s)
+                #     truth_cs_copy = copy.deepcopy(truth_cs)
+                #     for k in range(3):
+                #         image_s_copy[:,:,k] = factory.accurate_noise_simulations_camera(image_s_copy[:,:,k])
+                #
+                #     image_s_copy -= image_s_copy.min()
+                #     image_s_copy /= image_s_copy.max()
+                #     if t == 1:
+                #         image_s_copy = np.fliplr(image_s_copy)
+                #         p_n[1:6:2] = ((factory.shape[1] ) - p_n[1:6:2])*p[6:]
+                #     elif t == 2:
+                #         image_s_copy = np.flipud(image_s_copy)
+                #         p_n[0:6:2] = ((factory.shape[0] - 1) - p_n[0:6:2])*p[6:]
+                #     elif t == 3:
+                #         image_s_copy = np.flipud(np.fliplr(image_s_copy))
+                #         p_n[1:6:2] = ((factory.shape[1] - 1) - p_n[1:6:2])*p[6:]
+                #         p_n[0:6:2] = ((factory.shape[0] - 1) - p_n[0:6:2])*p[6:]
+                truth_cs_list.append(truth_cs)
+                image_list.append(image_s)
+
+
+            yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list)#todo: shuffle?
+    return generator
 
 def crop_generator(im_shape, sigma_x=150, sigma_y=150):
     #todo: create dynamical

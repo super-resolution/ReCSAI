@@ -4,6 +4,79 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 from src.custom_layers.utility_layer import downsample,upsample
 
+#todo: imitate yolo architecture and use 9x9 output grid
+class CompressedSensingCVNet(tf.keras.Model):
+    def __init__(self):
+        super(CompressedSensingCVNet, self).__init__()
+        self.cs_layer = CompressedSensing()
+        self.reshape = tf.keras.layers.Reshape((72, 72, 3), )
+        self.batch_norm = tf.keras.layers.BatchNormalization()
+        #todo: keep part of the down path
+        self.down_path = [downsample(64,3,apply_batchnorm=True),
+        downsample(128,3),
+        downsample(256,3,apply_batchnorm=True),
+                          ]
+
+        #todo: concatnate here
+
+        #todo: horizontal path
+
+        self.horizontal_path = [
+            tf.keras.layers.Conv2D(256, (1, 1), activation=None, padding="same"),
+            tf.keras.layers.LeakyReLU(alpha=0.01),
+            tf.keras.layers.Conv2D(128, (1, 1), activation=None, padding="same"),
+            tf.keras.layers.LeakyReLU(alpha=0.01),
+            tf.keras.layers.Conv2D(64, (7, 7), activation=None, padding="same"),
+            tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.Conv2D(32,(3,3), activation=None, padding="same"),
+            tf.keras.layers.LeakyReLU(alpha=0.01),
+            tf.keras.layers.Conv2D(3, (3, 3), activation=None, padding="same"),
+
+        ]
+
+
+        #todo: activation might not be that bad
+        def activation(inputs):
+            inputs_list = tf.unstack(inputs,axis=-1)
+            inputs_list[2] = tf.keras.activations.softmax(inputs_list[2], axis=[-2,-1])#last is classifier
+            return tf.stack(inputs_list, axis=-1)
+        self.activation = tf.keras.layers.Lambda(activation)
+        self.concat = tf.keras.layers.Concatenate()
+
+    def __call__(self, inputs):
+        x = self.cs_layer(inputs)
+        x = self.reshape(x)#72x72
+        x = self.batch_norm(x)
+        for layer in self.down_path:
+            x = layer(x)
+
+
+
+        x = tf.keras.layers.Concatenate()([x, inputs])
+        for layer in self.horizontal_path:
+            x = layer(x)
+        #todo: transpose
+
+        x = self.activation(x)
+        return x
+        #todo: output 3 x,y,classifier
+
+    def update(self, sigma, px_size):
+        self.cs_layer.sigma = sigma
+
+    def compute_loss(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        ce = tf.keras.losses.CategoricalCrossentropy()
+        mask = tf.keras.activations.sigmoid(truth[:,:,:,2:3])
+        L2 = l2(predict[:,:,:,0:2]*mask, truth[:,:,:,0:2])
+        BCE = ce( truth[:,:,:,2], predict[:,:,:,2],)
+        return BCE + 3*L2
+        #todo: build truth image and compute loss
+        #todo: select loc compute coordinates
+        #todo: compute loss...
+
+
 
 class CompressedSensingNet(tf.keras.Model):
     def __init__(self):

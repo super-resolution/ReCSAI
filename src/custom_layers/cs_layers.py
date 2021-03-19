@@ -10,7 +10,7 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #for x path
         self.cs = CompressedSensing()#todo: prio1 needs input dimension and update for sigma
-        self.reshape = tf.keras.layers.Reshape((73, 73, 3), )#Done expanded to 74,74
+        self.reshape = tf.keras.layers.Reshape((72, 72, 3), )#Done expanded to 74,74
         paddings = tf.constant([[0,0],[1,0],[1,0],[0,0]])#expand size for even output
         self.padding = tf.keras.layers.Lambda(lambda x:  tf.pad(x, paddings, "REFLECT"))
         self.convolution1x1_x1 = tf.keras.layers.Conv2D(1,(1,1), activation='relu')#reduce dim to 1 for cs max intensity proj? padding doesnt matter
@@ -94,14 +94,15 @@ class CompressedSensingInception(tf.keras.layers.Layer):
 class CompressedSensing(tf.keras.layers.Layer):
     def __init__(self,*args, **kwargs):
         super(CompressedSensing, self).__init__(*args, **kwargs, dtype="float32")
-        self._iterations = tf.constant(100, dtype=tf.int32)
+        self._iterations = tf.constant(200, dtype=tf.int32)
 
         self._sigma =150
         self._px_size = 100
         self.matrix_update()#mat and psf defined outside innit
 
         self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
-        self.lam = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, name="lambda", trainable=False)*0.005#was0.005
+        self.lam = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, name="lambda",
+                               trainable=True)*0.003#was0.005
         #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
         #self.sparse_dense = tf.keras.layers.Lambda(dense)
         self.y = tf.constant(tf.zeros((5184,3)), dtype=tf.float32)[tf.newaxis, :]#todo: use input dim

@@ -2,6 +2,7 @@ import numpy as np
 from astropy.convolution import Gaussian2DKernel
 import cv2
 import numba
+import scipy
 
 
 class Factory():
@@ -146,4 +147,37 @@ class Factory():
                                                             horizontal_k_range[0]:horizontal_k_range[1]].astype(np.float32) * 800
         return image,exclude
 
+    def create_classifier_image(self, size, points, px_size):
+        image = np.zeros((size[0], size[1], 3))
+        for point in points:
+            y = (point[0]%px_size)/px_size-0.5
+            x = (point[1]%px_size)/px_size-0.5
+            image[int(point[0]//px_size), int(point[1]//px_size), 2] = 1
+            # if y < 0:
+            #     image[int(point[0]//px_size)-1, int(point[1]//px_size), 2] = (2*y)**2
+            #     image[int(point[0]//px_size)-1, int(point[1]//px_size), 0] = y+1
+            #     image[int(point[0]//px_size)-1, int(point[1]//px_size), 1] = x
+            #
+            # else:
+            #     image[int(point[0]//px_size)+1, int(point[1]//px_size), 2] = (2*y)**2
+            #     image[int(point[0] // px_size) + 1, int(point[1] // px_size), 0] = y-1
+            #     image[int(point[0] // px_size) + 1, int(point[1] // px_size), 1] = x
+            # if x<0:
+            #     image[int(point[0]//px_size), int(point[1]//px_size)-1, 2] = (2*x)**2
+            #     image[int(point[0]//px_size), int(point[1]//px_size)-1, 0] = y
+            #     image[int(point[0]//px_size), int(point[1]//px_size)-1, 1] = x+1
+            # else:
+            #     image[int(point[0]//px_size), int(point[1]//px_size)+1, 2] = (2*x)**2
+            #     image[int(point[0]//px_size), int(point[1]//px_size)+1, 0] = y
+            #     image[int(point[0]//px_size), int(point[1]//px_size)+1, 1] = x-1
+
+
+            #todo: linear interpolation over connceted pixels
+            # image[:, :, 2] = scipy.ndimage.gaussian_filter(image[:,:,2], sigma=1)
+            # if image[:,:,2].max() != 0:
+            #     image[:,:,2] /= image[:,:,2].max()
+            #image[np.where(image[:,:,2]==0),2] = -1
+            image[int(point[0]//px_size), int(point[1]//px_size), 0] = (point[0]%px_size)/px_size-0.5#norm on subpixel E [0,1]
+            image[int(point[0]//px_size), int(point[1]//px_size), 1] = (point[1]%px_size)/px_size-0.5
+        return image
 
