@@ -35,7 +35,8 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
                     truth_cs = factory.create_classifier_image((9,9), points[ind], 100)#todo: variable px_size
                     image = factory.create_points_add_photons(image, points[ind], points[ind,2])
                     image = factory.reduce_size(image).astype(np.float32)
-                    image += 2 #noise was 2
+                    image += np.random.rand()*5+5 #noise was 2
+                    image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
                     return image, truth_cs
 
                 ind = np.arange(ind, ind + n, 1).astype(np.int32)

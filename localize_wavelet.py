@@ -1,4 +1,4 @@
-from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet
+from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet, CompressedSensingInceptionNet
 from src.models.wavelet_model import WaveletAI
 from src.trainings.train_cs_net import train_cs_net
 from src.trainings.train_wavelet_ai import train as train_wavelet_ai
@@ -8,7 +8,7 @@ from src.visualization import display_storm_data
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import pandas as pd
-
+import os
 
 
 #done: load wavelet checkpoints
@@ -19,14 +19,14 @@ checkpoint_path = "training_lvl2/cp-10000.ckpt"
 denoising.load_weights(checkpoint_path)
 
 
-def predicst_localizations_u_net(path):
-    cs_net = CompressedSensingCVNet()
-    cs_net.update(180,100)
+def predict_localizations_u_net(path):
+    cs_net = CompressedSensingInceptionNet()
+    cs_net.update(150,100)
     # checkpoint_path = "cs_training/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
     optimizer = tf.keras.optimizers.Adam()
     # accuracy = tf.metrics.Accuracy()
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-    manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_u', max_to_keep=3)
+    manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_inception_sigmoid', max_to_keep=3)
     ckpt.restore(manager.latest_checkpoint)
     if manager.latest_checkpoint:
         print("Restored from {}".format(manager.latest_checkpoint))
@@ -53,6 +53,10 @@ def predicst_localizations_u_net(path):
         for i in range(result_tensor.shape[0]):
             thresh = 0.8
             classifier = result_tensor[i,:,:,2]
+            #fig,axs = plt.subplots(2)
+            #axs[0].imshow(classifier)
+            #axs[1].imshow(crop_tensor[i,:,:,1])
+            #plt.show()
             indices = np.where(classifier>thresh)
             x = result_tensor[i,indices[0], indices[1],0]
             y = result_tensor[i,indices[0], indices[1],1]
@@ -71,11 +75,12 @@ def predicst_localizations_u_net(path):
 
     print("finished AI")
     display_storm_data(result_array)
-    np.save(os.getcwd() + r"\cy5_flim.npy", result_array)
+    np.save(os.getcwd() + r"\cy5_flim_inception.npy", result_array)
 
 
 def predict_localizations(path):
     cs_net = CompressedSensingNet()
+    cs_net.update(122,100)
 
     # checkpoint_path = "cs_training/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
     optimizer = tf.keras.optimizers.Adam()
@@ -138,7 +143,7 @@ def predict_localizations(path):
 
     print("finished AI")
     display_storm_data(result_array)
-    np.save(os.getcwd()+r"\cy5_flim.npy",result_array)
+    np.save(os.getcwd()+r"\cy5_flim_dense.npy",result_array)
 
 
 
@@ -157,5 +162,5 @@ image = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7
 #image = r"C:\Users\biophys\matlab\test2_crop_BP.tif"
 #image = r"D:\Daten\Artificial\ContestHD.tif"
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
-predicst_localizations_u_net(image)
+predict_localizations_u_net(image)
 

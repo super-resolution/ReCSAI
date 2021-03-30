@@ -3,37 +3,40 @@ from src.utility import get_psf,create_psf_matrix,old_psf_matrix
 from src.custom_layers.utility_layer import downsample,upsample
 
 class CompressedSensingInception(tf.keras.layers.Layer):
-    def __init__(self,*args, **kwargs):
+    def __init__(self,*args, iterations=100, **kwargs ):
         super(CompressedSensingInception, self).__init__(*args, **kwargs, dtype="float32")
         #define filters for path x
         #for all paths
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #for x path
         self.cs = CompressedSensing()#todo: prio1 needs input dimension and update for sigma
-        self.reshape = tf.keras.layers.Reshape((72, 72, 3), )#Done expanded to 74,74
+        self.cs.iterations = iterations
+        self.reshape = tf.keras.layers.Reshape((72, 72, 1), )
         paddings = tf.constant([[0,0],[1,0],[1,0],[0,0]])#expand size for even output
-        self.padding = tf.keras.layers.Lambda(lambda x:  tf.pad(x, paddings, "REFLECT"))
-        self.convolution1x1_x1 = tf.keras.layers.Conv2D(1,(1,1), activation='relu')#reduce dim to 1 for cs max intensity proj? padding doesnt matter
-        self.convolution1x1_x2 = tf.keras.layers.Conv2D(2,(1,1), activation='relu')#reduce dimension after max pooling
-        self.convolution5x5_x = tf.keras.layers.Conv2D(8,(5,5), activation=None,padding="valid")#reduce dim by 2 todo: prio2 include asymetric
+        #self.padding = tf.keras.layers.Lambda(lambda x:  tf.pad(x, paddings, "REFLECT"))
+        self.convolution1x1_x1 = tf.keras.layers.Conv2D(1,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dim to 1 for cs max intensity proj? padding doesnt matter
+        self.convolution1x1_x2 = tf.keras.layers.Conv2D(1,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dimension after max pooling
+        self.convolution5x5_x = tf.keras.layers.Conv2D(8,(5,5), activation=None,padding="same")#reduce dim by 2 todo: prio2 include asymetric
         self.max_pooling_x1 = tf.keras.layers.MaxPooling2D(pool_size=(4,4),strides=(4,4),padding="same")#reduce dimension
         self.max_pooling_x2 = tf.keras.layers.MaxPooling2D(pool_size=(2,2), strides=(2,2),padding="same")#reduce dimension
-        self.x_path = [self.cs,
-                       self.reshape,#73x73x1
-                       self.padding,#74x74x1
+        self.x_path = [self.convolution1x1_x1,
+                        self.cs,
+                       self.reshape,#72x72x1
                        self.batch_norm,
                        self.convolution5x5_x,#72x72x1
                        self.max_pooling_x1,#18x18x8
                        self.convolution1x1_x2,#18x18x2
                        self.max_pooling_x2]#9x9x2
         #define filters for path y
-        self.convolution1x1_y1 = tf.keras.layers.Conv2D(1,(1,1), activation='relu')#dimension to 1
-        self.convolution7x7_y1 = tf.keras.layers.Conv2D(1,(7,7), activation=None, padding="same")
-        self.y_path = [self.convolution1x1_y1,
-                       self.convolution7x7_y1,
+        self.convolution1x7_y1 = tf.keras.layers.Conv2D(2,(1,7), activation=None, padding="same")
+        self.convolution7x1_y2 = tf.keras.layers.Conv2D(4,(7,1), activation=None, padding="same")
+        self.convolution1x1_y1 = tf.keras.layers.Conv2D(1,(1,1), activation=tf.keras.layers.LeakyReLU())#todo: leaky relu?
+        self.y_path = [self.convolution1x7_y1,
+                       self.convolution7x1_y2,
+                       self.convolution1x1_y1,
                        self.batch_norm]
         #define filters for path w
-        self.convolution1x1_w1 = tf.keras.layers.Conv2D(1,(1,1), activation='relu')
+        self.convolution1x1_w1 = tf.keras.layers.Conv2D(1,(1,1), activation=tf.keras.layers.LeakyReLU())
 
         #defince filters for path z micro u net
         #todo: prio1 include skips with concat
@@ -47,7 +50,7 @@ class CompressedSensingInception(tf.keras.layers.Layer):
 
 
         #defince output layer
-        self.concat = tf.keras.layers.Concatenate()
+        self.concat = tf.keras.layers.Concatenate(axis=-1)
 
 
     def __call__(self, input):
@@ -55,21 +58,12 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         x = input
         for layer in self.x_path:
             x = layer(x)
-        # x = self.convolution1x1_x1(input)#9x9x1
-        # x = self.cs(x)
-        # x = self.reshape(x)#73x73x1
-        # x = tf.pad(x, self.paddings, "REFLECT")#74x74x1
-        # x = self.batch_norm(x)
-        # x = self.convolution5x5(x)#72x72x1
-        # x = self.max_pooling_x1(x)#18x18x8
-        # x = self.convolution1x1_x2(x)#18x18x2
-        # x = self.max_pooling_x2(x)#9x9x2
+
         #todo: input path y
         y = input
         for layer in self.y_path:
             y = layer(y)
-        # y = self.convolution1x1_y1(input)
-        # y = self.convolution7x7_y1(y)
+
         #todo: input path w no path because it's pass through
         w = self.convolution1x1_w1(input)
 
@@ -80,13 +74,13 @@ class CompressedSensingInception(tf.keras.layers.Layer):
             z = layer(z)
             skips.append(z)
         skip = skips[0]
-        z = self.layer.up1(z)
-        z = self.layer.concat([z,skip])
-        z = self.layer.up2(z)
+        z = self.up1(z)
+        z = self.concat([z,skip])
+        z = self.up2(z)
         #todo: add skip layers
 
         #todo: concat layer
-        output = self.concat([w,x,y,z])
+        output = self.concat([w,x,y,z], )
         return output
 
 

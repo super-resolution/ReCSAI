@@ -1,9 +1,29 @@
 from .data import *
-from .localisations import *
+from localisations import *
 import matplotlib.pyplot as plt
-import os
 from scipy import interpolate
 import tensorflow as tf
+
+
+def result_image_to_coordinates(result, coords=None, threshold=0.5):
+    result_array = []
+    for i in range(result.shape[0]):
+        classifier = result[i, :, :, 2]
+        # fig,axs = plt.subplots(2)
+        # axs[0].imshow(classifier)
+        # axs[1].imshow(crop_tensor[i,:,:,1])
+        # plt.show()
+        indices = np.where(classifier > threshold)
+        x = result[i, indices[0], indices[1], 0]
+        y = result[i, indices[0], indices[1], 1]
+
+        for j in range(indices[0].shape[0]):
+            if coords:
+                result_array.append(coords[i][0:2] + np.array([indices[0][j] + x[j], indices[1][j] + y[j]]))
+            else:
+                result_array.append(np.array([indices[0][j] + x[j], indices[1][j] + y[j], i]))
+
+    return np.array(result_array)
 
 def predict_sigma(psf_crops, result_array, ai):
     #perfect_result_array = []

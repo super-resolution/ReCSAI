@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
-from src.model import *
-from src.custom_layers import *
+from model import *
 
 image = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\coordinate_recon_flim.tif"
 truth = r"C:\Users\acecross\PycharmProjects\Wavelet\test_data\coordinate_reconstruction.npz"

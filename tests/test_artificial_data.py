@@ -111,3 +111,17 @@ class TestCropGenerator(tf.test.TestCase):
     def test_flip_is_working_as_expected(self):
         #todo: images are not equal on noise lvl comparison
         self.fail()
+class TestDriftData():
+    def setUp(self):
+        factory = Factory()
+        self.data = factory.create_microtuboli_point_set()
+        #todo: factory function to create a point set of a certain shape
+        #todo: apply over time changing transformation to the data with points switching....
+
+        pass
+
+    def test_point_data_is_randomly_switching(self):
+        pass
+
+    def test_tranformation_is_changing_slowly(self):
+        pass

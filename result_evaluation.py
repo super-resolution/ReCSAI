@@ -226,21 +226,34 @@ def validate_cs_model():
 
 if __name__ == '__main__':
     #create_test_data()
-    validate_cs_model()
-    validate_rapidstorm()
-    rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
-    ai = np.load(os.getcwd() +r"\test_data\ai_results_cs4.npy", allow_pickle=True)
-    ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)
+    # validate_cs_model()
+    # validate_rapidstorm()
+    # rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
+    # ai = np.load(os.getcwd() +r"\test_data\ai_results_cs4.npy", allow_pickle=True)
+    # ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)
+    #
+    # thund = np.load(os.getcwd() +r"\test_data\thunderstorm_results.npy", allow_pickle=True)
+    # cols = ["jaccard", "rmse", "fp", "fn"]
+    # for i in range(4):
+    #     fig,axs = plt.subplots()
+    #     axs.plot(ai[i], label="AI")
+    #     axs.plot(ai_wave[i], label="AIW")
+    #     axs.plot(rapid[i], label="rapid")
+    #     axs.plot(thund[i], label="Thunderstorm")
+    #     axs.set_ylabel(cols[i])
+    #     axs.set_xlabel("switching rate")
+    #     plt.legend()
+    #     plt.show()
+    cv = np.load(os.getcwd() +r"\src\trainings\cs_training_u\accuracy.npy", allow_pickle=True)
+    inception = np.load(os.getcwd() +r"\src\trainings\cs_training_inception_sigmoid\accuracy.npy", allow_pickle=True)
 
-    thund = np.load(os.getcwd() +r"\test_data\thunderstorm_results.npy", allow_pickle=True)
-    cols = ["jaccard", "rmse", "fp", "fn"]
-    for i in range(4):
-        fig,axs = plt.subplots()
-        axs.plot(ai[i], label="AI")
-        axs.plot(ai_wave[i], label="AIW")
-        axs.plot(rapid[i], label="rapid")
-        axs.plot(thund[i], label="Thunderstorm")
-        axs.set_ylabel(cols[i])
-        axs.set_xlabel("switching rate")
-        plt.legend()
-        plt.show()
+    #u = np.load(os.getcwd() +r"\src\trainings\cs_training_u\accuracy.npy", allow_pickle=True)
+    plt.plot(cv[:,0], cv[:,1], label="CS + CNN")
+    plt.plot(inception[:,0], inception[:,1], label="Inception CS Net")
+    plt.legend()
+    plt.ylabel("Jaccard Index")
+    plt.xlabel("Iterations")
+
+    plt.show()
+
+

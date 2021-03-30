@@ -3,6 +3,7 @@ from astropy.convolution import Gaussian2DKernel
 import cv2
 import numba
 import scipy
+import copy
 
 
 class Factory():
@@ -147,29 +148,93 @@ class Factory():
                                                             horizontal_k_range[0]:horizontal_k_range[1]].astype(np.float32) * 800
         return image,exclude
 
+    def create_microtuboli_point_set(self):
+        # import matplotlib.pyplot as plt
+        # image = self.create_image()
+        all_indices = []
+        for k in range(10):
+            starting_point = np.random.randint(int(self.shape[0]/4),int(3*self.shape[1]/4), 2).astype(np.float32)#start in the middle of the image
+            direction = np.random.rand(1)*np.pi
+            for i in range(5000):
+                if i%50==0:
+                    direction += (np.random.rand(1)-0.5)*0.3
+                ratio = np.abs(np.tan(float(direction)%np.pi))
+                x = ratio/(ratio+1)
+                y = 1/(ratio+1)
+                starting_point += np.array([x, y])
+                indices=[]
+                for j in range(30):
+                    j -= 15
+                    prob = 0.1*np.exp(-(np.abs(j)-15)**2/(2*15**2))
+                    new_point = starting_point + np.array([-j*y,j*x])
+                    if new_point[0]<self.shape[0] and new_point[1]<self.shape[1] and new_point[0]>0 and new_point[1]>0 and np.random.rand()<prob:
+                        indices.append(new_point)
+                indices = np.array(indices).astype(np.int32)
+                if indices.any():
+                    all_indices.append(indices)
+
+        all_indices = np.unique(np.concatenate(all_indices, axis=0), axis=0)
+        return all_indices
+        # image[all_indices[:,0], all_indices[:,1]] +=1
+        #
+        # plt.imshow(image)
+        # plt.show()
+
+    def point_set_to_storm_point_set(self, points, frames, on_time=600):
+        acquisition_time= 300
+        switching_rate = 1
+        distribution = np.random.poisson(on_time, points.shape[0])
+        points_new = np.zeros((points.shape[0],3))
+        points_new[:,0:2] = points
+        points_new[:,3] = distribution
+        init_indices = np.random.choice(points.shape[0], 10)
+        on_points = copy.deepcopy(points_new[init_indices])
+        localizations = []
+        for i in range(frames):
+            localizations.append(on_points)
+            on_points[:,3] -= acquisition_time
+            on_points = np.delete(on_points, np.where(on_points[:,3]<0))
+            n_on = self.rs.poisson(switching_rate)
+            if n_on > 0:
+                ind = self.rs.choice(points_new.shape[0], n_on)
+                on_points.append(copy.deepcopy(points_new[ind]))
+        return localizations
+
+    def apply_changing_linear_drift(self, localizations, x, y, delta=0):
+        for i in range(localizations.shape[0]):
+            localizations[i][:,0] += x
+            localizations[i][:,1] += y
+            x += delta
+            y += delta
+            if i%100 == 0:
+                delta = float(np.random.rand()*0.1-0.05)
+        return localizations
+
     def create_classifier_image(self, size, points, px_size):
-        image = np.zeros((size[0], size[1], 3))
+        image = np.zeros((size[0], size[1], 4))
         for point in points:
             y = (point[0]%px_size)/px_size-0.5
             x = (point[1]%px_size)/px_size-0.5
             image[int(point[0]//px_size), int(point[1]//px_size), 2] = 1
-            # if y < 0:
-            #     image[int(point[0]//px_size)-1, int(point[1]//px_size), 2] = (2*y)**2
-            #     image[int(point[0]//px_size)-1, int(point[1]//px_size), 0] = y+1
-            #     image[int(point[0]//px_size)-1, int(point[1]//px_size), 1] = x
-            #
-            # else:
-            #     image[int(point[0]//px_size)+1, int(point[1]//px_size), 2] = (2*y)**2
-            #     image[int(point[0] // px_size) + 1, int(point[1] // px_size), 0] = y-1
-            #     image[int(point[0] // px_size) + 1, int(point[1] // px_size), 1] = x
-            # if x<0:
-            #     image[int(point[0]//px_size), int(point[1]//px_size)-1, 2] = (2*x)**2
-            #     image[int(point[0]//px_size), int(point[1]//px_size)-1, 0] = y
-            #     image[int(point[0]//px_size), int(point[1]//px_size)-1, 1] = x+1
-            # else:
-            #     image[int(point[0]//px_size), int(point[1]//px_size)+1, 2] = (2*x)**2
-            #     image[int(point[0]//px_size), int(point[1]//px_size)+1, 0] = y
-            #     image[int(point[0]//px_size), int(point[1]//px_size)+1, 1] = x-1
+            image[int(point[0]//px_size), int(point[1]//px_size), 3] = 1
+
+            if y < 0:
+                image[int(point[0]//px_size)-1, int(point[1]//px_size), 3] = 1
+                image[int(point[0]//px_size)-1, int(point[1]//px_size), 0] = y+1
+                image[int(point[0]//px_size)-1, int(point[1]//px_size), 1] = x
+
+            else:
+                image[int(point[0]//px_size)+1, int(point[1]//px_size), 3] = 1
+                image[int(point[0] // px_size) + 1, int(point[1] // px_size), 0] = y-1
+                image[int(point[0] // px_size) + 1, int(point[1] // px_size), 1] = x
+            if x<0:
+                image[int(point[0]//px_size), int(point[1]//px_size)-1, 3] = 1
+                image[int(point[0]//px_size), int(point[1]//px_size)-1, 0] = y
+                image[int(point[0]//px_size), int(point[1]//px_size)-1, 1] = x+1
+            else:
+                image[int(point[0]//px_size), int(point[1]//px_size)+1, 3] = 1
+                image[int(point[0]//px_size), int(point[1]//px_size)+1, 0] = y
+                image[int(point[0]//px_size), int(point[1]//px_size)+1, 1] = x-1
 
 
             #todo: linear interpolation over connceted pixels
@@ -181,3 +246,6 @@ class Factory():
             image[int(point[0]//px_size), int(point[1]//px_size), 1] = (point[1]%px_size)/px_size-0.5
         return image
 
+if __name__ == '__main__':
+    factory = Factory()
+    factory.create_microtuboli_point_set()

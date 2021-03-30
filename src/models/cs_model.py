@@ -1,10 +1,65 @@
-from src.custom_layers.cs_layers import CompressedSensing
+from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInception
 #from tensorflow.keras.layers import *
 import tensorflow as tf
 import tensorflow_addons as tfa
 from src.custom_layers.utility_layer import downsample,upsample
 
 #todo: imitate yolo architecture and use 9x9 output grid
+class CompressedSensingInceptionNet(tf.keras.Model):
+    def __init__(self):
+        super(CompressedSensingInceptionNet, self).__init__()
+        self.inception1 = CompressedSensingInception(iterations=5)
+        self.batch_norm = tf.keras.layers.BatchNormalization()
+
+        self.inception2 = CompressedSensingInception(iterations=100)
+
+        self.horizontal_path = [
+            tf.keras.layers.Conv2D(64, (5, 1), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),#use softmax somewhere?
+            tf.keras.layers.Conv2D(64, (1, 5), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),
+            #tf.keras.layers.Conv2D(16, (7, 7), activation=None, padding="same"),
+            tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.Conv2D(64,(1,1), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),
+            tf.keras.layers.Conv2D(3, (1, 1), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),
+        ]
+
+        def activation(inputs):
+            inputs_list = tf.unstack(inputs,axis=-1)
+            inputs_list[2] = tf.keras.activations.softmax(inputs_list[2], axis=[-1,-2])#last is classifier
+            return tf.stack(inputs_list, axis=-1)
+
+        def sigmoid_acitvaiton(inputs):
+            inputs_list = tf.unstack(inputs, axis=-1)
+            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
+            return tf.stack(inputs_list, axis=-1)
+        self.activation = tf.keras.layers.Lambda(sigmoid_acitvaiton)
+
+    def __call__(self, inputs):
+        x = self.inception1(inputs)
+        x = self.batch_norm(x)
+        x = self.inception2(x)
+
+        for layer in self.horizontal_path:
+            x = layer(x)
+        #todo: transpose
+
+        x = self.activation(x)
+        return x
+
+    def update(self, sigma, px_size):
+        self.inception1.cs.sigma = sigma
+        self.inception2.cs.sigma = sigma
+
+    def compute_loss(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        ce = tf.keras.losses.BinaryCrossentropy()
+        mask = truth[:,:,:,3:4]
+        L2 = l2(predict[:,:,:,0:2]*mask, truth[:,:,:,0:2])
+        BCE = ce( truth[:,:,:,2], predict[:,:,:,2],)
+        return BCE + 8*L2
+
+
+
 class CompressedSensingCVNet(tf.keras.Model):
     def __init__(self):
         super(CompressedSensingCVNet, self).__init__()
@@ -37,11 +92,16 @@ class CompressedSensingCVNet(tf.keras.Model):
 
 
         #todo: activation might not be that bad
-        def activation(inputs):
+        def softmax_activation(inputs):
             inputs_list = tf.unstack(inputs,axis=-1)
-            inputs_list[2] = tf.keras.activations.softmax(inputs_list[2], axis=[-2,-1])#last is classifier
+            inputs_list[2] = tf.keras.activations.softmax(inputs_list[2], axis=[-1,-2])#last is classifier
             return tf.stack(inputs_list, axis=-1)
-        self.activation = tf.keras.layers.Lambda(activation)
+        def sigmoid_activation(inputs):
+            inputs_list = tf.unstack(inputs,axis=-1)
+            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])#last is classifier
+            return tf.stack(inputs_list, axis=-1)
+
+        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
         self.concat = tf.keras.layers.Concatenate()
 
     def __call__(self, inputs):
@@ -67,11 +127,11 @@ class CompressedSensingCVNet(tf.keras.Model):
 
     def compute_loss(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
-        ce = tf.keras.losses.CategoricalCrossentropy()
-        mask = tf.keras.activations.sigmoid(truth[:,:,:,2:3])
+        ce = tf.keras.losses.BinaryCrossentropy()
+        mask = truth[:,:,:,2:3]
         L2 = l2(predict[:,:,:,0:2]*mask, truth[:,:,:,0:2])
         BCE = ce( truth[:,:,:,2], predict[:,:,:,2],)
-        return BCE + 3*L2
+        return BCE + 8*L2
         #todo: build truth image and compute loss
         #todo: select loc compute coordinates
         #todo: compute loss...
