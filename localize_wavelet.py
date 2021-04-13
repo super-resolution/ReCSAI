@@ -21,7 +21,7 @@ denoising.load_weights(checkpoint_path)
 
 def predict_localizations_u_net(path):
     cs_net = CompressedSensingInceptionNet()
-    cs_net.update(150,100)
+    cs_net.update(180,100)
     # checkpoint_path = "cs_training/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
     optimizer = tf.keras.optimizers.Adam()
     # accuracy = tf.metrics.Accuracy()
@@ -51,7 +51,7 @@ def predict_localizations_u_net(path):
 
 
         for i in range(result_tensor.shape[0]):
-            thresh = 0.8
+            thresh = 0.3
             classifier = result_tensor[i,:,:,2]
             #fig,axs = plt.subplots(2)
             #axs[0].imshow(classifier)

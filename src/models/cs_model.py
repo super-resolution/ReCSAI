@@ -14,13 +14,16 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         self.inception2 = CompressedSensingInception(iterations=100)
 
         self.horizontal_path = [
-            tf.keras.layers.Conv2D(64, (5, 1), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),#use softmax somewhere?
-            tf.keras.layers.Conv2D(64, (1, 5), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),
-            #tf.keras.layers.Conv2D(16, (7, 7), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(64, (1, 1), activation=None, padding="same"),
+            tf.keras.layers.LeakyReLU(alpha=0.01),
+            tf.keras.layers.Conv2D(32, (1, 1), activation=None, padding="same"),
+            tf.keras.layers.LeakyReLU(alpha=0.01),
+            tf.keras.layers.Conv2D(16, (7, 7), activation=None, padding="same"),
             tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),
             tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.Conv2D(64,(1,1), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),
-            tf.keras.layers.Conv2D(3, (1, 1), activation=tf.keras.layers.LeakyReLU(alpha=0.01), padding="same"),
+            tf.keras.layers.Conv2D(16,(3,3), activation=None, padding="same"),
+            tf.keras.layers.LeakyReLU(alpha=0.01),
+            tf.keras.layers.Conv2D(3, (1, 1), activation=None, padding="same"),
         ]
 
         def activation(inputs):
@@ -128,9 +131,9 @@ class CompressedSensingCVNet(tf.keras.Model):
     def compute_loss(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
         ce = tf.keras.losses.BinaryCrossentropy()
-        mask = truth[:,:,:,2:3]
+        mask = truth[:,:,:,3:4]
         L2 = l2(predict[:,:,:,0:2]*mask, truth[:,:,:,0:2])
-        BCE = ce( truth[:,:,:,2], predict[:,:,:,2],)
+        BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
         return BCE + 8*L2
         #todo: build truth image and compute loss
         #todo: select loc compute coordinates
