@@ -13,6 +13,7 @@ class TrainBase():
         self.metrics = None
         self.manager = None
         self.ckpt = None
+        self.train_loops = 30
 
 
     @tf.function
@@ -22,6 +23,7 @@ class TrainBase():
             loss = self.network.compute_loss(truth, logits)
         gradients = tape.gradient(loss, self.network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
+        return loss
 
     def loop(self, dataset):
         for train_image, truth in dataset.take(3):
