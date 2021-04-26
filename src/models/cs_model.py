@@ -24,8 +24,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Conv2D(32,(3,3), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(3, (3, 3), activation=None, padding="same"),
-        ]
+            tf.keras.layers.Conv2D(5, (3, 3), activation=None, padding="same"),
+        ]#x,y,sigmax,sigmay,classifier
 
         def activation(inputs):
             inputs_list = tf.unstack(inputs,axis=-1)
@@ -34,7 +34,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         def sigmoid_acitvaiton(inputs):
             inputs_list = tf.unstack(inputs, axis=-1)
-            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
+            inputs_list[4] = tf.keras.activations.sigmoid(inputs_list[4])  # last is classifier
             return tf.stack(inputs_list, axis=-1)
         self.activation = tf.keras.layers.Lambda(sigmoid_acitvaiton)
 
@@ -68,9 +68,12 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         l2 = tf.keras.losses.MeanSquaredError()
         ce = tf.keras.losses.BinaryCrossentropy()
         mask = truth[:,:,:,3:4]
-        L2 = l2(predict[:,:,:,0:2]*mask, truth[:,:,:,0:2])
-        BCE = ce( truth[:,:,:,2], predict[:,:,:,2],)
-        return BCE + 8*L2
+        predict_masked = predict[:,:,:,0:2]*mask
+        sigma = predict_masked - truth[:,:,:,0:2]
+        L2 = l2(predict_masked, truth[:,:,:,0:2])
+        L2_sigma = l2(sigma, predict[:,:,:,3:5])
+        BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
+        return BCE + 8*L2 + 3*L2_sigma
 
 
 

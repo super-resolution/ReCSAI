@@ -9,6 +9,8 @@ from astropy.convolution import Gaussian2DKernel
 
 CROP_TRANSFORMS = 4
 OFFSET=14
+
+
 def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
     #todo: create dynamical
 
@@ -30,7 +32,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
                 n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
                 if n>3:
                     n=3
-                def build_image(ind, switching=False, inverted=False):#todo: points to image
+                def build_image(ind, switching=False, inverted=False):#todo: points to image additional parameters sigma and intensity
                     image = factory.create_image()
                     truth_cs = factory.create_classifier_image((9,9), points[ind], 100)#todo: variable px_size
                     if switching:
@@ -109,7 +111,7 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
             ph = np.random.randint(1000,2000)
             points = factory.create_crop_point_set(photons=ph)
             #sigma_y = np.random.randint(100, 250)
-            factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_x)
+            factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_y)
             points_list = []
             image_list = []
             for i in range(100): #todo: while loop here
@@ -171,9 +173,6 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
     return generator
 
 def real_data_generator(im_shape, switching_rate=0.2):
-    x_shape=100
-    #todo: create dynamical
-
     factory = Factory()
     factory.shape= (im_shape*100,im_shape*100)
     factory.image_shape = (im_shape,im_shape)# select points here
@@ -191,25 +190,7 @@ def real_data_generator(im_shape, switching_rate=0.2):
             truth = np.pad(factory.reduce_size(truth).astype(np.int32),(14,14))
             yield image, truth, np.array(on_points)
     return generator
-# def data_generator(file_path, loc_path):
-#     bin = Binning()
-#     tif = TiffFile(file_path)
-#     truth_cords = np.load(loc_path, allow_pickle=True)['arr_0']
-#     for i in range(len(tif.frames)):
-#         data = np.zeros((64, 64, 3))
-#         for j in range(3):
-#             k = i+j-1
-#             if k>=0 and k<len(tif.frames):
-#                 image = tif.read_frame(k, 0)[0].astype(np.float32)
-#                 data[0:tif.frames[0].tags[256][1], 0:tif.frames[0].tags[256][1], j] = image
-#         reconstruct = bin.filter(data[...,1]/data[...,1].max()*255)#todo: crop image to coords!
-#         coords = bin.get_coords(reconstruct)
-#         yield data[...,1], coords, truth_cords[i][:,0:2]/10
 
-
-def data_generator():
-    #todo: simulate acurate data here
-    pass
 
 def generate_generator(file_path):
     def data_generator_real():
@@ -252,19 +233,3 @@ def data_generator_coords(file_path, offset=0):
         # axs[1].imshow(im[:,:,1])
         # plt.show()
         yield data[i+ offset]#,  im[:,:,:], px_coords
-
-def data_generator_image(file_path, truth_path):
-    with TIF(file_path) as tif:
-        dat = tif.asarray()
-    data = np.zeros((dat.shape[0],128, 128, 3))#todo: this is weird data
-    data[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = dat
-    data[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = dat[:-1]
-    data[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = dat[1:]
-    with TIF(truth_path) as tif:
-        tru = tif.asarray()
-    data_truth = np.zeros((dat.shape[0],128, 128, 3))#todo: this is weird data
-    data_truth[:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],1] = tru
-    data_truth[1:,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],0] = tru[:-1]
-    data_truth[:-1,OFFSET:OFFSET+dat.shape[1], OFFSET:OFFSET+dat.shape[2],2] = tru[1:]
-    for i in range(data.shape[0]):
-        yield data[i], data_truth[i]

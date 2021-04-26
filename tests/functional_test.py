@@ -17,7 +17,7 @@ def create(im_shape):
     points = factory.create_crop_point_set(photons=ph)
     sigma_x = 150
     sigma_y = 150
-    factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_y)
+    factory.kernel = (sigma_x, sigma_y)
 
 
     ind = np.random.randint(0, points.shape[0])

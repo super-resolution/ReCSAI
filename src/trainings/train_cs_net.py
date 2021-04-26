@@ -5,7 +5,7 @@ from src.facade import NetworkFacade
 
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, "./cs_training_inception_increased_depth",
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, "./cs_training_learn_sigma",
                                                 r"C:\Users\biophys\PycharmProjects\TfWaveletLayers\training_lvl2\cp-10000.ckpt")
 
 

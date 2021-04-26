@@ -4,7 +4,7 @@ import cv2
 import numba
 import scipy
 import copy
-
+from collections import namedtuple
 
 class Factory():
     def __init__(self):
@@ -75,6 +75,12 @@ class Factory():
         adu[adu < 0] = 0  # models pixel saturation
         return adu
 
+    def create_points_add_photons(self, image, points, photons):
+        for i in range(points.shape[0]):
+            image[int(points[i,0]),int(points[i,1])] = photons[i]
+        data = cv2.filter2D(image, -1, self.kernel, borderType=cv2.BORDER_CONSTANT)
+        return data
+
     def simulate_accurate_flimbi(self, points, on_points, switching_rate=8.0, inverted=False):
         """input random distributed convolved and resized image"""
         #todo: simulate world in 0.1 ms
@@ -84,20 +90,12 @@ class Factory():
         image, ground_truth, on_points = self.concolve_flimbi_style(image, ground_truth, points, on_points, switching_rate=switching_rate, inverted=inverted)
         return image, ground_truth, on_points
 
-    def create_points_add_photons(self, image, points, photons):
-        for i in range(points.shape[0]):
-            image[int(points[i,0]),int(points[i,1])] = photons[i]
-        data = cv2.filter2D(image, -1, self.kernel, borderType=cv2.BORDER_CONSTANT)
-        return data
-
     def concolve_flimbi_style(self, image, ground_truth, points, on_points, switching_rate, inverted=False):
         line = self.shape[0]/self.image_shape[0]
         on_points = np.delete(on_points, np.where(on_points[...,3] < 0), axis=0)
-
-
         exclude = []
 
-        for i in range(self.image_shape[0]):
+        for i in range(self.image_shape[0]):#todo: restructure this
             n_on = self.rs.poisson(switching_rate)
             if n_on > 0:
                 ind = self.rs.choice(points.shape[0], n_on)
@@ -127,9 +125,11 @@ class Factory():
         exclude = []
         off = []
         for i in range(on_points.shape[0]):
-            y,x = int(on_points[i,0]),int(on_points[i,1])
+            Localization = namedtuple("Localization", ("x","y","x_start","x_end","y_start","y_end","intensity"))
+            Localization.x = int(on_points[i,1])
+            Localization.y = int(on_points[i,0])
             on_points[i,3] -= 6
-            I = on_points[i, 2]
+            Localization.intensity = on_points[i, 2]
             if flimbi_mode:
                 b = False
                 #for j in off:
@@ -142,29 +142,34 @@ class Factory():
                     if on_points[i, 3] > 0:  # todo kick point if it wasnt painted
                         off.append(i)
 
-                        if j * line < y - 450:
+                        if j * line < Localization.y - 450:
                             exclude.append(i)
                         continue
                 else:
                     if on_points[i,3] < 0:#todo kick point if it wasnt painted
                         off.append(i)
 
-                        if j * line < y - 450:
+                        if j * line < Localization.y - 450:
                             exclude.append(i)
                         continue
             kernel_range_y = int(kernel_array.shape[0]/2)
             kernel_range_x = int(kernel_array.shape[1]/2)
-            #if line %2 ==0:
-            #   x -= int(on_points[i,4])
-            vertical_i_range = np.array([min(max(j * line, y - kernel_range_y), (j + 1) * line),
-                                         max(min((j + 1) * line, y + kernel_range_y+1), line * j)]).astype(np.int32)
-            vertical_k_range = np.array([vertical_i_range[0] - (y - kernel_range_y),
-                                         vertical_i_range[1] - (y - kernel_range_y)]).astype(np.int32)
 
-            horizontal_i_range = np.array([max(x - kernel_range_x, 0), min(x + kernel_range_x + 1, image.shape[1])]).astype(
-                np.int32)
+            Localization.y_start = Localization.y-kernel_range_y
+            Localization.y_end = Localization.y+kernel_range_y+1
+            #constrain localization to be in current raster line
+            vertical_i_range = np.array([min(max(j * line, Localization.y_start), (j + 1) * line),
+                                         max(min((j + 1) * line, Localization.y_end), line * j)]).astype(np.int32)
+            vertical_k_range = np.array([vertical_i_range[0] - Localization.y_start,
+                                         vertical_i_range[1] - Localization.y_start]).astype(np.int32)
+
+            Localization.x_start = Localization.x-kernel_range_x
+            Localization.x_end = Localization.x+kernel_range_x+1
+            horizontal_i_range = np.array([max(Localization.x_start, 0),
+                                           min(Localization.x_end, image.shape[1])]).astype(np.int32)
             horizontal_k_range = np.array(
-                [horizontal_i_range[0] - (x - kernel_range_x), horizontal_i_range[1] - (x - kernel_range_x)]).astype(np.int32)
+                [horizontal_i_range[0] - Localization.x_start,
+                 horizontal_i_range[1] - Localization.x_start])
             #print(vertical_i_range, vertical_k_range, horizontal_k_range, horizontal_i_range)
             #if vertical_k_range[0]<0 or vertical_k_range[1]>2*kernel_range_y:
                 #print(vertical_i_range, vertical_k_range)
@@ -174,7 +179,7 @@ class Factory():
                 #continue
             image[vertical_i_range[0]:vertical_i_range[1],
             horizontal_i_range[0]:horizontal_i_range[1]] += kernel_array[vertical_k_range[0]:vertical_k_range[1],
-                                                            horizontal_k_range[0]:horizontal_k_range[1]].astype(np.float32) * on_points[i,2]
+                                                            horizontal_k_range[0]:horizontal_k_range[1]].astype(np.float32) * Localization.intensity
         return image,exclude
 
     def create_microtuboli_point_set(self):
