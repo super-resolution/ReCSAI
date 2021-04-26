@@ -6,6 +6,7 @@ from src.custom_layers.utility_layer import downsample,upsample
 
 #todo: imitate yolo architecture and use 9x9 output grid
 class CompressedSensingInceptionNet(tf.keras.Model):
+    TYPE = 0
     def __init__(self):
         super(CompressedSensingInceptionNet, self).__init__()
         self.inception1 = CompressedSensingInception(iterations=5)
@@ -51,9 +52,17 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         x = self.activation(x)
         return x
 
-    def update(self, sigma, px_size):
-        self.inception1.cs.sigma = sigma
-        self.inception2.cs.sigma = sigma
+    @property
+    def sigma(self):
+        if self.inception1.cs.sigma != self.inception2.cs.sigma:
+            raise ValueError("sigma has to be identical in both layers")
+        return self.inception1.cs.sigma
+
+    @sigma.setter
+    def sigma(self, value):
+        self.inception1.cs.sigma = value
+        self.inception2.cs.sigma = value
+
 
     def compute_loss(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
@@ -66,6 +75,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
 
 class CompressedSensingCVNet(tf.keras.Model):
+    TYPE = 0
+
     def __init__(self):
         super(CompressedSensingCVNet, self).__init__()
         self.cs_layer = CompressedSensing()
@@ -142,6 +153,7 @@ class CompressedSensingCVNet(tf.keras.Model):
 
 
 class CompressedSensingNet(tf.keras.Model):
+    TYPE = 1
     def __init__(self):
         super(CompressedSensingNet, self).__init__()
         self.cs_layer = CompressedSensing()

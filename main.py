@@ -1,12 +1,10 @@
 from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet, CompressedSensingInceptionNet
+from src.facade import NetworkFacade
 from src.models.wavelet_model import WaveletAI
-from src.trainings.train_cs_net import train_cs_net
-from src.trainings.train_wavelet_ai import train as train_wavelet_ai
 from src.data import *
 from src.utility import *
 from src.visualization import display_storm_data
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import pandas as pd
 import os
 
@@ -25,6 +23,7 @@ def predict_localizations_u_net(path):
     # checkpoint_path = "cs_training/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
     optimizer = tf.keras.optimizers.Adam()
     # accuracy = tf.metrics.Accuracy()
+    #todo: outsource this to model
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
     manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_inception_increased_depth', max_to_keep=3)
     ckpt.restore(manager.latest_checkpoint)
@@ -174,5 +173,15 @@ image = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7
 #image = r"C:\Users\biophys\matlab\test2_crop_BP.tif"
 #image = r"D:\Daten\Artificial\ContestHD.tif"
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
+class TrainInceptionNet(NetworkFacade):
+    def __init__(self):
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, './src/trainings/cs_training_inception_increased_depth',
+                                                r"C:\Users\biophys\PycharmProjects\TfWaveletLayers\training_lvl2\cp-10000.ckpt")
+facade = TrainInceptionNet()
+facade.sigma = 180
+result_array = facade.predict(image)[:,0:2]
+print(result_array.shape[0])
+print("finished AI")
+display_storm_data(result_array)
 predict_localizations_u_net(image)
 

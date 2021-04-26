@@ -12,7 +12,7 @@ class BaseTest(tf.test.TestCase):
         points = factory.create_crop_point_set(photons=ph)
         sigma_x = sigma
         sigma_y = sigma
-        factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_y)
+        factory.kernel = (sigma_x,sigma_y)
         ind = np.random.randint(0, points.shape[0])
         n = 2  # np.random.poisson(1.7)
         image = factory.create_image()

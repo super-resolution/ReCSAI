@@ -1,9 +1,9 @@
 from .data import *
-from localisations import *
 import matplotlib.pyplot as plt
 from scipy import interpolate
 import tensorflow as tf
-
+from scipy.ndimage import filters
+from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 
 def result_image_to_coordinates(result, coords=None, threshold=0.5):
     result_array = []
