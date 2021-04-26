@@ -1,0 +1,17 @@
+{
+  "test_artificial_data.py": true,
+  "test_artificial_data.py::TestArtificialDataCreation::test_on_time": true,
+  "test_artificial_data.py::TestCropGenerator::test_localisations_are_distributed_equally_on_three_channels": true,
+  "test_artificial_data.py::TestCropGenerator::test_max_three_localizations_per_crop": true,
+  "test_artificial_data.py::TestCropGenerator::test_shape": true,
+  "test_compressed_sensing.py": true,
+  "test_compressed_sensing.py::TestCompressedSensingInceptionLayer::test_shapes_after_each_layer": true,
+  "test_compressed_sensing.py::TestCompressedSensingInceptionLayer::test_shapes_after_layer": true,
+  "test_compressed_sensing.py::TestCompressedSensingInceptionLayer::test_u_net_has_skip_layers": true,
+  "test_compressed_sensing.py::TestCompressedSensingLayer::test_output_is_sparse": true,
+  "test_compressed_sensing.py::TestCompressedSensingLayer::test_perfect_reconstruction_from_noiseless_data": true,
+  "test_models.py": true,
+  "test_models.py::TestCompressedSensingNet::test_network_learns_loss_function": true,
+  "test_models.py::TestCompressedSensingNet::test_permutation_loss": true,
+  "test_models.py::TestCsUNet::test_shapes": true
+}
