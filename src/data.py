@@ -18,9 +18,9 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
     def generator():
         for z in range(100):
             ph = np.random.randint(1000,2000)
-            points = factory.create_crop_point_set(photons=ph)
+            points = factory.create_crop_point_set(photons=ph, on_time=30)
             #sigma_y = np.random.randint(100, 250)
-            factory.kernel = Gaussian2DKernel(x_stddev=sigma_x, y_stddev=sigma_x)
+            factory.kernel = (sigma_x, sigma_y)
             truth_cs_list = []
             image_list = []
             for i in range(100): #todo: while loop here
@@ -30,13 +30,24 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
                 n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
                 if n>3:
                     n=3
-                def build_image(ind):#todo: points to image
+                def build_image(ind, switching=False, inverted=False):#todo: points to image
                     image = factory.create_image()
                     truth_cs = factory.create_classifier_image((9,9), points[ind], 100)#todo: variable px_size
-                    image = factory.create_points_add_photons(image, points[ind], points[ind,2])
-                    image = factory.reduce_size(image).astype(np.float32)
-                    image += np.random.rand()*5+5 #noise was 2
-                    image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
+                    if switching:
+                        image,_,_ = factory.simulate_accurate_flimbi(points, points[ind], switching_rate=0, inverted=inverted)
+
+                        # plt.imshow(image)
+                        # plt.show()
+                        image = factory.reduce_size(image).astype(np.float32)
+                        image += np.random.rand()*10+10 #noise was 2
+                        image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
+
+                    else:
+                        image = factory.create_points_add_photons(image, points[ind], points[ind,2])
+                        image = factory.reduce_size(image).astype(np.float32)
+                        image += np.random.rand()*10+10 #noise was 2
+                        image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
+
                     return image, truth_cs
 
                 ind = np.arange(ind, ind + n, 1).astype(np.int32)
@@ -49,12 +60,18 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
                 ind_new_a = ind
                 ind_new_b = np.delete(ind_new_b, np.where(bef_after[:n]==0))
                 ind_new_a = np.delete(ind_new_a, np.where(bef_after[n:]==0))
-                image_s[:, :, 2],_ = build_image(ind_new_a)
-                image_s[:, :, 0],_ = build_image(ind_new_b)
+                image_s[:, :, 2],_ = build_image(ind_new_a, switching=True)
+                image_s[:, :, 0],_ = build_image(ind_new_b, switching=True, inverted=True)
                 image_s -= image_s.min()
                 image_s += 0.0001
                 image_s /= image_s.max()
-
+                image_s /= np.random.rand()*0.3+0.7
+                # fig,axs = plt.subplots(3)
+                # axs[0].imshow(image_s[:,:,0])
+                # axs[1].imshow(image_s[:,:,1])
+                # axs[2].imshow(image_s[:,:,2])
+                #
+                # plt.show()
                 #done: random new noise in next image random switch off
                 # for t in range(CROP_TRANSFORMS):
                 #     image_s_copy = copy.deepcopy(image_s)

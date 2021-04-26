@@ -71,7 +71,6 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
     train_new = []
     truth_new = []
     coord_list = []
-    bining = Binning()
     data = tf.cast(data_tensor, tf.float32)
     data /= tf.keras.backend.max(data)
 
@@ -95,7 +94,7 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
         # axs[2].imshow(im[i, :, :, 2])
         # plt.show()
         #ax.imshow(wave[0,:,:,0])
-        coords = bining.get_coords(wave_mask.numpy()[0, :, :, 0])
+        coords = get_coords(wave_mask.numpy()[0, :, :, 0])
         # todo: crop PSFs done here
         for coord in coords:
             # ax.add_patch(rect)
@@ -147,7 +146,6 @@ def create_shift_data(data_tensor, denoising, truth_array=None, th=0.1):
     train_new = []
     truth_new = []
     coord_list = []
-    bining = Binning()
     t = tf.identity(data_tensor)
 
     one = denoising.predict(data_tensor[:, :, :, 0:1])
@@ -169,7 +167,7 @@ def create_shift_data(data_tensor, denoising, truth_array=None, th=0.1):
         # axs[2].imshow(data_tensor[i, :, :, 2])
         # plt.show()
         #ax.imshow(wave[0,:,:,0])
-        coords = bining.get_coords(wave_mask.numpy()[0, :, :, 0])
+        coords = get_coords(wave_mask.numpy()[0, :, :, 0])
         # todo: crop PSFs done here
         for coord in coords:
             # ax.add_patch(rect)
@@ -314,3 +312,27 @@ def old_psf_matrix(M_x,M_y,N_x,N_y,sigma_x,sigma_y):
         for j in range(N):   # j-te Spalte
             A[i,j] = gaus_kernel(K[i,0]*h_M_x-L[j,0]*h_N_x,  K[i,1]*h_M_y-L[j,1]*h_N_y)
     return A
+
+def get_coords(reconstruct):
+    neighborhood = generate_binary_structure(2, 2)
+
+    # apply the local maximum filter; all pixel of maximal value
+    # in their neighborhood are set to 1
+    local_max = filters.maximum_filter(reconstruct, footprint=neighborhood) == reconstruct
+    # local_max is a mask that contains the peaks we are
+    # looking for, but also the background.
+    # In order to isolate the peaks we must remove the background from the mask.
+
+    # we create the mask of the background
+    background = (reconstruct == 0)
+
+    # a little technicality: we must erode the background in order to
+    # successfully subtract it form local_max, otherwise a line will
+    # appear along the background border (artifact of the local maximum filter)
+    eroded_background = binary_erosion(background, structure=neighborhood, border_value=1)
+
+    # we obtain the final mask, containing only peaks,
+    # by removing the background from the local_max mask (xor operation)
+    detected_peaks = local_max ^ eroded_background
+    coords = np.array(np.where(detected_peaks != 0))
+    return coords.T

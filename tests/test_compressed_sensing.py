@@ -20,7 +20,7 @@ class TestCompressedSensingLayer(BaseTest):
         #cropsize = 9; sigma= 150; px_size= 100
         data = self.create_noiseless_random_data_crop(9, sigma=150, px_size=100)
 
-        self.layer.update_psf(sigma=150, px_size=100)
+        self.layer.sigma =150
         output = self.layer(data)
         output = tf.reshape(output, (-1, 73, 73, 3))
         #not all pixels are 0

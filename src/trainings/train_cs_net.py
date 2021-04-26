@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt #todo: plot in main?
 from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net
 from src.custom_metrics import JaccardIndex
-
+import copy
 
 class TrainBase():
     def __init__(self):
@@ -13,7 +13,7 @@ class TrainBase():
         self.metrics = None
         self.manager = None
         self.ckpt = None
-        self.train_loops = 30
+        self.train_loops = 60
 
 
     @tf.function
@@ -25,6 +25,7 @@ class TrainBase():
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
         return loss
 
+    #@tf.function
     def loop(self, dataset):
         for train_image, truth in dataset.take(3):
             for i in range(50):
@@ -37,18 +38,18 @@ class TrainBase():
 
         for train_image, truth in dataset.take(1):
             pred = self.network.predict(train_image)
-            try:
-                self.metrics.update_state(truth.numpy(), pred)
-                accuracy = self.metrics.result(int(self.ckpt.step))
-                print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
-                self.metrics.reset()
-                self.metrics.save()
-            except:
-                print("no metric...")
+            #try:
+            self.metrics.update_state(truth.numpy(), pred)
+            accuracy = self.metrics.result(int(self.ckpt.step))
+            print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
+            self.metrics.reset()
+            self.metrics.save()
+            # except:
+            #     print("no metric...")
 
     def train(self):
-        for j in range(30):
-            sigma = np.random.randint(100, 250)
+        for j in range(self.train_loops):
+            sigma = 150#np.random.randint(100, 250)
             generator = crop_generator_u_net(9, sigma_x=sigma)
             dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
                                                      output_shapes=((1*100, 9, 9, 3),  (1*100, 9,9,4)))
@@ -66,26 +67,50 @@ class TrainBase():
             truth = truth.numpy()
             result = self.network.predict(train_image)
             for i in range(truth.shape[0]):
-                fig,axs = plt.subplots(4)
-                axs[0].imshow(truth[i, :, :, 2])
-                axs[1].imshow(result[i,:,:,2])
-                axs[2].imshow(truth[i, :, :, 1])
-                axs[3].imshow(result[i,:,:,1])
+                fig,axs = plt.subplots(3,2)
+                axs[0][0].imshow(truth[i, :, :, 2])
+                axs[0][1].imshow(result[i,:,:,2])
+                axs[1][0].imshow(truth[i, :, :, 1])
+                axs[1][1].imshow(result[i,:,:,1])
+                axs[2][0].imshow(truth[i, :, :, 0])
+                axs[2][1].imshow(result[i,:,:,0])
+                axs[0][0].set_title("Ground truth")
+                axs[0][1].set_title("Prediction")
+                axs[0][0].set_ylabel("Classifier")
+                axs[1][0].set_ylabel("Delta x")
+                axs[2][0].set_ylabel("Delta y")
+
+
                 plt.show()
 
 class TrainInceptionNet(TrainBase):
     def __init__(self):
-        super(TrainInceptionNet).__init__()
+        super(TrainInceptionNet, self).__init__()
         self.network = CompressedSensingInceptionNet()
         self.optimizer = tf.keras.optimizers.Adam(1e-4)
-        self.metrics = JaccardIndex("./cs_training_inception_sigmoid")
+        self.metrics = JaccardIndex("./cs_training_inception_increased_depth")
         self.ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=self.optimizer , net=self.network)
-        self.manager = tf.train.CheckpointManager(self.ckpt, './cs_training_inception_sigmoid', max_to_keep=6)
+        self.manager = tf.train.CheckpointManager(self.ckpt, './cs_training_inception_increased_depth', max_to_keep=6)
         self.ckpt.restore(self.manager.latest_checkpoint)
         if self.manager.latest_checkpoint:
             print("Restored from {}".format(self.manager.latest_checkpoint))
         else:
             print("Initializing from scratch.")
+
+class TrainCVNet(TrainBase):
+    def __init__(self):
+        super(TrainCVNet, self).__init__()
+        self.network = CompressedSensingCVNet()
+        self.optimizer = tf.keras.optimizers.Adam(1e-4)
+        self.metrics = JaccardIndex("./cs_training_u_nmask_loss")
+        self.ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=self.optimizer , net=self.network)
+        self.manager = tf.train.CheckpointManager(self.ckpt, './cs_training_u_nmask_loss', max_to_keep=6)
+        self.ckpt.restore(self.manager.latest_checkpoint)
+        if self.manager.latest_checkpoint:
+            print("Restored from {}".format(self.manager.latest_checkpoint))
+        else:
+            print("Initializing from scratch.")
+
 
 def train_cs_inception_net():
     #test dataset from generator
@@ -102,7 +127,7 @@ def train_cs_inception_net():
         # accuracy_value = accuracy(truth, tf.argmax(logits, -1))
         return loss  # , accuracy_value
 
-    # @tf.function
+    @tf.function
     def loop(dataset):
         for train_image, truth in dataset.take(3):
             for i in range(50):

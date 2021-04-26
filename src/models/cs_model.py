@@ -10,20 +10,20 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         super(CompressedSensingInceptionNet, self).__init__()
         self.inception1 = CompressedSensingInception(iterations=5)
         self.batch_norm = tf.keras.layers.BatchNormalization()
-
+        #todo: extend depth?
         self.inception2 = CompressedSensingInception(iterations=100)
 
         self.horizontal_path = [
-            tf.keras.layers.Conv2D(64, (1, 1), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(256, (1, 1), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(32, (1, 1), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(128, (1, 1), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(16, (7, 7), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(64, (7, 7), activation=None, padding="same"),
             tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),
             tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.Conv2D(16,(3,3), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(32,(3,3), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(3, (1, 1), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(3, (3, 3), activation=None, padding="same"),
         ]
 
         def activation(inputs):
@@ -37,10 +37,12 @@ class CompressedSensingInceptionNet(tf.keras.Model):
             return tf.stack(inputs_list, axis=-1)
         self.activation = tf.keras.layers.Lambda(sigmoid_acitvaiton)
 
-    def __call__(self, inputs):
-        x = self.inception1(inputs)
+    def __call__(self, inputs, training=False):
+        x = inputs
+        x = self.inception1(x)
         x = self.batch_norm(x)
         x = self.inception2(x)
+        x = self.batch_norm(x)
 
         for layer in self.horizontal_path:
             x = layer(x)
@@ -67,14 +69,13 @@ class CompressedSensingCVNet(tf.keras.Model):
     def __init__(self):
         super(CompressedSensingCVNet, self).__init__()
         self.cs_layer = CompressedSensing()
-        self.reshape = tf.keras.layers.Reshape((72, 72, 3), )
+        self.reshape = tf.keras.layers.Reshape((72, 72, 3), input_shape=(72*72,3) )
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #todo: keep part of the down path
         self.down_path = [downsample(64,3,apply_batchnorm=True),
         downsample(128,3),
         downsample(256,3,apply_batchnorm=True),
                           ]
-
         #todo: concatnate here
 
         #todo: horizontal path
@@ -107,7 +108,7 @@ class CompressedSensingCVNet(tf.keras.Model):
         self.activation = tf.keras.layers.Lambda(sigmoid_activation)
         self.concat = tf.keras.layers.Concatenate()
 
-    def __call__(self, inputs):
+    def __call__(self, inputs, training=False):
         x = self.cs_layer(inputs)
         x = self.reshape(x)#72x72
         x = self.batch_norm(x)
@@ -116,14 +117,13 @@ class CompressedSensingCVNet(tf.keras.Model):
 
 
 
-        x = tf.keras.layers.Concatenate()([x, inputs])
+        x = self.concat([x, inputs])
         for layer in self.horizontal_path:
             x = layer(x)
-        #todo: transpose
 
         x = self.activation(x)
         return x
-        #todo: output 3 x,y,classifier
+
 
     def update(self, sigma, px_size):
         self.cs_layer.sigma = sigma

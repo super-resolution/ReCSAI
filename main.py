@@ -26,7 +26,7 @@ def predict_localizations_u_net(path):
     optimizer = tf.keras.optimizers.Adam()
     # accuracy = tf.metrics.Accuracy()
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-    manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_inception_sigmoid', max_to_keep=3)
+    manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_inception_increased_depth', max_to_keep=3)
     ckpt.restore(manager.latest_checkpoint)
     if manager.latest_checkpoint:
         print("Restored from {}".format(manager.latest_checkpoint))
@@ -49,20 +49,32 @@ def predict_localizations_u_net(path):
         print(crop_tensor.shape[0])
         result_tensor = cs_net.predict(crop_tensor)
 
-
+        # from localisations import Binning
+        # b = Binning()
         for i in range(result_tensor.shape[0]):
-            thresh = 0.3
-            classifier = result_tensor[i,:,:,2]
-            #fig,axs = plt.subplots(2)
-            #axs[0].imshow(classifier)
-            #axs[1].imshow(crop_tensor[i,:,:,1])
-            #plt.show()
+            thresh = 0.2
+            thresh_sum = 1
+            classifier = result_tensor[i,:,:,2]#todo: sum this up!
             indices = np.where(classifier>thresh)
+            # if np.sum(classifier)>thresh_sum:
+            #     classifier[np.where(classifier<0.1)] = 0
+            #     indices = b.get_coords(classifier).T
+            #     fig,axs = plt.subplots(5)
+            #     axs[0].imshow(classifier)
+            #     axs[1].imshow(crop_tensor[i,:,:,0])
+            #
+            #     axs[2].imshow(crop_tensor[i,:,:,1])
+            #     axs[3].imshow(crop_tensor[i,:,:,2])
+            #
+            #     axs[4].imshow(result_tensor[i,:,:,1])
+            #
+            #     plt.show()
             x = result_tensor[i,indices[0], indices[1],0]
             y = result_tensor[i,indices[0], indices[1],1]
+            #print(x,y)
 
             for j in range(indices[0].shape[0]):
-                result_array.append(coord_list[i][0:2] + np.array([indices[0][j]+x[j], indices[1][j]+y[j]]))
+                result_array.append(coord_list[i][0:2] + np.array([float(indices[0][j])+x[j], float(indices[1][j])+y[j]]))
             #todo: non maximum supression
 
 

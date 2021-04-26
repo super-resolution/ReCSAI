@@ -8,11 +8,20 @@ import copy
 
 class Factory():
     def __init__(self):
-        self.kernel = Gaussian2DKernel(x_stddev=150, y_stddev=150)
+        self._kernel = Gaussian2DKernel(x_stddev=150, y_stddev=150)
         self.shape = (8192, 8192)
         self.image_shape = (64, 64)
         seed = 42  # switch seed
         self.rs = np.random.RandomState(seed)
+
+    @property
+    def kernel(self):
+        return self._kernel._array
+
+    @kernel.setter
+    def kernel(self, value):
+        self._kernel = Gaussian2DKernel(x_stddev=value[0], y_stddev=value[1])
+        print(self._kernel.shape)
 
     def create_image(self):
         image = np.zeros(self.shape).astype(np.float32)
@@ -21,15 +30,17 @@ class Factory():
     def reduce_size(self, image):
         return cv2.resize(image, self.image_shape, interpolation=cv2.INTER_AREA)*(self.shape[0]/self.image_shape[0])**2
 
-    def create_crop_point_set(self, photons=1200):
+    def create_crop_point_set(self, photons=1200, on_time=400):
         n_points = 100000
         points = np.zeros((n_points, 5)).astype(np.float32)
         distribution = np.random.poisson(photons, n_points)  # maxwell.rvs(size=n_points, loc=12.5, scale=5)
+        on_time = np.random.poisson(on_time, n_points)  # maxwell.rvs(size=n_points, loc=12.5, scale=5)
+
         for i in range(n_points):
             p = np.random.randint(150, self.shape[0]-150, size=2)
             points[i, 0:2] = p
             points[i, 2] = distribution[i]  # todo: increase lifetime?
-            points[i, 3] = np.random.randint(0, int(points[i, 2]))
+            points[i, 3] = on_time[i]
             points[i, 4] = np.random.randint(-25, 25)
         return points
 
@@ -64,24 +75,24 @@ class Factory():
         adu[adu < 0] = 0  # models pixel saturation
         return adu
 
-    def simulate_accurate_flimbi(self, points, on_points, switching_rate=8.0):
+    def simulate_accurate_flimbi(self, points, on_points, switching_rate=8.0, inverted=False):
         """input random distributed convolved and resized image"""
         #todo: simulate world in 0.1 ms
 
         image = self.create_image()
         ground_truth = self.create_image()
-        image, ground_truth, on_points = self.concolve_flimbi_style(image, ground_truth, points, on_points, switching_rate=switching_rate)
+        image, ground_truth, on_points = self.concolve_flimbi_style(image, ground_truth, points, on_points, switching_rate=switching_rate, inverted=inverted)
         return image, ground_truth, on_points
 
     def create_points_add_photons(self, image, points, photons):
         for i in range(points.shape[0]):
             image[int(points[i,0]),int(points[i,1])] = photons[i]
-        data = cv2.filter2D(image, -1, self.kernel.array, borderType=cv2.BORDER_CONSTANT)
+        data = cv2.filter2D(image, -1, self.kernel, borderType=cv2.BORDER_CONSTANT)
         return data
 
-    def concolve_flimbi_style(self, image, ground_truth, points, on_points, switching_rate):
+    def concolve_flimbi_style(self, image, ground_truth, points, on_points, switching_rate, inverted=False):
         line = self.shape[0]/self.image_shape[0]
-        on_points = np.delete(on_points, np.where(on_points[...,2] < 0), axis=0)
+        on_points = np.delete(on_points, np.where(on_points[...,3] < 0), axis=0)
 
 
         exclude = []
@@ -99,24 +110,26 @@ class Factory():
                 on_points = np.concatenate((on_points, points[ind]), axis=0)
 
 
-            image,ex = Factory.flimbi_paint_locs(image, on_points[1:], self.kernel.array, line, i)
+            image,ex = Factory.flimbi_paint_locs(image, on_points, self.kernel, line, i, inverted=inverted)
             exclude += ex
         exclude = list(set(exclude))
         exclude = [i+1 for i in exclude]
-        print("localization " + str(exclude) + " was not painted")
-        on_points = np.delete(on_points, exclude, axis=0)
-        ground_truth = self.create_points_add_photons(ground_truth, on_points[1:], np.ones(on_points.shape[0])*800)#todo: ground truth as points
-        return image, ground_truth, on_points[1:]
+        #print("localization " + str(exclude) + " was not painted")
+        # if len(exclude)>0:
+        #     on_points = np.delete(on_points, exclude, axis=0)
+        ground_truth = self.create_points_add_photons(ground_truth, on_points, np.ones(on_points.shape[0])*800)#todo: ground truth as points
+        return image, ground_truth, on_points
 
     @staticmethod
-    @numba.jit(nopython=True)
-    def flimbi_paint_locs(image, on_points, kernel_array, line, j, flimbi_mode=True):
+    #@numba.jit(nopython=True)
+    def flimbi_paint_locs(image, on_points, kernel_array, line, j, flimbi_mode=True, inverted=False):
         #always decrease lifetime
         exclude = []
         off = []
         for i in range(on_points.shape[0]):
             y,x = int(on_points[i,0]),int(on_points[i,1])
-            on_points[i,2] -= 6
+            on_points[i,3] -= 6
+            I = on_points[i, 2]
             if flimbi_mode:
                 b = False
                 #for j in off:
@@ -125,27 +138,43 @@ class Factory():
                 #if b:
                 #    continue
                 #caution localizations might not be painted at all
-                if on_points[i,2] < 0:#todo kick point if it wasnt painted
-                    off.append(i)
+                if inverted:
+                    if on_points[i, 3] > 0:  # todo kick point if it wasnt painted
+                        off.append(i)
 
-                    if j * line < y - 450:
-                        exclude.append(i)
-                    continue
+                        if j * line < y - 450:
+                            exclude.append(i)
+                        continue
+                else:
+                    if on_points[i,3] < 0:#todo kick point if it wasnt painted
+                        off.append(i)
+
+                        if j * line < y - 450:
+                            exclude.append(i)
+                        continue
+            kernel_range_y = int(kernel_array.shape[0]/2)
+            kernel_range_x = int(kernel_array.shape[1]/2)
             #if line %2 ==0:
             #   x -= int(on_points[i,4])
-            vertical_i_range = np.array([min(max(j * line, y - 600), (j + 1) * line),
-                                         max(min((j + 1) * line - 1, y + 600), line * j)]).astype(np.int32)
-            vertical_k_range = np.array([min(max(vertical_i_range[0] - (y - 600), 0), 1200),
-                                         max(min(vertical_i_range[1] - (y - 600), 1200), 0)]).astype(np.int32)
+            vertical_i_range = np.array([min(max(j * line, y - kernel_range_y), (j + 1) * line),
+                                         max(min((j + 1) * line, y + kernel_range_y+1), line * j)]).astype(np.int32)
+            vertical_k_range = np.array([vertical_i_range[0] - (y - kernel_range_y),
+                                         vertical_i_range[1] - (y - kernel_range_y)]).astype(np.int32)
 
-            horizontal_i_range = np.array([max(x - 600, 0), min(x + 600, image.shape[1] - 1)]).astype(
+            horizontal_i_range = np.array([max(x - kernel_range_x, 0), min(x + kernel_range_x + 1, image.shape[1])]).astype(
                 np.int32)
             horizontal_k_range = np.array(
-                [horizontal_i_range[0] - (x - 600), horizontal_i_range[1] - (x - 600)]).astype(np.int32)
+                [horizontal_i_range[0] - (x - kernel_range_x), horizontal_i_range[1] - (x - kernel_range_x)]).astype(np.int32)
             #print(vertical_i_range, vertical_k_range, horizontal_k_range, horizontal_i_range)
+            #if vertical_k_range[0]<0 or vertical_k_range[1]>2*kernel_range_y:
+                #print(vertical_i_range, vertical_k_range)
+                #continue
+            #if horizontal_k_range[0]<0 or horizontal_k_range[1]>2*kernel_range_x:
+                #print(horizontal_k_range, horizontal_i_range)
+                #continue
             image[vertical_i_range[0]:vertical_i_range[1],
             horizontal_i_range[0]:horizontal_i_range[1]] += kernel_array[vertical_k_range[0]:vertical_k_range[1],
-                                                            horizontal_k_range[0]:horizontal_k_range[1]].astype(np.float32) * 800
+                                                            horizontal_k_range[0]:horizontal_k_range[1]].astype(np.float32) * on_points[i,2]
         return image,exclude
 
     def create_microtuboli_point_set(self):
