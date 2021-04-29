@@ -1,7 +1,6 @@
 from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInception
 #from tensorflow.keras.layers import *
 import tensorflow as tf
-import tensorflow_addons as tfa
 from src.custom_layers.utility_layer import downsample,upsample
 
 #todo: imitate yolo architecture and use 9x9 output grid
@@ -227,7 +226,7 @@ class CompressedSensingNet(tf.keras.Model):
 
     def compute_loss(self, truth_p, predict_p, truth_c, predict_c):
         l2 = tf.keras.losses.MeanSquaredError()
-        ce = tfa.losses.SigmoidFocalCrossEntropy()
+        ce = tf.keras.losses.BinaryCrossentropy()
         RMSE = l2(truth_p, predict_p)#*tf.repeat(truth_c, repeats=[2,2,2],axis=1))
         BCE = tf.reduce_sum(ce(truth_c, predict_c,))
         return 3*RMSE+BCE
@@ -252,7 +251,7 @@ class CompressedSensingNet(tf.keras.Model):
 
     def compute_permute_loss(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
-        ce = tfa.losses.SigmoidFocalCrossEntropy()
+        ce = tf.keras.losses.BinaryCrossentropy()
 
         indices = self.sort(predict[:,0:6])
         indices2 = self.sort(truth[:,0:6])
