@@ -4,6 +4,7 @@ from scipy import interpolate
 import tensorflow as tf
 from scipy.ndimage import filters
 from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
+from pathlib import Path
 
 def result_image_to_coordinates(result, coords=None, threshold=0.5):
     result_array = []
@@ -336,3 +337,6 @@ def get_coords(reconstruct):
     detected_peaks = local_max ^ eroded_background
     coords = np.array(np.where(detected_peaks != 0))
     return coords.T
+
+def get_root_path():
+    return str(Path(__file__).parent.parent)
