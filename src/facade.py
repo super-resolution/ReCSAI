@@ -69,12 +69,12 @@ class NetworkFacade():
                         ,coord_list[i][1] +float(indices[1][j]) + y[j], coord_list[i][2], dx[j], dy[j]]))
         return np.array(result_array)
 
-    def predict(self, path, drift_path=None):
+    def predict(self, image, drift_path=None):
         if drift_path:
             drift = pd.read_csv(drift_path).as_matrix()#r"C:\Users\biophys\Downloads\confocalSTORM_beads+MT\alpha_drift.csv"
         #todo: implement drift
         result_full = []
-        gen = generate_generator(path)
+        gen = generate_generator(image)
         dataset = tf.data.Dataset.from_generator(gen, tf.float64)
         j = 0
         for image in dataset:

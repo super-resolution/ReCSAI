@@ -2,7 +2,7 @@ from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet, Co
 from src.facade import NetworkFacade
 from src.visualization import display_storm_data
 from src.utility import get_root_path
-
+from tifffile.tifffile import TiffFile
 
 
 
@@ -16,7 +16,11 @@ from src.utility import get_root_path
 
 
 
-image = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
+path = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
+with TiffFile(path) as tif:
+    image = tif.asarray()
+
+
 #image = r"D:\Daten\AI\COS7_LT1_beta-tub-Alexa647_new_D2O+MEA5mM_power6_OD0p6_3_crop.tif"
 #image = r"C:\Users\biophys\matlab\test2_crop_BP.tif"
 #image = r"D:\Daten\Artificial\ContestHD.tif"

@@ -192,11 +192,10 @@ def real_data_generator(im_shape, switching_rate=0.2):
     return generator
 
 
-def generate_generator(file_path):
+def generate_generator(image):
     def data_generator_real():
         for i in range(1):
-            with TIF(file_path) as tif:
-                dat = tif.asarray()[i * 10000:(i + 1) * 10000,]#14:-14,14:-14]
+            dat = image[i * 10000:(i + 1) * 10000,]#14:-14,14:-14]
             #dat = dat[:dat.shape[0]//4*4]
             #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
