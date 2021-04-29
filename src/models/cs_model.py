@@ -34,7 +34,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         def sigmoid_acitvaiton(inputs):
             inputs_list = tf.unstack(inputs, axis=-1)
-            inputs_list[4] = tf.keras.activations.sigmoid(inputs_list[4])  # last is classifier
+            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
             return tf.stack(inputs_list, axis=-1)
         self.activation = tf.keras.layers.Lambda(sigmoid_acitvaiton)
 
@@ -69,7 +69,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         ce = tf.keras.losses.BinaryCrossentropy()
         mask = truth[:,:,:,3:4]
         predict_masked = predict[:,:,:,0:2]*mask
-        sigma = predict_masked - truth[:,:,:,0:2]
+        sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
         L2 = l2(predict_masked, truth[:,:,:,0:2])
         L2_sigma = l2(sigma, predict[:,:,:,3:5])
         BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)

@@ -25,7 +25,7 @@ def predict_localizations_u_net(path):
     # accuracy = tf.metrics.Accuracy()
     #todo: outsource this to model
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-    manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_inception_increased_depth', max_to_keep=3)
+    manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_learn_sigma', max_to_keep=3)
     ckpt.restore(manager.latest_checkpoint)
     if manager.latest_checkpoint:
         print("Restored from {}".format(manager.latest_checkpoint))
@@ -175,10 +175,11 @@ image = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, './src/trainings/cs_training_inception_increased_depth',
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, './src/trainings/cs_training_learn_sigma',
                                                 r"C:\Users\biophys\PycharmProjects\TfWaveletLayers\training_lvl2\cp-10000.ckpt")
 facade = TrainInceptionNet()
 facade.sigma = 180
+facade.threshold = 0.1
 result_array = facade.predict(image)[:,0:2]
 print(result_array.shape[0])
 print("finished AI")

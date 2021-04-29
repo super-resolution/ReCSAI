@@ -61,10 +61,12 @@ class NetworkFacade():
                 indices = get_coords(classifier).T
                 x = result_tensor[i, indices[0], indices[1], 0]
                 y = result_tensor[i, indices[0], indices[1], 1]
+                dx = result_tensor[i, indices[0], indices[1], 3]#todo: if present
+                dy = result_tensor[i, indices[0], indices[1], 4]
 
                 for j in range(indices[0].shape[0]):
                     result_array.append(np.array([coord_list[i][0] +float(indices[0][j]) + x[j]
-                        ,coord_list[i][1] +float(indices[1][j]) + y[j], coord_list[i][2]]))
+                        ,coord_list[i][1] +float(indices[1][j]) + y[j], coord_list[i][2], dx[j], dy[j]]))
         return np.array(result_array)
 
     def predict(self, path, drift_path=None):
@@ -122,6 +124,7 @@ class NetworkFacade():
                                                      output_shapes=((1*100, 9, 9, 3),  (1*100, 9,9,4)))
             self.sigma = sigma
             self.loop(dataset)
+        self.test()
 
     @tf.function
     def train_step(self, train_image, truth):
