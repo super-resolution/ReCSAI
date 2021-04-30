@@ -32,8 +32,8 @@ class TrainInceptionNet(NetworkFacade):
 facade = TrainInceptionNet()
 facade.sigma = 180
 facade.threshold = 0.1
-result_array = facade.predict(image)[:,0:2]
+result_array = facade.predict(image)
 print(result_array.shape[0])
 print("finished AI")
-display_storm_data(result_array)
+display_storm_data(result_array[:,0:2])
 

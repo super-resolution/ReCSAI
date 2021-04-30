@@ -82,7 +82,7 @@ class NetworkFacade():
             # plt.show()
             # plt.imshow(image[2,:,:,1])
             # plt.show()
-            crop_tensor, _, coord_list = bin_localisations_v2(image, self.denoising, th=0.2)
+            crop_tensor, _, coord_list = bin_localisations_v2(image, self.denoising, th=0.1)
             for z in range(len(coord_list)):
                 coord_list[z][2] += j * 5000
             print(crop_tensor.shape[0])
