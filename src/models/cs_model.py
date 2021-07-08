@@ -3,27 +3,28 @@ from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInce
 import tensorflow as tf
 from src.custom_layers.utility_layer import downsample,upsample
 
+
 #todo: imitate yolo architecture and use 9x9 output grid
 class CompressedSensingInceptionNet(tf.keras.Model):
     TYPE = 0
     def __init__(self):
         super(CompressedSensingInceptionNet, self).__init__()
-        self.inception1 = CompressedSensingInception(iterations=5)
+        self.inception1 = CompressedSensingInception(iterations=100)
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #todo: extend depth?
-        self.inception2 = CompressedSensingInception(iterations=100)
 
+        #self.inception2 = CompressedSensingInception(iterations=100)
+        #self.batch_norm2 = tf.keras.layers.BatchNormalization()
         self.horizontal_path = [
             tf.keras.layers.Conv2D(256, (1, 1), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(128, (1, 1), activation=None, padding="same"),
-            tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(64, (7, 7), activation=None, padding="same"),
-            tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),
+            tf.keras.layers.Conv2D(128, (7, 1), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(64, (1, 7), activation=None, padding="same"),
+            #tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),#todo dont do max pooling...
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Conv2D(32,(3,3), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(5, (3, 3), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(6, (3, 3), activation=None, padding="same"),
         ]#x,y,sigmax,sigmay,classifier
 
         def activation(inputs):
@@ -39,10 +40,10 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
     def __call__(self, inputs, training=False):
         x = inputs
-        x = self.inception1(x)
+        x = self.inception1(x, training=training)
         x = self.batch_norm(x)
-        x = self.inception2(x)
-        x = self.batch_norm(x)
+        # x = self.inception2(x, training=training)
+        # x = self.batch_norm2(x)
 
         for layer in self.horizontal_path:
             x = layer(x)
@@ -53,26 +54,157 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
     @property
     def sigma(self):
-        if self.inception1.cs.sigma != self.inception2.cs.sigma:
-            raise ValueError("sigma has to be identical in both layers")
+        #if self.inception1.cs.sigma != self.inception2.cs.sigma:
+        #    raise ValueError("sigma has to be identical in both layers")
         return self.inception1.cs.sigma
 
     @sigma.setter
     def sigma(self, value):
         self.inception1.cs.sigma = value
-        self.inception2.cs.sigma = value
-
+        #self.inception2.cs.sigma = value
 
     def compute_loss(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
+        ce = tf.keras.losses.BinaryCrossentropy()
+        mask = truth[:,:,:,3:4]
+        mask2 = truth[:,:,:,3]
+        predict_masked = predict[:,:,:,0:2]*mask
+        x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X,Y = tf.meshgrid(x,x)
+        X_truth = (truth[:,:,:,0]+X)*mask2
+        Y_truth = (truth[:,:,:,1]+Y)*mask2
+        X_pred = (predict[:,:,:,0]+X)*mask2
+        Y_pred = (predict[:,:,:,1]+Y)*mask2
+        sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
+        #L2 = 0
+
+        L2 = -tf.math.log(
+            tf.reduce_sum(predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2])
+                          * tf.exp(-(tf.square(X_pred-X_truth)+tf.square(Y_pred-Y_truth)))))
+
+        #L2 /= 81**2
+        L2_sigma = l2(sigma, predict[:,:,:,3:5]*mask)
+        BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
+        STD = l2(self.sigma/100, predict[:,:,:,5])
+        return 100*BCE + L2 + 3*L2_sigma + 3*STD
+
+
+    def compute_decode_loss_dfp(self, truth, predict):
+        pass
+
+    def compute_loss_log_cs_out(self, truth, predict, cs_result, noiseless_truth):
+        #todo: penaltize entries unequal to zero
+        #todo: noiseless truth with mat mul
+        l2 = tf.keras.losses.MeanSquaredError()
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
         ce = tf.keras.losses.BinaryCrossentropy()
         mask = truth[:,:,:,3:4]
         predict_masked = predict[:,:,:,0:2]*mask
+        x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X,Y = tf.meshgrid(x,x)
+        X_truth = truth[:,:,:,0]+X
+        Y_truth = truth[:,:,:,1]+Y
+        X_pred = predict[:,:,:,0]+X
+        Y_pred = predict[:,:,:,1]+Y
         sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
-        L2 = l2(predict_masked, truth[:,:,:,0:2])
-        L2_sigma = l2(sigma, predict[:,:,:,3:5])
-        BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
-        return BCE + 8*L2 + 3*L2_sigma
+        L2 = 0
+        # for i in range(9):
+        #     for j in range(9):
+        normed_truth = predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2],[1,2], keepdims=True)
+        #todo: devide by covariance kernel
+        cov = tf.exp(-tf.square(sigma-predict[:,:,:,3:5]))
+        L2 = tf.reduce_mean(tf.math.log(
+                          1+tf.square(X_pred-X_truth)/cov[:,:,:,0]+tf.square(Y_pred-Y_truth)/cov[:,:,:,1]))#todo: truth- tf.abs(normed_truth)*?
+
+        L2_sigma = tf.reduce_sum(tf.math.log(1+tf.square(sigma- predict[:,:,:,3:5])))
+        BCE = 10*ce(truth[:,:,:,2], predict[:,:,:,2],)+ 15*tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
+        count_loss = +20*tf.reduce_sum(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(truth[:,:,:,2], [1,2]))
+        STD = l2(self.sigma/100, predict[:,:,:,5])
+        return 40*BCE + 2*L2 + 3*L2_sigma + 3*STD + count_loss
+
+    def compute_loss_log(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
+        ce = tf.keras.losses.BinaryCrossentropy()
+        mask = truth[:,:,:,3:4]
+        predict_masked = predict[:,:,:,0:2]*mask
+        x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X,Y = tf.meshgrid(x,x)
+        X_truth = truth[:,:,:,0]+X
+        Y_truth = truth[:,:,:,1]+Y
+        X_pred = predict[:,:,:,0]+X
+        Y_pred = predict[:,:,:,1]+Y
+        sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
+        L2 = 0
+        # for i in range(9):
+        #     for j in range(9):
+        normed_truth = predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2],[1,2], keepdims=True)
+        #todo: devide by covariance kernel
+        cov = tf.exp(-tf.square(sigma-predict[:,:,:,3:5]))
+        L2 = tf.reduce_mean(tf.math.log(
+                          1+tf.square(X_pred-X_truth)/cov[:,:,:,0]+tf.square(Y_pred-Y_truth)/cov[:,:,:,1]))#todo: truth- tf.abs(normed_truth)*?
+
+        L2_sigma = tf.reduce_sum(tf.math.log(1+tf.square(sigma- predict[:,:,:,3:5])))
+        BCE = 10*ce(truth[:,:,:,2], predict[:,:,:,2],)+ 15*tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
+        count_loss = +20*tf.reduce_sum(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(truth[:,:,:,2], [1,2]))
+        STD = l2(self.sigma/100, predict[:,:,:,5])
+        return 40*BCE + 2*L2 + 3*L2_sigma + 3*STD + count_loss
+
+    def compute_loss_decode(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
+        ce = tf.keras.losses.BinaryCrossentropy()
+        #mask = truth[:,:,:,3:4]#truth is now in coordinates
+        #mask2 = truth[:,:,:,3]
+
+        def vectorized_loss(data):
+            x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
+            X, Y = tf.meshgrid(x, x)
+            predict = data[0]
+            truth = data[1]
+            loss = tf.constant(0,dtype=tf.float32)
+            truth_l = tf.unstack(truth,axis=0)
+            for i in range(len(truth_l)):
+                #if truth[i][0] !=-1:
+                loss += tf.cond(truth_l[i][0]>0, lambda:  -tf.math.log(
+                        tf.reduce_sum(predict[:, :, 2] /
+                                      (tf.reduce_sum(predict[:, :, 2])
+                                       *tf.math.sqrt(tf.abs(predict[:, :, 3])*
+                                       tf.pow(2*3.14,4)*
+                                        tf.abs(predict[:, :, 4]))
+                                       )
+                                      * tf.exp(-(1/2*tf.square(predict[:, :, 0]+ Y - truth_l[i][0])
+                                                 #/tf.square(predict[:, :, 3])
+                                                + tf.square(predict[:, :, 1]+X - truth[i][1])
+                                                 #/tf.square(predict[:, :, 4])
+                                               )))),
+                                lambda: tf.constant(0,dtype=tf.float32))
+            sigma_c = tf.reduce_sum(predict[:,:,2]*(1-predict[:,:,2]))
+            loss += 1/2*tf.square(tf.cast(tf.math.count_nonzero(truth_l!=-1), tf.float32)-tf.reduce_sum(predict[:, :, 2]))\
+                    /tf.square(sigma_c)-tf.math.log(tf.sqrt(2*3.14)*sigma_c)
+            return loss
+        L2 = tf.reduce_sum(tf.vectorized_map(vectorized_loss, [predict, truth]))
+
+        # predict_masked = predict[:,:,:,0:2]*mask
+        # sigma = tf.abs(predict_masked - truth[:,:,:,0:2])#todo: add sum constraint?
+        # x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
+        # X,Y = tf.meshgrid(x,x)
+        # X_pred = (predict[:,:,:,0]+X)
+        # Y_pred = (predict[:,:,:,1]+Y)
+        # sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
+        # #L2 = 0
+        # #todo: use tensorflow vectorized map to compute
+        # # L2 = -tf.reduce_sum(truth[:,:,:,2])*tf.math.log(
+        # #     tf.reduce_sum(predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2])
+        # #                   * tf.exp(-(tf.square(X_pred-truth[:,:,0])+tf.square(Y_pred-truth[:,:,0]))/
+        # #                            (tf.square(predict[:,:,:,3])+tf.square(predict[:,:,:,4])))))
+        #
+        # L2_sigma = l2(sigma, predict[:,:,:,3:5])
+        # sig_predict = tf.reduce_sum(predict[:,:,:,2]*(tf.ones_like(predict[:,:,:,2])-predict[:,:,:,2]))
+        #BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
+        # STD = l2(self.sigma/100, predict[:,:,:,5])
+        return 100+L2 #+ 3*STD + 10*BCE +L2_sigma
 
 
 
@@ -96,14 +228,13 @@ class CompressedSensingCVNet(tf.keras.Model):
         self.horizontal_path = [
             tf.keras.layers.Conv2D(256, (1, 1), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(128, (1, 1), activation=None, padding="same"),
-            tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(64, (7, 7), activation=None, padding="same"),
-            tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),
+            tf.keras.layers.Conv2D(128, (7, 1), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(64, (1, 7), activation=None, padding="same"),
+            #tf.keras.layers.MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding="same"),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.Conv2D(32,(3,3), activation=None, padding="same"),
             tf.keras.layers.LeakyReLU(alpha=0.01),
-            tf.keras.layers.Conv2D(3, (3, 3), activation=None, padding="same"),
+            tf.keras.layers.Conv2D(6, (3, 3), activation=None, padding="same"),
 
         ]
 
@@ -137,11 +268,66 @@ class CompressedSensingCVNet(tf.keras.Model):
         x = self.activation(x)
         return x
 
+    @property
+    def sigma(self):
+        return self.cs_layer.sigma
 
-    def update(self, sigma, px_size):
-        self.cs_layer.sigma = sigma
+    @sigma.setter
+    def sigma(self, value):
+        self.cs_layer.sigma = value
 
     def compute_loss(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
+        ce = tf.keras.losses.BinaryCrossentropy()
+        mask = truth[:,:,:,3:4]
+        predict_masked = predict[:,:,:,0:2]*mask
+        x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X,Y = tf.meshgrid(x,x)
+        X_truth = truth[:,:,:,0]+X
+        Y_truth = truth[:,:,:,1]+Y
+        X_pred = predict[:,:,:,0]+X
+        Y_pred = predict[:,:,:,1]+Y
+        sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
+        L2 = 0
+        # for i in range(9):
+        #     for j in range(9):
+        L2 += tf.math.log(
+            tf.reduce_sum(predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2])
+                          * tf.exp(tf.square(X_pred-X_truth)+tf.square(Y_pred-Y_truth))))
+
+        L2 /= 81
+        L2_sigma = l2(sigma, predict[:,:,:,3:5])
+        BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
+        STD = l2(self.sigma/100, predict[:,:,:,5])
+        return 100*BCE + L2 + 3*L2_sigma + 3*STD
+
+
+    def compute_loss_log(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
+        ce = tf.keras.losses.BinaryCrossentropy()
+        mask = truth[:,:,:,3:4]
+        predict_masked = predict[:,:,:,0:2]*mask
+        x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X,Y = tf.meshgrid(x,x)
+        X_truth = truth[:,:,:,0]+X
+        Y_truth = truth[:,:,:,1]+Y
+        X_pred = predict[:,:,:,0]+X
+        Y_pred = predict[:,:,:,1]+Y
+        sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
+        L2 = 0
+        # for i in range(9):
+        #     for j in range(9):
+        L2 = tf.reduce_sum(tf.math.log(
+                          tf.square(X_pred-X_truth)+tf.square(Y_pred-Y_truth)))
+
+        L2_sigma = tf.reduce_sum(tf.math.log(sigma, predict[:,:,:,3:5]))
+        BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
+        STD = l2(self.sigma/100, predict[:,:,:,5])
+        return 100*BCE + L2 + 3*L2_sigma + 3*STD
+
+    def compute_loss_old(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
         ce = tf.keras.losses.BinaryCrossentropy()
         mask = truth[:,:,:,3:4]

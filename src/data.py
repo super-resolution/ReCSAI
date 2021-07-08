@@ -6,12 +6,34 @@ import scipy.ndimage
 from src.factory import Factory
 import copy
 from astropy.convolution import Gaussian2DKernel
+from src.utility import get_root_path
 
 CROP_TRANSFORMS = 4
 OFFSET=14
 
+def build_switching_array(n):
+    bef_after = np.random.randint(0, 2, 2 * n)
+    test = np.ones((n, 3))
+    test2 = np.zeros((n, 3))
+    test[:, 0] = bef_after[0:n]
+    test[:, 2] = bef_after[n:]
+    for i in range(n):
+        if test[i, 0] == 1 and test[i, 2] == 0:
+            test2[i, 0] = 1  # switching on
+            test2[i, 1] = 3  # switching off
+        elif test[i, 2] == 1 and test[i, 0] == 0:
+            test2[i, 1] = 1  # switching on
+            test2[i, 2] = 3  # switching off
+        elif test[i, 2] == 1 and test[i, 0] == 1:
+            test2[i, 0] = 1  # switching on
+            test2[i, 1] = 2  # switching on
+            test2[i, 2] = 3  # switching off
+        else:
+            test2[i, 1] = 2
+    return test2
 
-def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
+
+def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_ground_truth=False):
     #todo: create dynamical
 
     factory = Factory()
@@ -22,9 +44,13 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
             ph = np.random.randint(1000,2000)
             points = factory.create_crop_point_set(photons=ph, on_time=30)
             #sigma_y = np.random.randint(100, 250)
-            factory.kernel = (sigma_x, sigma_y)
+            sig_y = sigma_x+np.random.rand()*10-5
+            sig_x = sigma_y+np.random.rand()*10-5
+
+            factory.kernel = (sig_x, sig_y)
             truth_cs_list = []
             image_list = []
+            image_noiseless_list = []
             for i in range(100): #todo: while loop here
                 print(i)
 
@@ -32,72 +58,51 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150):
                 n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
                 if n>3:
                     n=3
-                def build_image(ind, switching=False, inverted=False):#todo: points to image additional parameters sigma and intensity
-                    image = factory.create_image()
-                    truth_cs = factory.create_classifier_image((9,9), points[ind], 100)#todo: variable px_size
-                    if switching:
-                        image,_,_ = factory.simulate_accurate_flimbi(points, points[ind], switching_rate=0, inverted=inverted)
+                def build_image(ind, switching_array,):#todo: points to image additional parameters sigma and intensity
+                    image_s = np.zeros((im_shape, im_shape, 3))
+                    truth_cs = factory.create_classifier_image((9, 9), points[ind], 100)  # todo: variable px_size
+                    image_noiseless = np.zeros((im_shape, im_shape, 3))
+                    for i in range(3):
+                        #todo: if before is zero activate switching
+                        #todo: if after is zero activate inverted
+                            #todo: for points with right variables
+                        image,_,_ = factory.simulate_accurate_flimbi(points, points[ind], switching_rate=0, inverted=switching_array[:,i])
 
                         # plt.imshow(image)
                         # plt.show()
                         image = factory.reduce_size(image).astype(np.float32)
-                        image += np.random.rand()*10+10 #noise was 2
+                        image_noiseless[:,:,i] = image
+                        image += np.random.rand()*20+10 #noise was 2
                         image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
+                        image_s[:,:,i] = image
 
-                    else:
-                        image = factory.create_points_add_photons(image, points[ind], points[ind,2])
-                        image = factory.reduce_size(image).astype(np.float32)
-                        image += np.random.rand()*10+10 #noise was 2
-                        image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
+                    return image_s, truth_cs, image_noiseless
 
-                    return image, truth_cs
+                #todo: build named tuple (i.e. true true flase)
+                #todo: set switching accordingly(i.e. true, inverted=true, false
+                ind = np.arange(ind, ind + n, 1).astype(np.int32)#todo: set switching true
+                switching_array = build_switching_array(n)
 
-                ind = np.arange(ind, ind + n, 1).astype(np.int32)
-                image_s = np.zeros((im_shape,im_shape, 3))
+                image_s,truth_cs, image_noiseless = build_image(ind, switching_array)
 
-                image_s[:, :, 1],truth_cs = build_image(ind)
-
-                bef_after = np.random.randint(0,2,2*n)
-                ind_new_b = ind
-                ind_new_a = ind
-                ind_new_b = np.delete(ind_new_b, np.where(bef_after[:n]==0))
-                ind_new_a = np.delete(ind_new_a, np.where(bef_after[n:]==0))
-                image_s[:, :, 2],_ = build_image(ind_new_a, switching=True)
-                image_s[:, :, 0],_ = build_image(ind_new_b, switching=True, inverted=True)
                 image_s -= image_s.min()
                 image_s += 0.0001
                 image_s /= image_s.max()
-                image_s /= np.random.rand()*0.3+0.7
-                # fig,axs = plt.subplots(3)
-                # axs[0].imshow(image_s[:,:,0])
-                # axs[1].imshow(image_s[:,:,1])
-                # axs[2].imshow(image_s[:,:,2])
-                #
-                # plt.show()
-                #done: random new noise in next image random switch off
-                # for t in range(CROP_TRANSFORMS):
-                #     image_s_copy = copy.deepcopy(image_s)
-                #     truth_cs_copy = copy.deepcopy(truth_cs)
-                #     for k in range(3):
-                #         image_s_copy[:,:,k] = factory.accurate_noise_simulations_camera(image_s_copy[:,:,k])
-                #
-                #     image_s_copy -= image_s_copy.min()
-                #     image_s_copy /= image_s_copy.max()
-                #     if t == 1:
-                #         image_s_copy = np.fliplr(image_s_copy)
-                #         p_n[1:6:2] = ((factory.shape[1] ) - p_n[1:6:2])*p[6:]
-                #     elif t == 2:
-                #         image_s_copy = np.flipud(image_s_copy)
-                #         p_n[0:6:2] = ((factory.shape[0] - 1) - p_n[0:6:2])*p[6:]
-                #     elif t == 3:
-                #         image_s_copy = np.flipud(np.fliplr(image_s_copy))
-                #         p_n[1:6:2] = ((factory.shape[1] - 1) - p_n[1:6:2])*p[6:]
-                #         p_n[0:6:2] = ((factory.shape[0] - 1) - p_n[0:6:2])*p[6:]
+                image_s *= np.random.rand()*0.3+0.7
+                #fig,axs = plt.subplots(3)
+                #axs[0].imshow(truth_cs[:,:,0])
+                #axs[1].imshow(truth_cs[:,:,1])
+                #axs[2].imshow(truth_cs[:,:,2])
+
+                #plt.show()
+
                 truth_cs_list.append(truth_cs)
                 image_list.append(image_s)
-
-
-            yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list)#todo: shuffle?
+                image_noiseless_list.append(image_noiseless)
+            if noiseless_ground_truth:
+                yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list), tf.convert_to_tensor(image_noiseless_list)  # todo: shuffle?
+            else:
+                yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list)#todo: shuffle?
     return generator
 
 def crop_generator(im_shape, sigma_x=150, sigma_y=150):
@@ -232,3 +237,33 @@ def data_generator_coords(file_path, offset=0):
         # axs[1].imshow(im[:,:,1])
         # plt.show()
         yield data[i+ offset]#,  im[:,:,:], px_coords
+
+
+def crop_generator_saved_file():
+    data = np.load(get_root_path() +r"\crop_dataset_train_VS.npy", allow_pickle=True).astype(np.float32)
+    truth = np.load(get_root_path() +r"\crop_dataset_truth_VS.npy", allow_pickle=True).astype(np.float32)
+    for i in range(data.shape[0]):
+        yield data[i], truth[i]
+
+def crop_generator_saved_file_coords():
+    data = np.load(get_root_path() +r"\crop_dataset_train.npy", allow_pickle=True).astype(np.float32)
+    truth = np.load(get_root_path() +r"\crop_dataset_truth.npy", allow_pickle=True).astype(np.float32)
+    for i in range(data.shape[0]):
+        coords = []
+        current = truth[i]
+        for j in range(current.shape[0]):
+            page = current[j]
+            indices = np.array(np.where(page[ :, :, 2] == 1))
+            per_image= -np.ones((3,2))
+            for i,ind in enumerate(indices.T):
+                per_image[i] = ind + np.array([page[ind[0],ind[1], 0], page[ind[0],ind[1], 1]])
+            coords.append(np.array(per_image))
+        yield data[i], np.array(coords)
+
+
+if __name__ == '__main__':
+    g = crop_generator_saved_file()
+    for data in g:
+        x=0
+
+

@@ -1,8 +1,32 @@
 from src.data import *
 from tifffile import TiffWriter
 import os
+import matplotlib.pyplot as plt
 
-def build_dataset(im_shape, dataset_size, file_name, switching_rate=0.1, on_time=1000,):
+def create_crop_dataset(iterations):
+    data_train = []
+    data_truth = []
+    sig = []
+    data_noiseless = []
+
+    for j in range(60):
+        sigma = np.random.randint(100, 250) #todo: vary sigma with dataset
+        generator = crop_generator_u_net(9, sigma_x=sigma, noiseless_ground_truth=True)
+        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
+                                                 output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4), (1 * 100, 9, 9, 3)))
+        for train_image, truth, noiseless in dataset.take(4):
+            data_train.append(train_image.numpy())
+            data_truth.append(truth.numpy())
+            data_noiseless.append(noiseless.numpy())
+            #fig, axs = plt.subplots(2)
+            # axs[0].imshow(train_image.numpy()[0,:,:,1])
+            # axs[1].imshow(truth.numpy()[0,:,:,1])
+            # plt.show()
+            sig.append(sigma)
+    return np.array(data_train), data_truth, sig, np.array(data_noiseless)
+
+
+def build_dataset(im_shape, dataset_size, file_name, switching_rate=0.1, on_time=30,):
     factory = Factory()
     #define ground truth size in nm
     factory.shape= (im_shape*100,im_shape*100)
@@ -37,5 +61,15 @@ def build_dataset(im_shape, dataset_size, file_name, switching_rate=0.1, on_time
 
 
 if __name__ == '__main__':
-    for j in range(10):
-        build_dataset(100, 100, "dataset_"+str(j), switching_rate=0.1+0.02*j,on_time=1000-100*j)
+    data = np.load("crop_dataset.npy", allow_pickle=True)
+
+    data, truth, sigma, noiseless = create_crop_dataset(1)
+    np.save("crop_dataset_train_VS.npy", data)#NS = non switching
+    np.save("crop_dataset_truth_VS.npy", truth)#VS = variable sigma
+    np.save("crop_dataset_noiseless_VS.npy", noiseless)#VS = variable sigma
+
+    np.save("crop_dataset_sigma_VS.npy", sigma)
+
+
+    # for j in range(10):
+    #     build_dataset(100, 100, "dataset_"+str(j), switching_rate=0.1+0.02*j,on_time=1000-100*j)

@@ -24,7 +24,16 @@ class JaccardIndex():
         np.save(self.path, np.array(self.result_manager))
 
     def update_state(self, y_true, y_pred, sample_weight=None):
-        coords = result_image_to_coordinates(y_true)
+        try:
+            coords = result_image_to_coordinates(y_true)
+        except:
+            coords = []
+            for i,crop in enumerate(y_true):
+                for coord in crop:
+                    if coord[0] != -1:
+                        coords.append(np.array([coord[0], coord[1], i]))
+            coords = np.array(coords)
+
         coords[:,0:2] *= 100
         coords_pred = result_image_to_coordinates(y_pred, threshold=0.3)
         if len(coords_pred.shape)!=2:

@@ -5,19 +5,21 @@ from src.utility import get_root_path
 
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"\trainings\cs_inception\learn_sigma",
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"\trainings\cs_inception\_new",
                                                 get_root_path()+r"\trainings\wavelet\training_lvl2\cp-10000.ckpt")
-        self.train_loops = 10
+        self.train_loops = 60
 
 
 class TrainCVNet(NetworkFacade):
     def __init__(self):
-        super(TrainCVNet, self).__init__(CompressedSensingCVNet, get_root_path() + "\cs_training_u_nmask_loss",
+        super(TrainCVNet, self).__init__(CompressedSensingCVNet, get_root_path() +r"\trainings\cs_cnn\learn_all_new_data_variable_sigma",
                                          get_root_path()+r"\trainings\wavelet\training_lvl2\cp-10000.ckpt")
+        self.train_loops = 60
+
 
 
 
 
 if __name__ == '__main__':
     training = TrainInceptionNet()
-    training.train()
+    training.train_saved_data()

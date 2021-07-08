@@ -3,9 +3,11 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt #todo: plot in main?
-from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net, generate_generator
+from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net, generate_generator, crop_generator_saved_file, crop_generator_saved_file_coords
 from src.custom_metrics import JaccardIndex
-from src.utility import bin_localisations_v2, get_coords
+from src.utility import bin_localisations_v2, get_coords, get_root_path
+from scipy.ndimage.filters import gaussian_filter
+
 
 class NetworkFacade():
     IMAGE_ENCODING = 0
@@ -27,6 +29,8 @@ class NetworkFacade():
             print("Initializing from scratch.")
         self.train_loops = 60
         self.threshold = 0.3
+        self.wavelet_thresh = 0.1
+        self.sigma_thresh = 0.4
         #todo: threshold for jaccard index
 
     @property
@@ -53,9 +57,11 @@ class NetworkFacade():
 
     def get_localizations_from_image_tensor(self, result_tensor, coord_list):
         result_array = []
+        test=[]
         for i in range(result_tensor.shape[0]):
 
-            classifier = result_tensor[i, :, :, 2]
+            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=1.5)*9
+            #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
                 classifier[np.where(classifier < 0.1)] = 0
                 indices = get_coords(classifier).T
@@ -65,8 +71,11 @@ class NetworkFacade():
                 dy = result_tensor[i, indices[0], indices[1], 4]
 
                 for j in range(indices[0].shape[0]):
-                    result_array.append(np.array([coord_list[i][0] +float(indices[0][j]) + x[j]
-                        ,coord_list[i][1] +float(indices[1][j]) + y[j], coord_list[i][2], dx[j], dy[j]]))
+                    if dx[j]<self.sigma_thresh and dy[j]<self.sigma_thresh:
+                        result_array.append(np.array([coord_list[i][0] +float(indices[0][j]) + (x[j])
+                            ,coord_list[i][1] +float(indices[1][j]) + y[j], coord_list[i][2], dx[j], dy[j]]))
+                        test.append(np.array([x[j],y[j]]))
+        print(np.mean(np.array(test),axis=0))
         return np.array(result_array)
 
     def predict(self, image, drift_path=None):
@@ -82,7 +91,7 @@ class NetworkFacade():
             # plt.show()
             # plt.imshow(image[2,:,:,1])
             # plt.show()
-            crop_tensor, _, coord_list = bin_localisations_v2(image, self.denoising, th=0.1)
+            crop_tensor, _, coord_list = bin_localisations_v2(image, self.denoising, th=self.wavelet_thresh)
             for z in range(len(coord_list)):
                 coord_list[z][2] += j * 5000
             print(crop_tensor.shape[0])
@@ -98,39 +107,71 @@ class NetworkFacade():
         return result_full
 
     #@tf.function
-    def loop(self, dataset):
-        for train_image, truth in dataset.take(3):
+    def loop(self, iterator, save=True):
+        for j in range(3):
+            train_image, truth = iterator.get_next()
             for i in range(50):
                 loss_value = self.train_step(train_image, truth)
                 self.ckpt.step.assign_add(1)
-                if int(self.ckpt.step) % 10 == 0:
+                if int(self.ckpt.step) % 10 == 0 and save:
                     save_path = self.manager.save()
                     print("Saved checkpoint for step {}: {}".format(int(self.ckpt.step), save_path))
                     print("loss {:1.2f}".format(loss_value.numpy()) )
 
-        for train_image, truth in dataset.take(1):
-            pred = self.network.predict(train_image)
-            self.metrics.update_state(truth.numpy(), pred)
-            accuracy = self.metrics.result(int(self.ckpt.step))
-            print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
-            self.metrics.reset()
-            self.metrics.save()
+        train_image, truth = iterator.get_next()
+        pred = self.network.predict(train_image)
+        vloss = self.network.compute_loss_log(truth.numpy(), pred)
+        print(f"validation loss = {vloss}" )
+        self.metrics.update_state(truth.numpy(), pred)
+        accuracy = self.metrics.result(int(self.ckpt.step))
+        print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
+        self.metrics.reset()
+        self.metrics.save()
+
+    def pretrain_current_sigma(self):
+        sigma = self.sigma
+        generator = crop_generator_u_net(9, sigma_x=sigma)
+        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
+                                                 output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4)))
+        # self.sigma = sigma#todo: reactivate!!!!!
+        iterator = iter(dataset)
+
+        self.loop(iterator, save=False)
 
     def train(self):
         for j in range(self.train_loops):
+            print(self.ckpt.step//50)
+
             sigma = np.random.randint(100, 250)
             generator = crop_generator_u_net(9, sigma_x=sigma)
             dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
                                                      output_shapes=((1*100, 9, 9, 3),  (1*100, 9,9,4)))
-            self.sigma = sigma
+            #self.sigma = sigma#todo: reactivate!!!!!
+
             self.loop(dataset)
+        self.test()
+
+    def train_saved_data(self):
+        sigma = np.load(get_root_path() + r"\crop_dataset_sigma_VS.npy", allow_pickle=True).astype(np.float32)
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file, (tf.float32, tf.float32),
+                                                  output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4)))
+        #dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32),
+         #                                        output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 3, 2)))
+        iterator = iter(dataset)
+        for j in range(self.train_loops):
+            print(self.ckpt.step//50)
+
+            #sigma = np.random.randint(100, 250)+np.random.rand(1)*20-10
+
+            self.sigma = sigma[j//4]#todo: vary sigma in data
+            self.loop(iterator)
         self.test()
 
     @tf.function
     def train_step(self, train_image, truth):
         with tf.GradientTape() as tape:
-            logits = self.network(train_image)
-            loss = self.network.compute_loss(truth, logits)
+            logits = self.network(train_image, training=False)
+            loss = self.network.compute_loss_log(truth, logits)
         gradients = tape.gradient(loss, self.network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
         return loss
@@ -138,8 +179,10 @@ class NetworkFacade():
     def test(self):
         sigma = np.random.randint(150, 200)
         generator = crop_generator_u_net(9, sigma_x=sigma)
+
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
                                                  output_shapes=((1*100, 9, 9, 3),  (1*100, 9,9,4)))
+
         self.sigma = sigma
         for train_image, truth in dataset.take(1):
             truth = truth.numpy()

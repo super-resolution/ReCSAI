@@ -349,12 +349,25 @@ if __name__ == '__main__':
 
 
 
-    cv = np.load(os.getcwd() +r"\src\trainings\cs_training_u_nmask_loss\accuracy.npy", allow_pickle=True)
-    inception = np.load(os.getcwd() +r"\src\trainings\cs_training_inception_sigmoid\accuracy.npy", allow_pickle=True)
+    inception = np.load(get_root_path() +r"\trainings\cs_inception\learn_all_new_data_gen_Test\accuracy.npy", allow_pickle=True)
+    inception2 = np.load(get_root_path()+r"\trainings\cs_inception\learn_all_new_data_variable_sigma\accuracy.npy",  allow_pickle=True)
+    inception_d = np.load(get_root_path() +r"\trainings\cs_inception\learn_all_new_data_variable_sigma_custom_path_extended\accuracy.npy", allow_pickle=True)
 
+    inception_dx = np.load(get_root_path() +r"\trainings\cs_inception\learn_all_new_data_variable_sigma_custom_path_x\accuracy.npy", allow_pickle=True)
+    inception_dy = np.load(get_root_path() +r"\trainings\cs_inception\learn_all_new_data_variable_sigma_custom_path_y\accuracy.npy", allow_pickle=True)
+    inception_dz = np.load(get_root_path() +r"\trainings\cs_inception\learn_all_new_data_variable_sigma_custom_path_z\accuracy.npy", allow_pickle=True)
+    cv = np.load(get_root_path() +r"\trainings\cs_cnn\learn_all_new_data_variable_sigma\accuracy.npy", allow_pickle=True)
     #u = np.load(os.getcwd() +r"\src\trainings\cs_training_u\accuracy.npy", allow_pickle=True)
-    plt.plot(cv[:,0], cv[:,1], label="CS + CNN")
-    plt.plot(inception[:,0], inception[:,1], label="Inception CS Net")
+    #plt.plot(inception[:,0], inception[:,1], label="Inception CS Net")
+    #plt.plot(inception2[:,0], inception2[:,1], label="Inception CS Net")
+    plt.plot(inception_d[3:60,0], inception_d[3:60,2], label="Inception CS Net custom")
+
+    # plt.plot(inception_dx[:60,0], inception_dx[:60,1], label="Inception CS Net only x")
+    # plt.plot(inception_dy[:,0], inception_dy[:,1], label="Inception CS Net only y")
+    # plt.plot(inception_dz[:,0], inception_dz[:,1], label="Inception CS Net only z")
+    plt.plot(cv[3:60,0], cv[3:60,2], label="CV Net")
+
+
     plt.legend()
     plt.ylabel("Jaccard Index")
     plt.xlabel("Iterations")

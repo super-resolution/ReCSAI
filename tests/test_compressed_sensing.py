@@ -3,7 +3,10 @@ from src.custom_layers.cs_layers import CompressedSensingInception, CompressedSe
 from unittest import skip
 from tests.test import BaseTest
 import matplotlib.pyplot as plt
+from tensorflow.keras import backend as K
 
+from tensorflow.keras.layers import Input
+from tensorflow.keras.models import Model
 
 
 #done: unit test should extend tf test case
@@ -122,8 +125,24 @@ class TestCompressedSensingInceptionLayer(BaseTest):
 
 
 
-    def test_u_net_has_skip_layers(self):
-        self.fail()
+    def test_dropout_layer(self):
+
+
+        # Learning phase must be set to 1 for dropout to work
+
+        ### Get some random inputs ###
+
+        import numpy as np
+
+        input_1 = np.random.random((1, 9,9, 3))
+        layer_outs = self.layer(input_1, training=True).numpy()
+        one_zero = False
+        for i in range(layer_outs.shape[3]):
+            if np.allclose(layer_outs[:,:,:,i], 0):
+                one_zero = True
+        self.assertTrue(one_zero)#might fail on chance
+
+
 
     def test_shapes_after_layer(self):
         #todo: acess sublayers and check shape is as expected

@@ -1,10 +1,12 @@
-from .data import *
+#from src.data import *
 import matplotlib.pyplot as plt
 from scipy import interpolate
 import tensorflow as tf
 from scipy.ndimage import filters
 from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 from pathlib import Path
+import numpy as np
+import scipy
 
 def result_image_to_coordinates(result, coords=None, threshold=0.5):
     result_array = []
@@ -72,12 +74,12 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
     train_new = []
     truth_new = []
     coord_list = []
-    data = tf.cast(data_tensor, tf.float32)
+    data = tf.cast(data_tensor, tf.float32).numpy()
     data /= tf.keras.backend.max(data)
 
     one = denoising.predict(data_tensor[:, :, :, 0:1])
     two = denoising.predict(data_tensor[:, :, :, 1:2])
-    three = denoising.predict(data_tensor[:, :, :, 2:3])
+    three = np.nan_to_num(denoising.predict(data_tensor[:, :, :, 2:3]))
     im = tf.concat([one, two, three], -1)
     im /= tf.keras.backend.max(im)
     #data_tensor /= tf.keras.backend.max(data_tensor)
