@@ -51,10 +51,15 @@ class CompressedSensingInception(tf.keras.layers.Layer):
 
         #defince filters for path z micro u net
         #todo: prio1 include skips with concat
-        self.down1 = downsample(12,3,strides=3,apply_batchnorm=True)
-        self.down2 = downsample(24,3,strides=3)
-        self.up1 = upsample(12,3,strides=3)
-        self.up2 = upsample(3,3,strides=3)
+        self.down1 = downsample(12,5,strides=3,apply_batchnorm=True)
+        self.down2 = downsample(24,5,strides=3)
+        self.hidden1 = tf.keras.layers.Dense(24)
+        self.hidden2 = tf.keras.layers.Dense(12)
+        self.hidden3 = tf.keras.layers.Dense(1)
+
+
+        # self.up1 = upsample(12,3,strides=3)
+        # self.up2 = upsample(3,3,strides=3)
 
         self.z_path_down= [self.down1,
                            self.down2]
@@ -69,11 +74,21 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         w = self.convolution1x1_w1(input)
         outputs.append(w)
 
+        z = input
+        for layer in self.z_path_down:
+            z = layer(z)
+        z = tf.keras.layers.Flatten()(z)
+        z = self.hidden1(z)
+        z = self.hidden2(z)
+        z = self.hidden3(z)
+
+
         #todo: split input in three..
         x = input
-        for i,layer in enumerate(self.x_path):
+        x = self.x_path[0](x, z)
+        for i,layer in enumerate(self.x_path[1:]):
             x = layer(x)
-            if i==1:
+            if i==0:
                 cs_out = x#todo: additional loss with mat mul
 
         #outputs.append(x)
@@ -88,16 +103,6 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         #todo: input path w no path because it's pass through
 
         #todo: input path z
-        z = x
-        skips = []
-        for layer in self.z_path_down:
-            z = layer(z)
-            skips.append(z)
-        skip = skips[0]
-        z = self.up1(z)
-        z = self.concat([z,skip])
-        z = self.up2(z)
-        outputs.append(z)
 
         #todo: add skip layers
 
@@ -123,8 +128,8 @@ class CompressedSensing(tf.keras.layers.Layer):
         self.matrix_update()#mat and psf defined outside innit
 
         self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
-        self.lam = tf.Variable(initial_value=tf.ones((1))*0.005, dtype=tf.float32, name="lambda",
-                               trainable=True)#was0.005
+        #self.lam = tf.Variable(initial_value=tf.ones((1))*0.005, dtype=tf.float32, name="lambda",
+         #                      trainable=True)#was0.005
         #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
         #self.sparse_dense = tf.keras.layers.Lambda(dense)003
         self.y = tf.constant(tf.zeros((5184,3)), dtype=tf.float32)[tf.newaxis, :]#todo: use input dim
@@ -182,19 +187,19 @@ class CompressedSensing(tf.keras.layers.Layer):
         return one-two
 
     #@tf.function
-    def __call__(self, input):
+    def __call__(self, input, lam):
         inp = tf.unstack(input, axis=-1)
         y_n = tf.unstack(self.y, axis=-1)
         r = []
         for i in range(len(inp)):
             im = self.flatten(inp[i])
-            y_new_last_it = tf.zeros_like(y_n[i])
+            y_new_last_it = tf.zeros_like(y_n[i])#will be broadcasted
             y_tmp = y_n[i]
             t = tf.constant((1.0),dtype=tf.float32)
             for j in range(self.iterations):#todo iteration as variable
                 re =tf.linalg.matvec(self.mat, im - tf.linalg.matvec(tf.transpose(self.mat), y_tmp))
                 w = y_tmp+1/self.mu*re
-                y_new = self.softthresh2(w, self.lam/self.mu)#todo: not exactly the same as softthresh
+                y_new = self.softthresh2(w, lam/self.mu)#todo: not exactly the same as softthresh
                 t_n = self.tcompute(t)
                 y_tmp = y_new+ (t-1)/t_n*(y_new-y_new_last_it)
                 y_new_last_it = y_new

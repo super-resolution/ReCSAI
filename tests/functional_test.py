@@ -64,7 +64,7 @@ def create(im_shape):
     #done: run layer
 class ViewLayerOutputs():
     def __init__(self):
-        path = get_root_path() + r"\trainings\cs_inception\_new"
+        path = get_root_path() + r"\trainings\cs_inception\_new_EST_lammu"
         self.network = CompressedSensingInceptionNet()
         self.optimizer = tf.keras.optimizers.Adam(1e-4)
         self.network.sigma = 150
@@ -86,7 +86,7 @@ class ViewLayerOutputs():
         crop_tensor = tf.constant((crop), dtype=tf.float64)
         im = tf.stack([crop_tensor, crop_tensor])
         out,cs_out = self.network.inception1(im,test=True)
-        print(self.network.inception1.cs.lam)
+#        print(self.network.inception1.cs.lam)
         test = tf.linalg.matvec(tf.transpose(self.network.inception1.cs.mat),tf.reshape(cs_out[0,:,:,1],5184), )
         plt.imshow(tf.reshape(test,(9,9)))
         plt.show()
@@ -101,10 +101,10 @@ class ViewLayerOutputs():
         axs[1][0].imshow(out[0,:,:,4])
         axs[1][1].imshow(out[0,:,:,5])
         axs[1][2].imshow(out[0,:,:,6])
-        axs[1][3].imshow(out[0,:,:,7])
-
-        axs[2][0].imshow(out[0,:,:,8])
-        axs[2][1].imshow(out[0,:,:,9])
+        # axs[1][3].imshow(out[0,:,:,7])
+        #
+        # axs[2][0].imshow(out[0,:,:,8])
+        # axs[2][1].imshow(out[0,:,:,9])
         axs[2][2].imshow(tf.reshape(test,(9,9)))
 
         axs[2][3].imshow(im[0,:,:,1])
