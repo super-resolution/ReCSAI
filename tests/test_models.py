@@ -75,11 +75,57 @@ class TestCsInceptionNet(BaseTest):
 
     def test_decode_loss(self):
         import numpy as np
+        x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X, Y = tf.meshgrid(x, x)
         truth = tf.constant([
-            [[1.2,4.5],[-1,-1],[-1,-1]],
-            [[4.5,6.3],[1.1,2.7],[-1,-1]]
+            [[4.5, 6.3], [-1, -1], [-1, -1]],
+
+            [[2.2,4.5],[3,2],[-1,-1]],
                              ], dtype=tf.float32)
-        predict = tf.constant(np.ones((2,9,9,6)), dtype=tf.float32)
+        vec = np.zeros((2,9,9,6))
+        vec[1,1,4,2] = 0.9
+        vec[1,1,4,0] = -0.3
+        vec[1,1,4,1] = 0
+        vec[1,:,:,3] = 0.01
+        vec[1,:,:,4] = 0.01
+
+        vec[1,3,2,2] = 0.9
+        vec[1,3,2,0] = -0.5
+        vec[1,3,2,1] = -0.5
+        vec[1,:,:,3] = 0.01
+        vec[1,:,:,4] = 0.01
+
+        vec[0,4,6,2] = 0.9
+        vec[0,4,6,0] = -0.
+        vec[0,4,6,1] = -0.2
+        vec[0,:,:,3] = 0.1
+        vec[0,:,:,4] = 0.1
+        #vec[1,1,2,2]=1
+
+        predict = tf.constant(vec, dtype=tf.float32)
+        #todo: set right entries...
+        #predict = predict[0]
+        #truth = truth[0]
+        #z=0
+        # test = (predict[:, :, 2] /
+        #         (tf.reduce_sum(predict[:, :, 2])
+        #          * tf.math.sqrt(tf.math.sqrt((predict[:, :, 3])) *
+        #                         tf.pow(2 * 3.14, 4) *
+        #                         tf.abs(tf.math.sqrt(predict[:, :, 4])))
+        #          )
+        #         * tf.exp(-(1 / 2 * tf.square(
+        #             predict[:, :, 0] + Y - truth[0][0])  # todo: test that this gives expected values
+        #                    / predict[:, :, 3]
+        #                    + tf.square(predict[:, :, 1] + X - truth[0][1])
+        #                    / predict[:, :, 4]  # todo: activation >= 0
+        #                    ))).numpy()
+        i=0
+        print(-(1 / 2 * tf.square(
+                                        predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
+                                         / predict[:,:, :, 3]
+                                         + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
+                                         / predict[:, :, :, 4]  # todo: activation >= 0
+                                         ))
         print(self.network.compute_loss_decode(truth,predict))
         self.fail()
 
@@ -284,3 +330,36 @@ class TestDriftCorrectNet(tf.test.TestCase):
 
     def test_output(self):
         pass
+
+
+def deprecated():
+    @tf.function
+    def vectorized_loss(data):
+        x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X, Y = tf.meshgrid(x, x)
+        predict, truth = data
+        loss = tf.constant(0, dtype=tf.float32)
+        count = tf.constant(0, dtype=tf.float32)
+
+        for i in range(3):
+            loss += tf.cond(truth[i, 0] > 0, lambda: -tf.math.log(
+                tf.reduce_sum(predict[:, :, 2] /
+                              (tf.reduce_sum(predict[:, :, 2])
+                               * tf.math.sqrt(tf.math.sqrt((predict[:, :, 3])) *
+                                              tf.pow(2 * 3.14, 4) *
+                                              tf.abs(tf.math.sqrt(predict[:, :, 4])))
+                               )
+                              * tf.exp(-(1 / 2 * tf.square(
+                    predict[:, :, 0] + Y - truth[i, 0])  # todo: test that this gives expected values
+                                         / predict[:, :, 3]
+                                         + tf.square(predict[:, :, 1] + X - truth[i, 1])
+                                         / predict[:, :, 4]  # todo: activation >= 0
+                                         )))),
+                            lambda: tf.constant(0, dtype=tf.float32))
+        # count += tf.cond(truth_l[i][0] > 0, lambda: tf.constant(1,dtype=tf.float32), lambda:tf.constant(0,dtype=tf.float32))
+        sigma_c = tf.reduce_mean(predict[:, :, 2] * (1 - predict[:, :, 2]))
+        # loss += tf.square(count-tf.reduce_sum(predict[:, :, 2]))-tf.math.log(tf.sqrt(2*3.14*sigma_c))
+        # /sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c))
+        return loss
+    # L = tf.vectorized_map(vectorized_loss, [predict, truth])
+    # L2 = tf.reduce_sum(tf.map_fn(vectorized_loss, (predict, truth), fn_output_signature=tf.float32))

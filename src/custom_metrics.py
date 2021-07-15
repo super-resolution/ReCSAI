@@ -26,7 +26,7 @@ class JaccardIndex():
     def update_state(self, y_true, y_pred, sample_weight=None):
         try:
             coords = result_image_to_coordinates(y_true)
-        except:
+        except: #this is for coordinate truth data
             coords = []
             for i,crop in enumerate(y_true):
                 for coord in crop:

@@ -29,7 +29,7 @@ with TiffFile(path) as tif:
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"\trainings\cs_inception\_new",
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"\trainings\cs_inception\_new_decodeL",
                                                 get_root_path()+r"\trainings\wavelet\training_lvl2\cp-10000.ckpt")
 
 class TrainCVNet(NetworkFacade):

@@ -85,10 +85,10 @@ class ViewLayerOutputs():
         crop /= crop.max()
         crop_tensor = tf.constant((crop), dtype=tf.float64)
         im = tf.stack([crop_tensor, crop_tensor])
-        out,cs_out = self.network.inception1(im,test=True)
+        out,cs_out = self.network.inception1(im)
 #        print(self.network.inception1.cs.lam)
-        test = tf.linalg.matvec(tf.transpose(self.network.inception1.cs.mat),tf.reshape(cs_out[0,:,:,1],5184), )
-        plt.imshow(tf.reshape(test,(9,9)))
+        test = tf.reshape(tf.linalg.matvec(tf.transpose(self.network.inception1.cs.mat),tf.reshape(cs_out[0,:,:,1],5184), ),(9,9))
+        plt.imshow(test/tf.reduce_max(test,axis=[0,1], keepdims=True))
         plt.show()
 
         fig, axs = plt.subplots(3,4)

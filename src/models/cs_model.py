@@ -9,7 +9,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
     TYPE = 0
     def __init__(self):
         super(CompressedSensingInceptionNet, self).__init__()
-        self.inception1 = CompressedSensingInception(iterations=100)
+        self.inception1 = CompressedSensingInception(iterations=10)
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #todo: extend depth?
 
@@ -32,6 +32,15 @@ class CompressedSensingInceptionNet(tf.keras.Model):
             inputs_list[2] = tf.keras.activations.softmax(inputs_list[2], axis=[-1,-2])#last is classifier
             return tf.stack(inputs_list, axis=-1)
 
+        def softplus_activation(inputs):#softplus activation
+            inputs_list = tf.unstack(inputs, axis=-1)
+
+            inputs_list[3] = tf.keras.activations.softplus(inputs_list[3])
+            inputs_list[4] = tf.keras.activations.softplus(inputs_list[4])
+            return tf.stack(inputs_list, axis=-1)
+        self.error_activation = tf.keras.layers.Lambda(softplus_activation)
+
+
         def sigmoid_acitvaiton(inputs):
             inputs_list = tf.unstack(inputs, axis=-1)
             inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
@@ -40,7 +49,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
     def __call__(self, inputs, training=False):
         x = inputs
-        x = self.inception1(x, training=training)
+        x, cs = self.inception1(x, training=training)
         x = self.batch_norm(x)
         # x = self.inception2(x, training=training)
         # x = self.batch_norm2(x)
@@ -50,7 +59,11 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         #todo: transpose
 
         x = self.activation(x)
-        return x
+        x = self.error_activation(x)
+        if training:
+            return x,cs
+        else:
+            return x
 
     @property
     def sigma(self):
@@ -98,6 +111,14 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         #todo: noiseless truth with mat mul
         l2 = tf.keras.losses.MeanSquaredError()
         l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
+        loss = 0
+        inp_cs = tf.unstack(cs_result, axis=-1)
+        inp_ns = tf.unstack(noiseless_truth, axis=-1)
+        for i,j in zip(inp_cs, inp_ns):
+            res = tf.linalg.matvec(tf.transpose(self.inception1.cs.mat), tf.keras.layers.Reshape((5184,), )(i), )
+            loss += l1(tf.keras.layers.Reshape((9,9), )(res),j)
+
+
         ce = tf.keras.losses.BinaryCrossentropy()
         mask = truth[:,:,:,3:4]
         predict_masked = predict[:,:,:,0:2]*mask
@@ -118,10 +139,10 @@ class CompressedSensingInceptionNet(tf.keras.Model):
                           1+tf.square(X_pred-X_truth)/cov[:,:,:,0]+tf.square(Y_pred-Y_truth)/cov[:,:,:,1]))#todo: truth- tf.abs(normed_truth)*?
 
         L2_sigma = tf.reduce_sum(tf.math.log(1+tf.square(sigma- predict[:,:,:,3:5])))
-        BCE = 10*ce(truth[:,:,:,2], predict[:,:,:,2],)+ 15*tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
-        count_loss = +20*tf.reduce_sum(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(truth[:,:,:,2], [1,2]))
+        BCE = 10*ce(truth[:,:,:,2], predict[:,:,:,2],)#+ 15*tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
+        count_loss = +20*tf.reduce_sum(tf.square(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(predict[:,:,:,2], [1,2])))
         STD = l2(self.sigma/100, predict[:,:,:,5])
-        return 40*BCE + 2*L2 + 3*L2_sigma + 3*STD + count_loss
+        return 40*BCE + 2*L2 + 3*L2_sigma + 3*STD + loss
 
     def compute_loss_log(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
@@ -139,7 +160,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         L2 = 0
         # for i in range(9):
         #     for j in range(9):
-        normed_truth = predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2],[1,2], keepdims=True)
+        #normed_truth = predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2],[1,2], keepdims=True)
         #todo: devide by covariance kernel
         cov = tf.exp(-tf.square(sigma-predict[:,:,:,3:5]))
         L2 = tf.reduce_mean(tf.math.log(
@@ -151,60 +172,72 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         STD = l2(self.sigma/100, predict[:,:,:,5])
         return 40*BCE + 2*L2 + 3*L2_sigma + 3*STD + count_loss
 
-    def compute_loss_decode(self, truth, predict):
+    def compute_loss_log_n_test(self, truth, predict):
+        l2 = tf.keras.losses.MeanSquaredError()
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
+        ce = tf.keras.losses.BinaryCrossentropy()
+        mask = truth[:,:,:,3:4]
+        predict_masked = predict[:,:,:,0:2]*mask
+        x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X,Y = tf.meshgrid(x,x)
+        X_truth = truth[:,:,:,0]+X
+        Y_truth = truth[:,:,:,1]+Y
+        X_pred = predict[:,:,:,0]+X
+        Y_pred = predict[:,:,:,1]+Y
+        sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
+        L2 = 0
+        # for i in range(9):
+        #     for j in range(9):
+        normed_truth = predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2],axis=[1,2], keepdims=True)
+        #todo: devide by covariance kernel
+        cov = tf.exp(-tf.square(sigma-predict[:,:,:,3:5]))
+        L2 = -tf.math.log(tf.reduce_sum((normed_truth/(4*3.14*predict[:,:,:,3]*predict[:,:,:,4]))
+                                       *tf.math.exp(-(tf.square(X_pred-X_truth)/tf.square(predict[:,:,:,3])
+                                                      +tf.square(Y_pred-Y_truth)/tf.square(predict[:,:,:,4]))),axis=[1,2]))#todo: truth- tf.abs(normed_truth)*?
+        L2_log = tf.reduce_sum(tf.math.log(
+                          1+tf.square(X_pred-X_truth)/cov[:,:,:,0]+tf.square(Y_pred-Y_truth)/cov[:,:,:,1]))
+        L2_sigma = tf.reduce_sum(tf.math.log(1+tf.square(sigma- predict[:,:,:,3:5])))
+        BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)#+ 15*tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
+        count_loss = tf.reduce_sum(tf.square(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(predict[:,:,:,2], [1,2])))
+        STD = l2(self.sigma/100, predict[:,:,:,5])
+        return 1*BCE+tf.reduce_sum(L2)#+count_loss#tf.reduce_sum(L2)+BCE#count_loss
+
+    def compute_loss_decode(self, truth,predict,_ ):
         l2 = tf.keras.losses.MeanSquaredError()
         l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
         ce = tf.keras.losses.BinaryCrossentropy()
         #mask = truth[:,:,:,3:4]#truth is now in coordinates
         #mask2 = truth[:,:,:,3]
 
-        def vectorized_loss(data):
-            x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
-            X, Y = tf.meshgrid(x, x)
-            predict = data[0]
-            truth = data[1]
-            loss = tf.constant(0,dtype=tf.float32)
-            truth_l = tf.unstack(truth,axis=0)
-            for i in range(len(truth_l)):
-                #if truth[i][0] !=-1:
-                loss += tf.cond(truth_l[i][0]>0, lambda:  -tf.math.log(
-                        tf.reduce_sum(predict[:, :, 2] /
-                                      (tf.reduce_sum(predict[:, :, 2])
-                                       *tf.math.sqrt(tf.abs(predict[:, :, 3])*
-                                       tf.pow(2*3.14,4)*
-                                        tf.abs(predict[:, :, 4]))
-                                       )
-                                      * tf.exp(-(1/2*tf.square(predict[:, :, 0]+ Y - truth_l[i][0])
-                                                 #/tf.square(predict[:, :, 3])
-                                                + tf.square(predict[:, :, 1]+X - truth[i][1])
-                                                 #/tf.square(predict[:, :, 4])
-                                               )))),
-                                lambda: tf.constant(0,dtype=tf.float32))
-            sigma_c = tf.reduce_sum(predict[:,:,2]*(1-predict[:,:,2]))
-            loss += 1/2*tf.square(tf.cast(tf.math.count_nonzero(truth_l!=-1), tf.float32)-tf.reduce_sum(predict[:, :, 2]))\
-                    /tf.square(sigma_c)-tf.math.log(tf.sqrt(2*3.14)*sigma_c)
-            return loss
-        L2 = tf.reduce_sum(tf.vectorized_map(vectorized_loss, [predict, truth]))
 
-        # predict_masked = predict[:,:,:,0:2]*mask
-        # sigma = tf.abs(predict_masked - truth[:,:,:,0:2])#todo: add sum constraint?
-        # x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
-        # X,Y = tf.meshgrid(x,x)
-        # X_pred = (predict[:,:,:,0]+X)
-        # Y_pred = (predict[:,:,:,1]+Y)
-        # sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
-        # #L2 = 0
-        # #todo: use tensorflow vectorized map to compute
-        # # L2 = -tf.reduce_sum(truth[:,:,:,2])*tf.math.log(
-        # #     tf.reduce_sum(predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2])
-        # #                   * tf.exp(-(tf.square(X_pred-truth[:,:,0])+tf.square(Y_pred-truth[:,:,0]))/
-        # #                            (tf.square(predict[:,:,:,3])+tf.square(predict[:,:,:,4])))))
-        #
-        # L2_sigma = l2(sigma, predict[:,:,:,3:5])
-        # sig_predict = tf.reduce_sum(predict[:,:,:,2]*(tf.ones_like(predict[:,:,:,2])-predict[:,:,:,2]))
-        #BCE = ce(truth[:,:,:,2], predict[:,:,:,2],)
-        # STD = l2(self.sigma/100, predict[:,:,:,5])
-        return 100+L2 #+ 3*STD + 10*BCE +L2_sigma
+        x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X, Y = tf.meshgrid(x, x)
+        L2 = 0
+        count = tf.zeros(tf.shape(truth)[0])
+        for j in range(3):
+            count += tf.where(truth[:,j,0] > 0,  tf.constant(1, dtype=tf.float32),
+                        tf.constant(0.01, dtype=tf.float32))
+        for i in range(3):
+            L2 += tf.reduce_sum(tf.where(truth[:,i:i+1,0:1] > 0,#predict[:, :, :, 2] /
+                #               (tf.reduce_sum(predict[:, :, :, 2],axis=[1,2],keepdims=True)
+                #                 * tf.math.sqrt(tf.math.sqrt((predict[:,:, :, 3])) *
+                #                                2 * 3.14 *
+                #                                tf.math.sqrt(predict[:,:, :, 4]))
+                #                )
+
+                                tf.square(
+                                        predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
+                                         #/ predict[:,:, :, 3]
+                                         + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
+                                         #/ predict[:, :, :, 4]  # todo: activation >= 0
+                                        ,tf.constant(0, dtype=tf.float32)
+                                         ,),
+                            )
+
+        sigma_c = tf.reduce_sum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]),axis=[1,2])
+        #i=0
+        c_loss = tf.reduce_sum(3*tf.square(tf.reduce_sum(predict[:, :, :, 2], axis=[1,2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
+        return  tf.reduce_mean(L2)#+c_loss
 
 
 

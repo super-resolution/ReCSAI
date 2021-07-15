@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt #todo: plot in main?
-from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net, generate_generator, crop_generator_saved_file, crop_generator_saved_file_coords
+from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net, generate_generator, crop_generator_saved_file_EX, crop_generator_saved_file_coords
 from src.custom_metrics import JaccardIndex
 from src.utility import bin_localisations_v2, get_coords, get_root_path
 from scipy.ndimage.filters import gaussian_filter
@@ -109,16 +109,40 @@ class NetworkFacade():
     #@tf.function
     def loop(self, iterator, save=True):
         for j in range(3):
-            train_image, truth = iterator.get_next()
+            train_image,truth, noiseless_gt = iterator.get_next()
+            print(tf.reduce_min(truth),tf.reduce_max(truth))
+
             for i in range(50):
-                loss_value = self.train_step(train_image, truth)
+                loss_value = self.train_step(train_image, truth, noiseless_gt)
                 self.ckpt.step.assign_add(1)
                 if int(self.ckpt.step) % 10 == 0 and save:
                     save_path = self.manager.save()
                     print("Saved checkpoint for step {}: {}".format(int(self.ckpt.step), save_path))
                     print("loss {:1.2f}".format(loss_value.numpy()) )
 
-        train_image, truth = iterator.get_next()
+        train_image,truth, noiseless_gt = iterator.get_next()
+        pred = self.network.predict(train_image)
+        vloss = self.network.compute_loss_log(truth.numpy(), pred)
+        print(f"validation loss = {vloss}" )
+        self.metrics.update_state(truth.numpy(), pred)
+        accuracy = self.metrics.result(int(self.ckpt.step))
+        print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
+        self.metrics.reset()
+        self.metrics.save()
+
+    def loop_d(self, iterator, save=True):
+        for j in range(3):
+            train_image,truth, coords = iterator.get_next()
+
+            for i in range(50):
+                loss_value = self.train_step_d(train_image, truth, coords)
+                self.ckpt.step.assign_add(1)
+                if int(self.ckpt.step) % 10 == 0 and save:
+                    save_path = self.manager.save()
+                    print("Saved checkpoint for step {}: {}".format(int(self.ckpt.step), save_path))
+                    print("loss {:1.2f}".format(loss_value.numpy()) )
+
+        train_image,truth, coords = iterator.get_next()
         pred = self.network.predict(train_image)
         vloss = self.network.compute_loss_log(truth.numpy(), pred)
         print(f"validation loss = {vloss}" )
@@ -153,10 +177,10 @@ class NetworkFacade():
 
     def train_saved_data(self):
         sigma = np.load(get_root_path() + r"\crop_dataset_sigma_VS.npy", allow_pickle=True).astype(np.float32)
-        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file, (tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4)))
-        #dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32),
-         #                                        output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 3, 2)))
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
+                                                output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
+        # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
+        #                                           output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 2)))
         iterator = iter(dataset)
         for j in range(self.train_loops):
             print(self.ckpt.step//50)
@@ -166,12 +190,20 @@ class NetworkFacade():
             self.sigma = sigma[j//4]#todo: vary sigma in data
             self.loop(iterator)
         self.test()
+    @tf.function
+    def train_step_d(self, train_image,truth, coords):
+        with tf.GradientTape() as tape:
+            logits, cs_out = self.network(train_image, training=True)
+            loss = self.network.compute_loss_decode(coords, logits, truth)#, cs_out, noiseless_gt)
+        gradients = tape.gradient(loss, self.network.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
+        return loss
 
     @tf.function
-    def train_step(self, train_image, truth):
+    def train_step(self, train_image,truth, noiseless_gt):
         with tf.GradientTape() as tape:
-            logits = self.network(train_image, training=False)
-            loss = self.network.compute_loss_log(truth, logits)
+            logits, cs_out = self.network(train_image, training=True)
+            loss = self.network.compute_loss_log_cs_out(truth, logits, cs_out, noiseless_gt)
         gradients = tape.gradient(loss, self.network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
         return loss
@@ -188,13 +220,18 @@ class NetworkFacade():
             truth = truth.numpy()
             result = self.network.predict(train_image)
             for i in range(truth.shape[0]):
-                fig,axs = plt.subplots(3,2)
+                fig,axs = plt.subplots(3,3)
                 axs[0][0].imshow(truth[i, :, :, 2])
                 axs[0][1].imshow(result[i,:,:,2])
+
                 axs[1][0].imshow(truth[i, :, :, 1])
                 axs[1][1].imshow(result[i,:,:,1])
+                axs[1][2].imshow(result[i,:,:,3])
+
                 axs[2][0].imshow(truth[i, :, :, 0])
                 axs[2][1].imshow(result[i,:,:,0])
+                axs[2][2].imshow(result[i,:,:,4])
+
                 axs[0][0].set_title("Ground truth")
                 axs[0][1].set_title("Prediction")
                 axs[0][0].set_ylabel("Classifier")

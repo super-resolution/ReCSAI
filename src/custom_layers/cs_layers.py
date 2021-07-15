@@ -110,11 +110,11 @@ class CompressedSensingInception(tf.keras.layers.Layer):
 
         output = self.concat(outputs)#[w,x,y,z], )
 
-        if training:
-           output = self.dropout_layer(output)
+        # if training:
+        #    output = self.dropout_layer(output)
         if test:
-            return output,cs_out #todo: use cs out with inverse matrix to compute msq
-        return output
+            return output #todo: use cs out with inverse matrix to compute msq
+        return output,cs_out
 
 
 
