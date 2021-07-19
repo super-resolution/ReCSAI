@@ -60,10 +60,12 @@ class NetworkFacade():
         test=[]
         for i in range(result_tensor.shape[0]):
 
-            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=1.5)*9
+            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=1,truncate=2)*2
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
                 classifier[np.where(classifier < 0.1)] = 0
+                #indices = np.where(classifier>self.threshold)
+
                 indices = get_coords(classifier).T
                 x = result_tensor[i, indices[0], indices[1], 0]
                 y = result_tensor[i, indices[0], indices[1], 1]
@@ -154,9 +156,9 @@ class NetworkFacade():
 
     def pretrain_current_sigma(self):
         sigma = self.sigma
-        generator = crop_generator_u_net(9, sigma_x=sigma)
-        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
-                                                 output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4)))
+        generator = crop_generator_u_net(9, sigma_x=sigma, noiseless_ground_truth=True)
+        dataset = tf.data.Dataset.from_generator(generator, (tf.float32,tf.float32 ,tf.float32),
+                                                 output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4), (1 * 100, 9, 9, 3)))
         # self.sigma = sigma#todo: reactivate!!!!!
         iterator = iter(dataset)
 
@@ -203,7 +205,7 @@ class NetworkFacade():
     def train_step(self, train_image,truth, noiseless_gt):
         with tf.GradientTape() as tape:
             logits, cs_out = self.network(train_image, training=True)
-            loss = self.network.compute_loss_log_cs_out(truth, logits, cs_out, noiseless_gt)
+            loss = self.network.compute_loss_log_cs_out(truth, logits, cs_out, truth)
         gradients = tape.gradient(loss, self.network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
         return loss

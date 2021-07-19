@@ -121,28 +121,34 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         ce = tf.keras.losses.BinaryCrossentropy()
         mask = truth[:,:,:,3:4]
+        mask_reduced = truth[:,:,:,3]
+
         predict_masked = predict[:,:,:,0:2]*mask
         x = tf.constant([0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5])#[tf.newaxis,tf.newaxis,tf.newaxis,:]
         X,Y = tf.meshgrid(x,x)
-        X_truth = truth[:,:,:,0]+X
-        Y_truth = truth[:,:,:,1]+Y
-        X_pred = predict[:,:,:,0]+X
-        Y_pred = predict[:,:,:,1]+Y
+        X_truth = (truth[:,:,:,0]+X)*mask_reduced
+        Y_truth = (truth[:,:,:,1]+Y)*mask_reduced
+        X_pred = (predict[:,:,:,0]+X)*mask_reduced
+        Y_pred = (predict[:,:,:,1]+Y)*mask_reduced
         sigma = tf.abs(predict_masked - truth[:,:,:,0:2])
         L2 = 0
         # for i in range(9):
         #     for j in range(9):
-        normed_truth = predict[:,:,:,2]/tf.reduce_sum(predict[:,:,:,2],[1,2], keepdims=True)
+        normed_truth = predict[:,:,:,2]/(tf.reduce_sum(predict[:,:,:,2], keepdims=True))
         #todo: devide by covariance kernel
         cov = tf.exp(-tf.square(sigma-predict[:,:,:,3:5]))
-        L2 = tf.reduce_mean(tf.math.log(
-                          1+tf.square(X_pred-X_truth)/cov[:,:,:,0]+tf.square(Y_pred-Y_truth)/cov[:,:,:,1]))#todo: truth- tf.abs(normed_truth)*?
+        L2 = -tf.reduce_sum(tf.reduce_sum(truth[:,:,:,2],[1,2])*tf.math.log(tf.reduce_sum(
+            (0.001+normed_truth)/(0.001+2*3.14*predict[:,:,:,3]*predict[:,:,:,4])*
+                          tf.exp(-1/2*(tf.square((X_pred-X_truth)/(0.001+predict[:,:,:,3]))+
+                                       tf.square((Y_pred-Y_truth/(0.001+predict[:,:,:,4]))))),axis=[1,2])))#todo: truth- tf.abs(normed_truth)*?
 
         L2_sigma = tf.reduce_sum(tf.math.log(1+tf.square(sigma- predict[:,:,:,3:5])))
+        count_sigma = 0.001+tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
         BCE = 10*ce(truth[:,:,:,2], predict[:,:,:,2],)#+ 15*tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
-        count_loss = +20*tf.reduce_sum(tf.square(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(predict[:,:,:,2], [1,2])))
+        count_loss = +20*(tf.reduce_sum(tf.square(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(predict[:,:,:,2], [1,2])))/count_sigma
+                          -tf.math.log(tf.sqrt(count_sigma)))
         STD = l2(self.sigma/100, predict[:,:,:,5])
-        return 40*BCE + 2*L2 + 3*L2_sigma + 3*STD + loss
+        return 2*L2 + 3*L2_sigma + 3*STD + loss + count_loss
 
     def compute_loss_log(self, truth, predict):
         l2 = tf.keras.losses.MeanSquaredError()
