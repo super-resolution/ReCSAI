@@ -183,7 +183,7 @@ class NetworkFacade():
         # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
         #                                         output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
         dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 2)))
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 3)))
         iterator = iter(dataset)
         for j in range(self.train_loops):
             print(self.ckpt.step//50)
