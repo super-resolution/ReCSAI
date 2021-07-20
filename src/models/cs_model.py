@@ -134,18 +134,25 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         L2 = 0
         # for i in range(9):
         #     for j in range(9):
-        normed_truth = predict[:,:,:,2]/(tf.reduce_sum(predict[:,:,:,2], keepdims=True))
+        normed_truth = predict[:,:,:,2]*mask_reduced/(tf.reduce_sum(predict[:,:,:,2]*mask_reduced,axis=[1,2], keepdims=True))
         #todo: devide by covariance kernel
         cov = tf.exp(-tf.square(sigma-predict[:,:,:,3:5]))
-        L2 = -tf.reduce_sum(tf.reduce_sum(truth[:,:,:,2],[1,2])*tf.math.log(tf.reduce_sum(
-            (0.001+normed_truth)/(0.001+2*3.14*predict[:,:,:,3]*predict[:,:,:,4])*
-                          tf.exp(-1/2*(tf.square((X_pred-X_truth)/(0.001+predict[:,:,:,3]))+
-                                       tf.square((Y_pred-Y_truth/(0.001+predict[:,:,:,4]))))),axis=[1,2])))#todo: truth- tf.abs(normed_truth)*?
+        inner_loss = tf.reduce_sum(
+            (normed_truth)/(2*3.14*predict[:,:,:,3]*predict[:,:,:,4])*
+                          tf.exp(-1/2*(tf.square((X_pred-X_truth)/(predict[:,:,:,3]))+
+                                       tf.square((Y_pred-Y_truth/(predict[:,:,:,4])))))
+                ,axis=[1,2])
+        loss_tensor = tf.math.log(tf.where(inner_loss>0,inner_loss,tf.ones_like(inner_loss)
+            ))
+        L2 = -tf.reduce_sum(loss_tensor*
+            tf.reduce_sum(truth[:,:,:,2],axis=[1,2]))#todo: truth- tf.abs(normed_truth)*?
+
+
 
         L2_sigma = tf.reduce_sum(tf.math.log(1+tf.square(sigma- predict[:,:,:,3:5])))
         count_sigma = 0.001+tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
         BCE = 10*ce(truth[:,:,:,2], predict[:,:,:,2],)#+ 15*tf.reduce_mean(predict[:,:,:,2]*(1-predict[:,:,:,2]))
-        count_loss = +20*(tf.reduce_sum(tf.square(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(predict[:,:,:,2], [1,2])))/count_sigma
+        count_loss = +20*(tf.reduce_sum(tf.square(tf.reduce_sum(truth[:,:,:,2],[1,2])-tf.reduce_sum(predict[:,:,:,2]*mask_reduced, [1,2])))/count_sigma
                           -tf.math.log(tf.sqrt(count_sigma)))
         STD = l2(self.sigma/100, predict[:,:,:,5])
         return 2*L2 + 3*L2_sigma + 3*STD + loss + count_loss
@@ -224,26 +231,27 @@ class CompressedSensingInceptionNet(tf.keras.Model):
             count += tf.where(truth[:,j,0] > 0,  tf.constant(1, dtype=tf.float32),
                         tf.constant(0.01, dtype=tf.float32))
         for i in range(3):
-            L2 += tf.reduce_sum(tf.where(truth[:,i:i+1,0:1] > 0,#predict[:, :, :, 2] /
-                #               (tf.reduce_sum(predict[:, :, :, 2],axis=[1,2],keepdims=True)
-                #                 * tf.math.sqrt(tf.math.sqrt((predict[:,:, :, 3])) *
-                #                                2 * 3.14 *
-                #                                tf.math.sqrt(predict[:,:, :, 4]))
-                #                )
-
+            L2 += tf.reduce_sum(tf.where(truth[:,i:i+1,0:1] > 0,-tf.math.log(tf.reduce_sum(
+                tf.keras.activations.softmax(predict[:, :, :, 2], axis=[-1,-2]) /
+                                 tf.math.sqrt(tf.math.sqrt((predict[:,:, :, 3])) *
+                                               2 * 3.14 *
+                                               tf.math.sqrt(predict[:,:, :, 4])
+                                              )
+            *tf.math.exp(-1/2*(
                                 tf.square(
                                         predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
-                                         #/ predict[:,:, :, 3]
+                                         / (0.001+predict[:,:, :, 3])
                                          + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
-                                         #/ predict[:, :, :, 4]  # todo: activation >= 0
+                                         / (0.001+predict[:, :, :, 4])
+                                             )),axis=[1,2])) # todo: activation >= 0
                                         ,tf.constant(0, dtype=tf.float32)
                                          ,),
                             )
 
-        sigma_c = tf.reduce_sum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]),axis=[1,2])
+        sigma_c = 0.001+tf.reduce_sum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]),axis=[1,2])
         #i=0
         c_loss = tf.reduce_sum(3*tf.square(tf.reduce_sum(predict[:, :, :, 2], axis=[1,2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
-        return  tf.reduce_mean(L2)#+c_loss
+        return  tf.reduce_mean(L2)+c_loss
 
 
 

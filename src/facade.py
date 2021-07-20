@@ -112,6 +112,7 @@ class NetworkFacade():
     def loop(self, iterator, save=True):
         for j in range(3):
             train_image,truth, noiseless_gt = iterator.get_next()
+            x = truth.numpy()
             print(tf.reduce_min(truth),tf.reduce_max(truth))
 
             for i in range(50):
@@ -178,11 +179,11 @@ class NetworkFacade():
         self.test()
 
     def train_saved_data(self):
-        sigma = np.load(get_root_path() + r"\crop_dataset_sigma_VS.npy", allow_pickle=True).astype(np.float32)
-        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
-                                                output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
-        # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
-        #                                           output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 2)))
+        sigma = np.load(get_root_path() + r"/crop_dataset_sigma.npy", allow_pickle=True).astype(np.float32)
+        # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
+        #                                         output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 2)))
         iterator = iter(dataset)
         for j in range(self.train_loops):
             print(self.ckpt.step//50)
@@ -190,7 +191,7 @@ class NetworkFacade():
             #sigma = np.random.randint(100, 250)+np.random.rand(1)*20-10
 
             self.sigma = sigma[j//4]#todo: vary sigma in data
-            self.loop(iterator)
+            self.loop_d(iterator)
         self.test()
     @tf.function
     def train_step_d(self, train_image,truth, coords):
