@@ -192,7 +192,7 @@ class NetworkFacade():
 
             self.sigma = sigma[j//4]#todo: vary sigma in data
             self.loop_d(iterator)
-        self.test()
+        self.test_d()
     @tf.function
     def train_step_d(self, train_image,truth, coords):
         with tf.GradientTape() as tape:
@@ -210,6 +210,40 @@ class NetworkFacade():
         gradients = tape.gradient(loss, self.network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
         return loss
+
+    def test_d(self):
+        sigma = np.random.randint(150, 200)
+        x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
+        X, Y = tf.meshgrid(x, x)
+
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 3)))
+
+        self.sigma = sigma
+        for train_image, truth_i,truth_c in dataset.take(1):
+            truth = truth_i.numpy()
+            result = self.network.predict(train_image)
+            for i in range(truth.shape[0]):
+                j=0
+                fig,axs = plt.subplots(3,3)
+                axs[0][0].imshow(truth[i, :, :, 2])
+                axs[0][1].imshow(result[i,:,:,2])
+
+                axs[1][0].imshow(truth[i, :, :, 1])
+                axs[1][1].imshow(result[i,:,:,1]+ Y - truth_c[i,j:j+1,1:2])
+                axs[1][2].imshow(result[i,:,:,3])
+
+                axs[2][0].imshow(truth[i, :, :, 0])
+                axs[2][1].imshow(result[i,:,:,0]+X - truth_c[i,j:j+1,0:1])
+                axs[2][2].imshow(result[i,:,:,4])
+
+                axs[0][0].set_title("Ground truth")
+                axs[0][1].set_title("Prediction")
+                axs[0][0].set_ylabel("Classifier")
+                axs[1][0].set_ylabel("Delta x")
+                axs[2][0].set_ylabel("Delta y")
+                plt.show()
+
 
     def test(self):
         sigma = np.random.randint(150, 200)

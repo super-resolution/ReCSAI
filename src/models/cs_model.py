@@ -13,6 +13,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #todo: extend depth?
         self.ReduceSum = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[1,2]))
+        self.ReduceSumKD = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[1,2], keepdims=True))
+
         #self.inception2 = CompressedSensingInception(iterations=100)
         #self.batch_norm2 = tf.keras.layers.BatchNormalization()
         self.horizontal_path = [
@@ -228,13 +230,13 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         L2 = 0
         count = tf.zeros(tf.shape(truth)[0])
         for j in range(3):
-            count += truth[:,j,2] > 0
+            count += truth[:,j,2]
         for i in range(3):
             L2 += tf.reduce_sum(truth[:,i,2]*-tf.math.log(self.ReduceSum(
-                tf.keras.activations.softmax(predict[:, :, :, 2], axis=[-1,-2]) /
-                                 (tf.math.sqrt(predict[:,:, :, 3]) *
+                predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])*
+                                 tf.math.sqrt(predict[:,:, :, 3]) *
                                                2 * 3.14 *
-                                               tf.math.sqrt(predict[:,:, :, 4])
+                                               tf.math.sqrt(1+predict[:,:, :, 4])
                                               )
             *tf.math.exp(-1/2*(
                                 tf.square(
@@ -248,7 +250,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         sigma_c = self.ReduceSum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]))
         #i=0
-        c_loss = tf.reduce_sum(3*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
+        c_loss = tf.reduce_sum(tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
         return  L2+c_loss
 
 

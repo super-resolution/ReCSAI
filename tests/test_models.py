@@ -78,22 +78,26 @@ class TestCsInceptionNet(BaseTest):
         x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
         X, Y = tf.meshgrid(x, x)
         truth = tf.constant([
-            [[4.5, 6.3], [-1, -1], [-1, -1]],
+            [[4.5, 6.3,1], [-1, -1,0], [-1, -1,0]],
 
-            [[2.2,4.5],[3,2],[-1,-1]],
+            [[2.2,4.5,1],[3,2,1],[-1,-1,0]],
                              ], dtype=tf.float32)
         vec = np.zeros((2,9,9,6))
+        vec[1,:,:,2] = 0.001
+
         vec[1,1,4,2] = 0.9
         vec[1,1,4,0] = -0.3
         vec[1,1,4,1] = 0
-        vec[1,:,:,3] = 0.01
-        vec[1,:,:,4] = 0.01
+        vec[1,:,:,3] = 1
+        vec[1,:,:,4] = 1
 
         vec[1,3,2,2] = 0.9
         vec[1,3,2,0] = -0.5
         vec[1,3,2,1] = -0.5
-        vec[1,:,:,3] = 0.01
-        vec[1,:,:,4] = 0.01
+        vec[1,:,:,3] = 1
+        vec[1,:,:,4] = 1
+
+        vec[0,:,:,2] = 0.001
 
         vec[0,4,6,2] = 0.9
         vec[0,4,6,0] = -0.
@@ -119,14 +123,14 @@ class TestCsInceptionNet(BaseTest):
         #                    + tf.square(predict[:, :, 1] + X - truth[0][1])
         #                    / predict[:, :, 4]  # todo: activation >= 0
         #                    ))).numpy()
-        i=0
-        print(-(1 / 2 * tf.square(
+        i=1
+        print(tf.exp(-(1 / 2 * tf.square(
                                         predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
                                          / predict[:,:, :, 3]
                                          + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
                                          / predict[:, :, :, 4]  # todo: activation >= 0
-                                         ))
-        print(self.network.compute_loss_decode(truth,predict))
+                                         )))
+        print(self.network.compute_loss_decode(truth,predict,0))
         self.fail()
 
 
