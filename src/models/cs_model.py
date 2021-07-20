@@ -250,7 +250,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         sigma_c = self.ReduceSum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]))
         #i=0
         c_loss = tf.reduce_sum(3*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
-        return  tf.reduce_mean(L2)+c_loss
+        return  L2+c_loss
 
 
 
