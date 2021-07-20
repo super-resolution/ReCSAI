@@ -123,13 +123,14 @@ class TestCsInceptionNet(BaseTest):
         #                    + tf.square(predict[:, :, 1] + X - truth[0][1])
         #                    / predict[:, :, 4]  # todo: activation >= 0
         #                    ))).numpy()
-        i=1
-        print(tf.exp(-(1 / 2 * tf.square(
-                                        predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
-                                         / predict[:,:, :, 3]
-                                         + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
-                                         / predict[:, :, :, 4]  # todo: activation >= 0
-                                         )))
+        i=0
+        print(truth[:,i:i+1,0:1]-Y)
+        # print(tf.exp(-(1 / 2 * tf.square(
+        #                                 predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
+        #                                  / predict[:,:, :, 3]
+        #                                  + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
+        #                                  / predict[:, :, :, 4]  # todo: activation >= 0
+        #                                  )))
         print(self.network.compute_loss_decode(truth,predict,0))
         self.fail()
 

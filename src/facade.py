@@ -136,7 +136,7 @@ class NetworkFacade():
     def loop_d(self, iterator, save=True):
         for j in range(3):
             train_image,truth, coords = iterator.get_next()
-
+            x = coords.numpy()
             for i in range(50):
                 loss_value = self.train_step_d(train_image, truth, coords)
                 self.ckpt.step.assign_add(1)
@@ -230,11 +230,11 @@ class NetworkFacade():
                 axs[0][1].imshow(result[i,:,:,2])
 
                 axs[1][0].imshow(truth[i, :, :, 1])
-                axs[1][1].imshow(result[i,:,:,1]+ Y - truth_c[i,j:j+1,1:2])
+                axs[1][1].imshow(result[i,:,:,1] - (truth_c[i,j:j+1,1:2]-X))
                 axs[1][2].imshow(result[i,:,:,3])
 
                 axs[2][0].imshow(truth[i, :, :, 0])
-                axs[2][1].imshow(result[i,:,:,0]+X - truth_c[i,j:j+1,0:1])
+                axs[2][1].imshow(result[i,:,:,0] - (truth_c[i,j:j+1,0:1]-Y))
                 axs[2][2].imshow(result[i,:,:,4])
 
                 axs[0][0].set_title("Ground truth")

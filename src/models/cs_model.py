@@ -2,7 +2,7 @@ from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInce
 #from tensorflow.keras.layers import *
 import tensorflow as tf
 from src.custom_layers.utility_layer import downsample,upsample
-
+import tensorflow_probability as tfp
 
 #todo: imitate yolo architecture and use 9x9 output grid
 class CompressedSensingInceptionNet(tf.keras.Model):
@@ -36,9 +36,12 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         def softplus_activation(inputs):#softplus activation
             inputs_list = tf.unstack(inputs, axis=-1)
+            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
+            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
 
-            inputs_list[3] = tf.keras.activations.softplus(inputs_list[3])
-            inputs_list[4] = tf.keras.activations.softplus(inputs_list[4])
+
+            inputs_list[3] = tf.keras.activations.sigmoid(inputs_list[3])
+            inputs_list[4] = tf.keras.activations.sigmoid(inputs_list[4])
             return tf.stack(inputs_list, axis=-1)
         self.error_activation = tf.keras.layers.Lambda(softplus_activation)
 
@@ -227,22 +230,22 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
         X, Y = tf.meshgrid(x, x)
-        L2 = 0
+        L2 = tf.constant(0.0)
         count = tf.zeros(tf.shape(truth)[0])
         for j in range(3):
             count += truth[:,j,2]
         for i in range(3):
             L2 += tf.reduce_sum(truth[:,i,2]*-tf.math.log(self.ReduceSum(
-                predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])*
-                                 tf.math.sqrt(predict[:,:, :, 3]) *
-                                               2 * 3.14 *
-                                               tf.math.sqrt(1+predict[:,:, :, 4])
-                                              )
+                predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])
+                                      *
+                                  tf.math.sqrt(predict[:,:, :, 3]*predict[:,:, :, 4]) *
+                                                2 * 3.14
+                                               )
             *tf.math.exp(-1/2*(
                                 tf.square(
-                                        predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
+                                        predict[:,:, :, 0] - (truth[:,i:i+1,0:1]-Y))  # todo: test that this gives expected values
                                          / (predict[:,:, :, 3])
-                                         + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
+                                         + tf.square(predict[:,:, :, 1] - (truth[:,i:i+1,1:2]-X))
                                          / (predict[:, :, :, 4])
                                              )))) # todo: activation >= 0
                                         ,
@@ -250,7 +253,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         sigma_c = self.ReduceSum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]))
         #i=0
-        c_loss = tf.reduce_sum(tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
+        c_loss = tf.reduce_sum(1/2*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
         return  L2+c_loss
 
 
