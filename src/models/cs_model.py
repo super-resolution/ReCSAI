@@ -228,8 +228,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         L2 = 0
         count = tf.zeros(tf.shape(truth)[0])
         for j in range(3):
-            count += tf.where(truth[:,j,0] > 0,  tf.constant(1, dtype=tf.float32),
-                        tf.constant(0.01, dtype=tf.float32))
+            count += truth[:,j,2] > 0
         for i in range(3):
             L2 += tf.reduce_sum(truth[:,i,2]*-tf.math.log(self.ReduceSum(
                 tf.keras.activations.softmax(predict[:, :, :, 2], axis=[-1,-2]) /
