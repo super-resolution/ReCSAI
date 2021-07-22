@@ -41,8 +41,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
             inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
 
 
-            inputs_list[3] = tf.keras.activations.sigmoid(inputs_list[3])
-            inputs_list[4] = tf.keras.activations.sigmoid(inputs_list[4])
+            inputs_list[3] = 3*tf.keras.activations.sigmoid(inputs_list[3])
+            inputs_list[4] = 3*tf.keras.activations.sigmoid(inputs_list[4])
             return tf.stack(inputs_list, axis=-1)
         self.error_activation = tf.keras.layers.Lambda(softplus_activation)
 
@@ -227,7 +227,13 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         ce = tf.keras.losses.BinaryCrossentropy()
         #mask = truth[:,:,:,3:4]#truth is now in coordinates
         #mask2 = truth[:,:,:,3]
-
+        #todo: loss for cs part...
+        # loss = 0
+        # inp_cs = tf.unstack(cs_result, axis=-1)#todo: this needs to be an input
+        # inp_ns = tf.unstack(noiseless_truth, axis=-1)#todo: this needs to be an input
+        # for i,j in zip(inp_cs, inp_ns):
+        #     res = tf.linalg.matvec(tf.transpose(self.inception1.cs.mat), tf.keras.layers.Reshape((5184,), )(i), )
+        #     loss += l1(tf.keras.layers.Reshape((9,9), )(res),j)
 
         x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
         X, Y = tf.meshgrid(x, x)
@@ -236,7 +242,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         for j in range(3):
             count += truth[:,j,2]
         for i in range(3):
-            L2 += tf.reduce_sum(truth[:,i,2]*-tf.math.log(self.ReduceSum(
+            L2 += tf.reduce_sum(truth[:,i,2]/(count+0.001)*(-tf.math.log(self.ReduceSum(
                 predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])
                                      *
                                   tf.math.sqrt(predict[:,:, :, 3]*predict[:,:, :, 4]) *
@@ -248,7 +254,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
                                          / (predict[:,:, :, 3])
                                          + tf.square(predict[:,:, :, 1] - (truth[:,i:i+1,1:2]-X))
                                          / (predict[:, :, :, 4])
-                                             )))) # todo: activation >= 0
+                                             ))))) # todo: activation >= 0
                                         ,
                             )
         #L2+= 1000*ce(predict[:, :, :, 2],truth_i[:,:,:,2])
