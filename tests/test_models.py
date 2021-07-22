@@ -111,12 +111,12 @@ class TestCsInceptionNet(BaseTest):
         #predict = predict[0]
         #truth = truth[0]
         #z=0
-        # test = (predict[:, :, 2] /
-        #         (tf.reduce_sum(predict[:, :, 2])
-        #          * tf.math.sqrt(tf.math.sqrt((predict[:, :, 3])) *
-        #                         tf.pow(2 * 3.14, 4) *
-        #                         tf.abs(tf.math.sqrt(predict[:, :, 4])))
-        #          )
+        test = (predict[0,:, :, 2] /
+                (tf.reduce_sum(predict[0,:, :, 2])
+                 * tf.math.sqrt(tf.math.sqrt((predict[0,:, :, 3])) *
+                                #tf.pow(2 * 3.14, 4) *
+                                tf.math.sqrt(predict[0,:, :, 4]))
+                 ))
         #         * tf.exp(-(1 / 2 * tf.square(
         #             predict[:, :, 0] + Y - truth[0][0])  # todo: test that this gives expected values
         #                    / predict[:, :, 3]
@@ -124,7 +124,7 @@ class TestCsInceptionNet(BaseTest):
         #                    / predict[:, :, 4]  # todo: activation >= 0
         #                    ))).numpy()
         i=0
-        print(truth[:,i:i+1,0:1]-Y)
+        print(test)
         # print(tf.exp(-(1 / 2 * tf.square(
         #                                 predict[:,:, :, 0] + Y - truth[:,i:i+1,0:1])  # todo: test that this gives expected values
         #                                  / predict[:,:, :, 3]

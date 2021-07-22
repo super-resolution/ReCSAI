@@ -3,6 +3,7 @@ from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInce
 import tensorflow as tf
 from src.custom_layers.utility_layer import downsample,upsample
 import tensorflow_probability as tfp
+import math as m
 
 #todo: imitate yolo architecture and use 9x9 output grid
 class CompressedSensingInceptionNet(tf.keras.Model):
@@ -12,8 +13,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         self.inception1 = CompressedSensingInception(iterations=10)
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #todo: extend depth?
-        self.ReduceSum = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[1,2]))
-        self.ReduceSumKD = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[1,2], keepdims=True))
+        self.ReduceSum = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[-1,-2]))
+        self.ReduceSumKD = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[-1,-2], keepdims=True))
 
         #self.inception2 = CompressedSensingInception(iterations=100)
         #self.batch_norm2 = tf.keras.layers.BatchNormalization()
@@ -220,7 +221,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         STD = l2(self.sigma/100, predict[:,:,:,5])
         return 1*BCE+tf.reduce_sum(L2)#+count_loss#tf.reduce_sum(L2)+BCE#count_loss
 
-    def compute_loss_decode(self, truth,predict,_ ):
+    def compute_loss_decode(self, truth,predict,truth_i ):
         l2 = tf.keras.losses.MeanSquaredError()
         l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
         ce = tf.keras.losses.BinaryCrossentropy()
@@ -237,9 +238,9 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         for i in range(3):
             L2 += tf.reduce_sum(truth[:,i,2]*-tf.math.log(self.ReduceSum(
                 predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])
-                                      *
+                                     *
                                   tf.math.sqrt(predict[:,:, :, 3]*predict[:,:, :, 4]) *
-                                                2 * 3.14
+                                      (2 * tf.constant(m.pi))**2
                                                )
             *tf.math.exp(-1/2*(
                                 tf.square(
@@ -250,11 +251,14 @@ class CompressedSensingInceptionNet(tf.keras.Model):
                                              )))) # todo: activation >= 0
                                         ,
                             )
-
+        #L2+= 1000*ce(predict[:, :, :, 2],truth_i[:,:,:,2])
         sigma_c = self.ReduceSum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]))
         #i=0
-        c_loss = tf.reduce_sum(1/2*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*3.14*sigma_c)))
+        c_loss = tf.reduce_sum(1/2*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*m.pi*sigma_c)))
         return  L2+c_loss
+
+    def compute_data_loss_perfect_reconstruction(self):
+        pass
 
 
 
