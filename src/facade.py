@@ -60,7 +60,7 @@ class NetworkFacade():
         test=[]
         for i in range(result_tensor.shape[0]):
 
-            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=1,truncate=2)*2
+            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=0.6,truncate=1)*9/4
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
                 classifier[np.where(classifier < 0.1)] = 0

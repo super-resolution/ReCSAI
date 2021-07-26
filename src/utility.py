@@ -7,8 +7,10 @@ from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 from pathlib import Path
 import numpy as np
 import scipy
+from scipy.ndimage.filters import gaussian_filter
 
-def result_image_to_coordinates(result, coords=None, threshold=0.5):
+
+def result_image_to_coordinates(result, coords=None, threshold=0.3):
     result_array = []
     for i in range(result.shape[0]):
         classifier = result[i, :, :, 2]
@@ -16,6 +18,9 @@ def result_image_to_coordinates(result, coords=None, threshold=0.5):
         # axs[0].imshow(classifier)
         # axs[1].imshow(crop_tensor[i,:,:,1])
         # plt.show()
+        classifier = gaussian_filter(classifier, sigma=0.6, truncate=1) * 9/6
+        #indices = get_coords(classifier).T
+
         indices = np.where(classifier > threshold)
         x = result[i, indices[0], indices[1], 0]
         y = result[i, indices[0], indices[1], 1]

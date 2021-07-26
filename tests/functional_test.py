@@ -8,7 +8,7 @@ import os
 import matplotlib.pyplot as plt
 from scipy import interpolate
 from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet,CompressedSensingInceptionNet
-
+from src.data import crop_generator_saved_file_coords
 
 
 # #todo: functional_test
@@ -110,7 +110,21 @@ class ViewLayerOutputs():
         axs[2][3].imshow(im[0,:,:,1])
         plt.show()
 
+    def t_perfect_reconstruction_loss_is_zero(self):
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 3)))
+        for train_image, truth_i,truth_c in dataset.take(1):
+            test = truth_i.numpy()
+            r = [1,2]
+            x= truth_c.numpy()[r[0]:r[1]]
+            new = np.ones((test.shape[0],test.shape[1],test.shape[2],6))*1/(2*np.pi)
+            new[:,:,:,0:3] = test[:,:,:,0:3]#+0.00001
+            new = new[r[0]:r[1]]
+            if np.all(new==1):
+                print("all one test failed")
+            print(self.network.compute_loss_decode(tf.constant(x, tf.float32), tf.constant(new, tf.float32), tf.constant(new, tf.float32)))#use truth image instead of predict
+
 
 if __name__ == '__main__':
     V = ViewLayerOutputs()
-    V.cs_inception_path_output()
+    V.t_perfect_reconstruction_loss_is_zero()

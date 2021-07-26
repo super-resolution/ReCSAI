@@ -242,11 +242,12 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         for j in range(3):
             count += truth[:,j,2]
         for i in range(3):
+
             L2 += tf.reduce_sum(truth[:,i,2]/(count+0.001)*(-tf.math.log(self.ReduceSum(
                 predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])
                                      *
-                                  tf.math.sqrt(predict[:,:, :, 3]*predict[:,:, :, 4]) *
-                                      (2 * tf.constant(m.pi))**2
+                                  tf.math.sqrt(predict[:,:, :, 3]*predict[:,:, :, 4] *
+                                      (2 * tf.constant(m.pi))**2)
                                                )
             *tf.math.exp(-1/2*(
                                 tf.square(
@@ -254,7 +255,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
                                          / (predict[:,:, :, 3])
                                          + tf.square(predict[:,:, :, 1] - (truth[:,i:i+1,1:2]-X))
                                          / (predict[:, :, :, 4])
-                                             ))))) # todo: activation >= 0
+                                             ))
+            ))) # todo: activation >= 0
                                         ,
                             )
         #L2+= 1000*ce(predict[:, :, :, 2],truth_i[:,:,:,2])

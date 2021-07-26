@@ -135,6 +135,7 @@ class TestCsInceptionNet(BaseTest):
         self.fail()
 
 
+
 class TestCsUNet(BaseTest):
     def setUp(self):
         self.network = CompressedSensingCVNet()

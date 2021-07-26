@@ -29,7 +29,7 @@ with TiffFile(path) as tif:
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"\trainings\cs_inception\_new_decodeL",
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_new_decodeL_T2",
                                                 get_root_path()+r"\trainings\wavelet\training_lvl2\cp-10000.ckpt")
 
 class TrainCVNet(NetworkFacade):
@@ -40,11 +40,11 @@ class TrainCVNet(NetworkFacade):
 
 facade = TrainInceptionNet()
 facade.sigma = 180
-facade.pretrain_current_sigma()
+#facade.pretrain_current_sigma()
 #todo: try to train one iteration on sigma
-facade.threshold = 0.3
-facade.wavelet_thresh = 0.1
-facade.sigma_thresh = 0.3
+facade.threshold = 0.2
+facade.wavelet_thresh = 0.05
+facade.sigma_thresh = 0.03
 result_array = facade.predict(image)
 print(result_array.shape[0])
 print("finished AI")
