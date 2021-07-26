@@ -127,7 +127,7 @@ class NetworkFacade():
         pred = self.network.predict(train_image)
         vloss = self.network.compute_loss_log(truth.numpy(), pred)
         print(f"validation loss = {vloss}" )
-        self.metrics.update_state(truth.numpy(), pred)
+        self.metrics.update_state(truth.numpy(), pred.numpy())
         accuracy = self.metrics.result(int(self.ckpt.step))
         print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
         self.metrics.reset()
@@ -135,21 +135,20 @@ class NetworkFacade():
 
     def loop_d(self, iterator, save=True):
         for j in range(3):
-            train_image,truth, coords = iterator.get_next()
-            x = coords.numpy()
+            train_image,noiseless_gt, coords = iterator.get_next()#todo: noiseless image here
             for i in range(50):
-                loss_value = self.train_step_d(train_image, truth, coords)
+                loss_value = self.train_step_d(train_image, noiseless_gt, coords)
                 self.ckpt.step.assign_add(1)
                 if int(self.ckpt.step) % 10 == 0 and save:
                     save_path = self.manager.save()
                     print("Saved checkpoint for step {}: {}".format(int(self.ckpt.step), save_path))
                     print("loss {:1.2f}".format(loss_value.numpy()) )
 
-        train_image,truth, coords = iterator.get_next()
-        pred = self.network.predict(train_image)
-        vloss = self.network.compute_loss_log(truth.numpy(), pred)
+        train_image,noiseless_gt, coords = iterator.get_next()
+        pred,cs_out = self.network(train_image, training=True)
+        vloss = self.network.compute_loss_decode(coords, pred, noiseless_gt, cs_out)
         print(f"validation loss = {vloss}" )
-        self.metrics.update_state(truth.numpy(), pred)
+        self.metrics.update_state(coords.numpy(), pred.numpy())
         accuracy = self.metrics.result(int(self.ckpt.step))
         print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
         self.metrics.reset()
@@ -183,7 +182,7 @@ class NetworkFacade():
         # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
         #                                         output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
         dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 3)))
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 3, 3)))
         iterator = iter(dataset)
         for j in range(self.train_loops):
             print(self.ckpt.step//50)
@@ -194,10 +193,10 @@ class NetworkFacade():
             self.loop_d(iterator)
         self.test_d()
     @tf.function
-    def train_step_d(self, train_image,truth, coords):
+    def train_step_d(self, train_image,noiseless_gt, coords):
         with tf.GradientTape() as tape:
             logits, cs_out = self.network(train_image, training=True)
-            loss = self.network.compute_loss_decode(coords, logits, truth)#, cs_out, noiseless_gt)
+            loss = self.network.compute_loss_decode(coords, logits, noiseless_gt, cs_out)#todo, cs_out, noiseless_gt)
         gradients = tape.gradient(loss, self.network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
         return loss
@@ -217,7 +216,7 @@ class NetworkFacade():
         X, Y = tf.meshgrid(x, x)
 
         dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 3)))
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 3, 3)))
 
         self.sigma = sigma
         for train_image, truth_i,truth_c in dataset.take(1):

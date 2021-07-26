@@ -112,10 +112,9 @@ class Factory():
             image,ex = Factory.flimbi_paint_locs(image, on_points, self.kernel, line, i, inverted=inverted)
             exclude += ex
         exclude = list(set(exclude))
-        exclude = [i+1 for i in exclude]
         #print("localization " + str(exclude) + " was not painted")
-        # if len(exclude)>0:
-        #     on_points = np.delete(on_points, exclude, axis=0)
+        if len(exclude)>0:
+            on_points = np.delete(on_points, exclude, axis=0)
         ground_truth = self.create_points_add_photons(ground_truth, on_points, np.ones(on_points.shape[0])*800)#todo: ground truth as points
         return image, ground_truth, on_points
 

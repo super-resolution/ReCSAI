@@ -42,7 +42,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_g
     def generator():
         for z in range(100):
             ph = np.random.randint(1000,2000)
-            points = factory.create_crop_point_set(photons=ph, on_time=30)
+            points = factory.create_crop_point_set(photons=ph, on_time=90)
             #sigma_y = np.random.randint(100, 250)
             sig_y = sigma_x+np.random.rand()*10-5
             sig_x = sigma_y+np.random.rand()*10-5
@@ -55,26 +55,30 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_g
                 print(i)
 
                 ind = np.random.randint(0,points.shape[0])
-                n = int(np.random.normal(1.5,0.4,1))#np.random.poisson(1.7)
-                if n>3:
-                    n=3
+                n = int(np.random.normal(2,1,1))#np.random.poisson(1.7)
+                if n<0:
+                    n=0
+                #if n>3:
+                #    n=3
                 def build_image(ind, switching_array,):#todo: points to image additional parameters sigma and intensity
                     image_s = np.zeros((im_shape, im_shape, 3))
-                    truth_cs = factory.create_classifier_image((9, 9), points[ind], 100)  # todo: variable px_size
                     image_noiseless = np.zeros((im_shape, im_shape, 3))
                     for i in range(3):
                         #todo: if before is zero activate switching
                         #todo: if after is zero activate inverted
                             #todo: for points with right variables
-                        image,_,_ = factory.simulate_accurate_flimbi(points, points[ind], switching_rate=0, inverted=switching_array[:,i])
-
+                        image,gt,on_points = factory.simulate_accurate_flimbi(points, points[ind], switching_rate=0, inverted=switching_array[:,i])
+                        image_noiseless[:,:, i] = factory.reduce_size(gt).astype(np.float32)
                         # plt.imshow(image)
                         # plt.show()
                         image = factory.reduce_size(image).astype(np.float32)
-                        image_noiseless[:,:,i] = image
+                        #image_noiseless[:,:,i] = copy.deepcopy(image)
                         image += np.random.rand()*20+10 #noise was 2
                         image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
                         image_s[:,:,i] = image
+                        if i == 1:
+                            truth_cs = factory.create_classifier_image((9, 9), on_points,
+                                                                       100)  # todo: variable px_size
 
                     return image_s, truth_cs, image_noiseless
 
@@ -256,6 +260,8 @@ def crop_generator_saved_file_EX():
 def crop_generator_saved_file_coords():
     data = np.load(get_root_path() +r"/crop_dataset_train.npy", allow_pickle=True).astype(np.float32)
     truth = np.load(get_root_path() +r"/crop_dataset_truth.npy", allow_pickle=True).astype(np.float32)
+    noiseless = np.load(get_root_path() +r"/crop_dataset_noiseless_VS.npy", allow_pickle=True).astype(np.float32)
+
     for i in range(data.shape[0]):
         coords = []
         current = truth[i]
@@ -268,7 +274,7 @@ def crop_generator_saved_file_coords():
                 per_image[k,0:2] = c
                 per_image[k, 2] = 1
             coords.append(np.array(per_image))
-        yield data[i],truth[i], np.array(coords)
+        yield data[i],data[i], np.array(coords)
 
 
 if __name__ == '__main__':

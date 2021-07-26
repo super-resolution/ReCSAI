@@ -64,7 +64,7 @@ def create(im_shape):
     #done: run layer
 class ViewLayerOutputs():
     def __init__(self):
-        path = get_root_path() + r"/trainings/cs_inception/_new_decodeL_T2"
+        path = get_root_path() + r"/trainings/cs_inception/_new_decodeL_csL"
         self.network = CompressedSensingInceptionNet()
         self.optimizer = tf.keras.optimizers.Adam(1e-4)
         self.network.sigma = 150

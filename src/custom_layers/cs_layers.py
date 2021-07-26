@@ -10,11 +10,11 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         #for all paths
         self.batch_norm1 = tf.keras.layers.BatchNormalization()
         self.batch_norm2 = tf.keras.layers.BatchNormalization()
-        #todo: estimate mu and sigma for cs layer?
+        #done: estimate mu and sigma for cs layer?
         #for x path
-        self.cs = CompressedSensing()#todo: prio1 needs input dimension and update for sigma
+        self.cs = CompressedSensing()
         self.cs.iterations = iterations
-        self.reshape = tf.keras.layers.Reshape((72, 72, 3), )#todo: compare low iteration with high iteration and implement additional loss
+        self.reshape = tf.keras.layers.Reshape((72, 72, 3), )#done: compare low iteration with high iteration and implement additional loss
         #self.padding = tf.keras.layers.Lambda(lambda x:  tf.pad(x, paddings, "REFLECT"))
         self.convolution1x1_x1 = tf.keras.layers.Conv2D(3,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dim to 1 for cs max intensity proj? padding doesnt matter
         self.convolution1x1_x2 = tf.keras.layers.Conv2D(8,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dimension after max pooling
@@ -91,11 +91,11 @@ class CompressedSensingInception(tf.keras.layers.Layer):
             if i==0:
                 cs_out = x#todo: additional loss with mat mul
 
-        #outputs.append(x)
+        outputs.append(x)
 
 
         # #todo: input path y
-        y = x
+        y = input
         for layer in self.y_path:
             y = layer(y)
         outputs.append(y)

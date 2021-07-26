@@ -221,19 +221,18 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         STD = l2(self.sigma/100, predict[:,:,:,5])
         return 1*BCE+tf.reduce_sum(L2)#+count_loss#tf.reduce_sum(L2)+BCE#count_loss
 
-    def compute_loss_decode(self, truth,predict,truth_i ):
-        l2 = tf.keras.losses.MeanSquaredError()
-        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
-        ce = tf.keras.losses.BinaryCrossentropy()
-        #mask = truth[:,:,:,3:4]#truth is now in coordinates
-        #mask2 = truth[:,:,:,3]
+    def compute_loss_decode(self, truth,predict, noiseless_gt, cs_out):
+
+        l2 = tf.keras.losses.MeanSquaredError()#todo: switched to l1
+
+
         #todo: loss for cs part...
-        # loss = 0
-        # inp_cs = tf.unstack(cs_result, axis=-1)#todo: this needs to be an input
-        # inp_ns = tf.unstack(noiseless_truth, axis=-1)#todo: this needs to be an input
-        # for i,j in zip(inp_cs, inp_ns):
-        #     res = tf.linalg.matvec(tf.transpose(self.inception1.cs.mat), tf.keras.layers.Reshape((5184,), )(i), )
-        #     loss += l1(tf.keras.layers.Reshape((9,9), )(res),j)
+        loss = 0
+        inp_cs = tf.unstack(cs_out, axis=-1)#todo: this needs to be an input
+        inp_ns = tf.unstack(noiseless_gt, axis=-1)#todo: this needs to be an input
+        for i,j in zip(inp_cs, inp_ns):
+            res = tf.linalg.matvec(tf.transpose(self.inception1.cs.mat), tf.keras.layers.Reshape((5184,), )(i), )
+            loss += l2(tf.keras.layers.Reshape((9,9), )(res/(0.001+tf.reduce_max(res,axis=[1],keepdims=True))),j)
 
         x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
         X, Y = tf.meshgrid(x, x)
