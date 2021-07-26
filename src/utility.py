@@ -18,16 +18,19 @@ def result_image_to_coordinates(result, coords=None, threshold=0.3):
         # axs[0].imshow(classifier)
         # axs[1].imshow(crop_tensor[i,:,:,1])
         # plt.show()
-        classifier = gaussian_filter(classifier, sigma=0.6, truncate=1) * 9/6
-        #indices = get_coords(classifier).T
+        classifier = gaussian_filter(classifier, sigma=0.6, truncate=1) * 3/2
+        classifier[np.where(classifier<0.2)] = 0
+        indices = get_coords(classifier).T
 
-        indices = np.where(classifier > threshold)
+        #indices = np.where(classifier > threshold)
         x = result[i, indices[0], indices[1], 0]
         y = result[i, indices[0], indices[1], 1]
-
+        #data = []
         for j in range(indices[0].shape[0]):
+            c = np.array([indices[0][j] + x[j], indices[1][j] + y[j]])
+            #data.append(c)
             if coords:
-                result_array.append(coords[i][0:2] + np.array([indices[0][j] + x[j], indices[1][j] + y[j]]))
+                result_array.append(coords[i][0:2] + c)
             else:
                 result_array.append(np.array([indices[0][j] + x[j], indices[1][j] + y[j], i]))
 

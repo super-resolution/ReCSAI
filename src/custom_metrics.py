@@ -30,7 +30,7 @@ class JaccardIndex():
             coords = []
             for i,crop in enumerate(y_true):
                 for coord in crop:
-                    if coord[0] != -1:
+                    if coord[2] != 0:
                         coords.append(np.array([coord[0], coord[1], i]))
             coords = np.array(coords)
 
@@ -59,10 +59,10 @@ class JaccardIndex():
             jac = self.tp/ (self.tp + self.fp + self.fn)
             rmse = np.std(np.array(self.error))
             self.result_manager.append(np.array([step, jac, rmse]))
-            return jac, rmse
+            return jac, rmse, self.fp, self.fn
         else:
             self.result_manager.append(np.array([step, 0.0, 9000]))
-            return 0.0, 9000
+            return 0.0, 9000, 0,0
 
     def compute_jaccard(self, truth, pred):
         """

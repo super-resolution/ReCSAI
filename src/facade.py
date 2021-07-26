@@ -60,10 +60,10 @@ class NetworkFacade():
         test=[]
         for i in range(result_tensor.shape[0]):
 
-            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=0.6,truncate=1)*9/4
+            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=1.6,truncate=1)* 3/2
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
-                classifier[np.where(classifier < 0.1)] = 0
+                classifier[np.where(classifier < 0.3)] = 0
                 #indices = np.where(classifier>self.threshold)
 
                 indices = get_coords(classifier).T
@@ -129,7 +129,8 @@ class NetworkFacade():
         print(f"validation loss = {vloss}" )
         self.metrics.update_state(truth.numpy(), pred.numpy())
         accuracy = self.metrics.result(int(self.ckpt.step))
-        print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
+        print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]) +
+              " fp {:1.2f}".format(accuracy[2]) + " fn {:1.2f}".format(accuracy[3]))
         self.metrics.reset()
         self.metrics.save()
 
@@ -150,7 +151,8 @@ class NetworkFacade():
         print(f"validation loss = {vloss}" )
         self.metrics.update_state(coords.numpy(), pred.numpy())
         accuracy = self.metrics.result(int(self.ckpt.step))
-        print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]))
+        print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]) +
+              " fp {:1.2f}".format(accuracy[2]) + " fn {:1.2f}".format(accuracy[3]))
         self.metrics.reset()
         self.metrics.save()
 
