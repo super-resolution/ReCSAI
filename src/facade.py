@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt #todo: plot in main?
 from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net, generate_generator, crop_generator_saved_file_EX, crop_generator_saved_file_coords
 from src.custom_metrics import JaccardIndex
 from src.utility import bin_localisations_v2, get_coords, get_root_path
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter, uniform_filter
 
 
 class NetworkFacade():
@@ -60,7 +60,7 @@ class NetworkFacade():
         test=[]
         for i in range(result_tensor.shape[0]):
 
-            classifier =gaussian_filter(result_tensor[i, :, :, 2], sigma=1.6,truncate=1)* 3/2
+            classifier =uniform_filter(result_tensor[i, :, :, 2], size=3)*9
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
                 classifier[np.where(classifier < 0.3)] = 0

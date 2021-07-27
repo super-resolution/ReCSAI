@@ -10,7 +10,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
     TYPE = 0
     def __init__(self):
         super(CompressedSensingInceptionNet, self).__init__()
-        self.inception1 = CompressedSensingInception(iterations=10)
+        self.inception1 = CompressedSensingInception(iterations=200)
         self.batch_norm = tf.keras.layers.BatchNormalization()
         #todo: extend depth?
         self.ReduceSum = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[-1,-2]))

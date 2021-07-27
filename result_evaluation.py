@@ -3,12 +3,16 @@ import numpy as np
 import copy
 from factory import Factory
 import os
-from tifffile import TiffWriter
+from tifffile import TiffWriter, TiffFile
 from src.utility import *
 from src.models.cs_model import CompressedSensingNet, CompressedSensingInceptionNet
 from src.models.wavelet_model import WaveletAI
 from Thunderstorm_jaccard import read_Thunderstorm
 import pandas as pd
+from src.data import data_generator_coords
+from src.utility import bin_localisations_v2, get_coords, get_root_path
+from scipy.ndimage.filters import gaussian_filter, uniform_filter
+
 
 def read_Rapidstorm(path):
     data = pd.read_csv(path, header=1, delim_whitespace=True).as_matrix()
@@ -163,8 +167,8 @@ def validate_cs_model():
         truth_coords = np.load(truth, allow_pickle=True)
         truth_coords /= 100
         for frame in truth_coords:
-            frame[:,0] += 14#thats offset
-            frame[:,1] += 14#thats offset
+            frame[:,0] += 13.5#thats offset
+            frame[:,1] += 13.5#thats offset
 
         for i in range(100):
             image[i] = gen.__next__()
@@ -228,7 +232,7 @@ def validate_cs_inception_model():
         optimizer = tf.keras.optimizers.Adam()
         # accuracy = tf.metrics.Accuracy()
         ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_inception_increased_depth',
+        manager = tf.train.CheckpointManager(ckpt, './trainings/cs_inception/_new_decodeL_T3',
                                              max_to_keep=3)
         ckpt.restore(manager.latest_checkpoint)
         if manager.latest_checkpoint:
@@ -236,11 +240,11 @@ def validate_cs_inception_model():
         else:
             print("Initializing from scratch.")
 
-        cs_net.update(150, 100)
+        cs_net.sigma = 150
 
         denoising = WaveletAI()
 
-        checkpoint_path = "training_lvl3/cp-10000.ckpt"
+        checkpoint_path = "./trainings/wavelet/training_lvl2/cp-10000.ckpt"
 
         denoising.load_weights(checkpoint_path)
         result_list_ai = []  # jac,rmse,fp,fn,tp
@@ -250,6 +254,7 @@ def validate_cs_inception_model():
                 i) + ".tif"  # r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction_flim.tif"
             truth = os.getcwd() + r"\test_data\dataset_n" + str(
                 i) + ".npy"  # r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction.npz"
+            #gen = data_generator_coords(image, offset=0)
             gen = data_generator_coords(image, offset=0)
             image = np.zeros((100, 128, 128, 3))
             # truth = np.zeros((100, 64, 64, 3))
@@ -261,6 +266,15 @@ def validate_cs_inception_model():
 
             for i in range(100):
                 image[i] = gen.__next__()
+            # truth = np.zeros((100, 64, 64, 3))
+            truth_coords = np.load(truth, allow_pickle=True)
+            truth_coords /= 100
+            for frame in truth_coords:
+                frame[:, 0] += 13.5 # thats offset
+                frame[:, 1] += 13.5 # thats offset
+
+            #for i in range(100):
+            #    image[i] = gen.__next__()
 
             image_tf1 = tf.convert_to_tensor(image[0:100, :, :])
             # image_tf2 = tf.convert_to_tensor(image[90:100, :, :])#todo: use 20% test
@@ -280,9 +294,12 @@ def validate_cs_inception_model():
             for i in range(result_tensor.shape[0]):
                 if coord_list[i][2] == current_frame:
                     classifier = result_tensor[i, :, :, 2]
-                    indices = np.where(classifier > thresh)
+                    classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
+
+                    indices = get_coords(classifier).T
+
                     if np.sum(classifier) > 0.6:
-                        classifier[np.where(classifier < 0.1)] = 0
+                        classifier[np.where(classifier < 0.3)] = 0
                         indices = get_coords(classifier).T
                         x = result_tensor[i, indices[0], indices[1], 0]
                         y = result_tensor[i, indices[0], indices[1], 1]
@@ -296,7 +313,10 @@ def validate_cs_inception_model():
                     current_frame_locs = []
 
                     classifier = result_tensor[i, :, :, 2]
-                    indices = np.where(classifier > thresh)
+                    classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
+
+                    indices = get_coords(classifier).T
+
                     x = result_tensor[i, indices[0], indices[1], 0]
                     y = result_tensor[i, indices[0], indices[1], 1]
 
@@ -328,7 +348,7 @@ def validate_cs_inception_model():
 
 if __name__ == '__main__':
     #create_test_data()
-    # validate_cs_inception_model()
+    validate_cs_inception_model()
     # validate_rapidstorm()
     # rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
     # ai = np.load(os.getcwd() +r"\test_data\ai_results_csI.npy", allow_pickle=True)

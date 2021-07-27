@@ -54,10 +54,12 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_g
             for i in range(100): #todo: while loop here
                 print(i)
 
-                ind = np.random.randint(0,points.shape[0])
                 n = int(np.random.normal(2,1,1))#np.random.poisson(1.7)
+
                 if n<0:
                     n=0
+                ind = np.random.randint(0, points.shape[0] - n)
+
                 #if n>3:
                 #    n=3
                 def build_image(ind, switching_array,):#todo: points to image additional parameters sigma and intensity
