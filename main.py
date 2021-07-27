@@ -44,7 +44,7 @@ facade.sigma = 180
 #todo: try to train one iteration on sigma
 facade.threshold = 0.2
 facade.wavelet_thresh = 0.1
-facade.sigma_thresh = 0.1
+facade.sigma_thresh = 0.4
 result_array = facade.predict(image)
 print(result_array.shape[0])
 print("finished AI")

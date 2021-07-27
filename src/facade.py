@@ -136,7 +136,7 @@ class NetworkFacade():
 
     def loop_d(self, iterator, save=True):
         for j in range(3):
-            train_image,noiseless_gt, coords = iterator.get_next()#todo: noiseless image here
+            train_image,noiseless_gt, coords,t = iterator.get_next()#todo: noiseless image here
             for i in range(50):
                 loss_value = self.train_step_d(train_image, noiseless_gt, coords)
                 self.ckpt.step.assign_add(1)
@@ -145,7 +145,7 @@ class NetworkFacade():
                     print("Saved checkpoint for step {}: {}".format(int(self.ckpt.step), save_path))
                     print("loss {:1.2f}".format(loss_value.numpy()) )
 
-        train_image,noiseless_gt, coords = iterator.get_next()
+        train_image,noiseless_gt, coords,t = iterator.get_next()
         pred,cs_out = self.network(train_image, training=True)
         vloss = self.network.compute_loss_decode(coords, pred, noiseless_gt, cs_out)
         print(f"validation loss = {vloss}" )
@@ -183,8 +183,8 @@ class NetworkFacade():
         sigma = np.load(get_root_path() + r"/crop_dataset_sigma.npy", allow_pickle=True).astype(np.float32)
         # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
         #                                         output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
-        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 3, 3)))
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 10, 3),(1*100, 9, 9, 4) ))
         iterator = iter(dataset)
         for j in range(self.train_loops):
             print(self.ckpt.step//50)
@@ -217,11 +217,11 @@ class NetworkFacade():
         x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
         X, Y = tf.meshgrid(x, x)
 
-        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 3, 3)))
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 10, 3),(1*100, 9, 9, 4)))
 
         self.sigma = sigma
-        for train_image, truth_i,truth_c in dataset.take(1):
+        for train_image, tru,truth_c, truth_i in dataset.take(1):
             truth = truth_i.numpy()
             result = self.network.predict(train_image)
             for i in range(truth.shape[0]):

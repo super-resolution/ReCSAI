@@ -260,8 +260,8 @@ def crop_generator_saved_file_EX():
         yield data[i], truth[i], noiseless[i]
 
 def crop_generator_saved_file_coords():
-    data = np.load(get_root_path() +r"/crop_dataset_train.npy", allow_pickle=True).astype(np.float32)
-    truth = np.load(get_root_path() +r"/crop_dataset_truth.npy", allow_pickle=True).astype(np.float32)
+    data = np.load(get_root_path() +r"/crop_dataset_train_VS.npy", allow_pickle=True).astype(np.float32)
+    truth = np.load(get_root_path() +r"/crop_dataset_truth_VS.npy", allow_pickle=True).astype(np.float32)
     noiseless = np.load(get_root_path() +r"/crop_dataset_noiseless_VS.npy", allow_pickle=True).astype(np.float32)
 
     for i in range(data.shape[0]):
@@ -270,13 +270,13 @@ def crop_generator_saved_file_coords():
         for j in range(current.shape[0]):
             page = current[j]
             indices = np.array(np.where(page[ :, :, 2] == 1))
-            per_image= np.zeros((3,3))
+            per_image= np.zeros((10,3))
             for k,ind in enumerate(indices.T):
                 c = ind + np.array([page[ind[0],ind[1], 0], page[ind[0],ind[1], 1]])+0.5#this is probably wrong!
                 per_image[k,0:2] = c
                 per_image[k, 2] = 1
             coords.append(np.array(per_image))
-        yield data[i],data[i], np.array(coords)
+        yield data[i], noiseless[i]/noiseless[i].max(), np.array(coords), truth[i]
 
 
 if __name__ == '__main__':

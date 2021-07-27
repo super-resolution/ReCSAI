@@ -167,8 +167,8 @@ def validate_cs_model():
         truth_coords = np.load(truth, allow_pickle=True)
         truth_coords /= 100
         for frame in truth_coords:
-            frame[:,0] += 13.5#thats offset
-            frame[:,1] += 13.5#thats offset
+            frame[:,0] += 14#thats offset
+            frame[:,1] += 14#thats offset
 
         for i in range(100):
             image[i] = gen.__next__()
@@ -282,7 +282,7 @@ def validate_cs_inception_model():
             # truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :])#todo: use 20% test
 
             data, truth_new, coord_list = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:],
-                                                               th=0.2)
+                                                               th=0.15)
             result_tensor = cs_net.predict(data)
             per_fram_locs = []
             current_frame = 0
@@ -293,36 +293,40 @@ def validate_cs_inception_model():
 
             for i in range(result_tensor.shape[0]):
                 if coord_list[i][2] == current_frame:
-                    classifier = result_tensor[i, :, :, 2]
                     classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
 
-                    indices = get_coords(classifier).T
 
                     if np.sum(classifier) > 0.6:
-                        classifier[np.where(classifier < 0.3)] = 0
+                        classifier[np.where(classifier < 0.5)] = 0
                         indices = get_coords(classifier).T
                         x = result_tensor[i, indices[0], indices[1], 0]
                         y = result_tensor[i, indices[0], indices[1], 1]
+                        dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
+                        dy = result_tensor[i, indices[0], indices[1], 4]
 
                         for j in range(indices[0].shape[0]):
-                            current_frame_locs.append(coord_list[i][0:2] + np.array(
-                                [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j] ]))
+                            if dx[j] < 0.005 and dy[j] < 0.005:
+                                current_frame_locs.append(coord_list[i][0:2] + np.array(
+                                    [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j] ]))
                 else:
                     per_fram_locs.append(np.array(current_frame_locs))
                     current_frame = coord_list[i][2]
                     current_frame_locs = []
 
-                    classifier = result_tensor[i, :, :, 2]
                     classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
+                    classifier[np.where(classifier < 0.5)] = 0
 
                     indices = get_coords(classifier).T
 
                     x = result_tensor[i, indices[0], indices[1], 0]
                     y = result_tensor[i, indices[0], indices[1], 1]
+                    dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
+                    dy = result_tensor[i, indices[0], indices[1], 4]
 
                     for j in range(indices[0].shape[0]):
-                        current_frame_locs.append(coord_list[i][0:2] + np.array(
-                            [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j]]))
+                        if dx[j] < 0.005 and dy[j] < 0.005:
+                            current_frame_locs.append(coord_list[i][0:2] + np.array(
+                                [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j]]))
             # append last frame
             per_fram_locs.append(np.array(current_frame_locs))
             # todo: create a test function for jaccard
@@ -350,22 +354,22 @@ if __name__ == '__main__':
     #create_test_data()
     validate_cs_inception_model()
     # validate_rapidstorm()
-    # rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
-    # ai = np.load(os.getcwd() +r"\test_data\ai_results_csI.npy", allow_pickle=True)
-    # #ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)
-    #
-    # thund = np.load(os.getcwd() +r"\test_data\thunderstorm_results.npy", allow_pickle=True)
-    # cols = ["jaccard", "rmse", "fp", "fn"]
-    # for i in range(4):
-    #     fig,axs = plt.subplots()
-    #     axs.plot(ai[i], label="AI")
-    #     #axs.plot(ai_wave[i], label="AIW")
-    #     axs.plot(rapid[i], label="rapid")
-    #     axs.plot(thund[i], label="Thunderstorm")
-    #     axs.set_ylabel(cols[i])
-    #     axs.set_xlabel("switching rate")
-    #     plt.legend()
-    #     plt.show()
+    rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
+    ai = np.load(os.getcwd() +r"\test_data\ai_results_csI.npy", allow_pickle=True)
+    #ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)
+
+    thund = np.load(os.getcwd() +r"\test_data\thunderstorm_results.npy", allow_pickle=True)
+    cols = ["jaccard", "rmse", "fp", "fn"]
+    for i in range(4):
+        fig,axs = plt.subplots()
+        axs.plot(ai[i], label="AI")
+        #axs.plot(ai_wave[i], label="AIW")
+        axs.plot(rapid[i], label="rapid")
+        axs.plot(thund[i], label="Thunderstorm")
+        axs.set_ylabel(cols[i])
+        axs.set_xlabel("switching rate")
+        plt.legend()
+        plt.show()
 
 
 

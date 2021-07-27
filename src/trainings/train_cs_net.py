@@ -7,7 +7,7 @@ class TrainInceptionNet(NetworkFacade):
     def __init__(self):
         super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_new_decodeL_csL",
                                                 get_root_path()+r"/trainings/wavelet/training_lvl2/cp-10000.ckpt")
-        self.train_loops = 30
+        self.train_loops = 0
 
 class TrainCVNet(NetworkFacade):
     def __init__(self):
