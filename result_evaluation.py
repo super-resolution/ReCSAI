@@ -9,6 +9,8 @@ from src.models.cs_model import CompressedSensingNet, CompressedSensingInception
 from src.models.wavelet_model import WaveletAI
 from Thunderstorm_jaccard import read_Thunderstorm
 import pandas as pd
+from src.data import *
+from scipy.ndimage.filters import uniform_filter
 
 def read_Rapidstorm(path):
     data = pd.read_csv(path, header=1, delim_whitespace=True).as_matrix()
@@ -228,7 +230,7 @@ def validate_cs_inception_model():
         optimizer = tf.keras.optimizers.Adam()
         # accuracy = tf.metrics.Accuracy()
         ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './src/trainings/cs_training_inception_increased_depth',
+        manager = tf.train.CheckpointManager(ckpt, './trainings/cs_inception/_new',
                                              max_to_keep=3)
         ckpt.restore(manager.latest_checkpoint)
         if manager.latest_checkpoint:
@@ -236,11 +238,11 @@ def validate_cs_inception_model():
         else:
             print("Initializing from scratch.")
 
-        cs_net.update(150, 100)
+        cs_net.sigma = 150
 
         denoising = WaveletAI()
 
-        checkpoint_path = "training_lvl3/cp-10000.ckpt"
+        checkpoint_path = "./trainings/wavelet/training_lvl2/cp-10000.ckpt"
 
         denoising.load_weights(checkpoint_path)
         result_list_ai = []  # jac,rmse,fp,fn,tp
@@ -277,32 +279,43 @@ def validate_cs_inception_model():
             thresh = 0.5
 
 
+
             for i in range(result_tensor.shape[0]):
                 if coord_list[i][2] == current_frame:
-                    classifier = result_tensor[i, :, :, 2]
-                    indices = np.where(classifier > thresh)
+                    classifier = uniform_filter(result_tensor[i, :, :, 2], size=1)
+
+
                     if np.sum(classifier) > 0.6:
-                        classifier[np.where(classifier < 0.1)] = 0
+                        classifier[np.where(classifier < 0.3)] = 0
                         indices = get_coords(classifier).T
                         x = result_tensor[i, indices[0], indices[1], 0]
                         y = result_tensor[i, indices[0], indices[1], 1]
+                        dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
+                        dy = result_tensor[i, indices[0], indices[1], 4]
 
                         for j in range(indices[0].shape[0]):
-                            current_frame_locs.append(coord_list[i][0:2] + np.array(
-                                [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j] ]))
+                            if dx[j] < 0.9 and dy[j] < 0.9:
+                                current_frame_locs.append(coord_list[i][0:2] + np.array(
+                                    [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j] ]))
                 else:
                     per_fram_locs.append(np.array(current_frame_locs))
                     current_frame = coord_list[i][2]
                     current_frame_locs = []
 
-                    classifier = result_tensor[i, :, :, 2]
-                    indices = np.where(classifier > thresh)
+                    classifier = uniform_filter(result_tensor[i, :, :, 2], size=1)
+                    classifier[np.where(classifier < 0.3)] = 0
+
+                    indices = get_coords(classifier).T
+
                     x = result_tensor[i, indices[0], indices[1], 0]
                     y = result_tensor[i, indices[0], indices[1], 1]
+                    dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
+                    dy = result_tensor[i, indices[0], indices[1], 4]
 
                     for j in range(indices[0].shape[0]):
-                        current_frame_locs.append(coord_list[i][0:2] + np.array(
-                            [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j]]))
+                        if dx[j] < 0.9 and dy[j] < 0.9:
+                            current_frame_locs.append(coord_list[i][0:2] + np.array(
+                                [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j]]))
             # append last frame
             per_fram_locs.append(np.array(current_frame_locs))
             # todo: create a test function for jaccard
@@ -328,24 +341,24 @@ def validate_cs_inception_model():
 
 if __name__ == '__main__':
     #create_test_data()
-    # validate_cs_inception_model()
+    validate_cs_inception_model()
     # validate_rapidstorm()
-    # rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
-    # ai = np.load(os.getcwd() +r"\test_data\ai_results_csI.npy", allow_pickle=True)
-    # #ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)
+    rapid = np.load(os.getcwd() +r"\test_data\rapidstorm_results.npy", allow_pickle=True)
+    ai = np.load(os.getcwd() +r"\test_data\ai_results_csI.npy", allow_pickle=True)
+    #ai_wave = np.load(os.getcwd() +r"\test_data\ai_results_wave.npy", allow_pickle=True)
     #
-    # thund = np.load(os.getcwd() +r"\test_data\thunderstorm_results.npy", allow_pickle=True)
-    # cols = ["jaccard", "rmse", "fp", "fn"]
-    # for i in range(4):
-    #     fig,axs = plt.subplots()
-    #     axs.plot(ai[i], label="AI")
-    #     #axs.plot(ai_wave[i], label="AIW")
-    #     axs.plot(rapid[i], label="rapid")
-    #     axs.plot(thund[i], label="Thunderstorm")
-    #     axs.set_ylabel(cols[i])
-    #     axs.set_xlabel("switching rate")
-    #     plt.legend()
-    #     plt.show()
+    thund = np.load(os.getcwd() +r"\test_data\thunderstorm_results.npy", allow_pickle=True)
+    cols = ["jaccard", "rmse", "fp", "fn"]
+    for i in range(4):
+        fig,axs = plt.subplots()
+        axs.plot(ai[i], label="AI")
+        #axs.plot(ai_wave[i], label="AIW")
+        axs.plot(rapid[i], label="rapid")
+        axs.plot(thund[i], label="Thunderstorm")
+        axs.set_ylabel(cols[i])
+        axs.set_xlabel("switching rate")
+        plt.legend()
+        plt.show()
 
 
 
