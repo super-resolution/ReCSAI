@@ -232,7 +232,7 @@ def validate_cs_inception_model():
         optimizer = tf.keras.optimizers.Adam()
         # accuracy = tf.metrics.Accuracy()
         ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './trainings/cs_inception/_new_decodeL_T3',
+        manager = tf.train.CheckpointManager(ckpt, './trainings/cs_inception/_new_decodeL_ndata_id',
                                              max_to_keep=3)
         ckpt.restore(manager.latest_checkpoint)
         if manager.latest_checkpoint:
@@ -297,7 +297,7 @@ def validate_cs_inception_model():
 
 
                     if np.sum(classifier) > 0.6:
-                        classifier[np.where(classifier < 0.5)] = 0
+                        classifier[np.where(classifier < 0.4)] = 0
                         indices = get_coords(classifier).T
                         x = result_tensor[i, indices[0], indices[1], 0]
                         y = result_tensor[i, indices[0], indices[1], 1]
@@ -305,7 +305,7 @@ def validate_cs_inception_model():
                         dy = result_tensor[i, indices[0], indices[1], 4]
 
                         for j in range(indices[0].shape[0]):
-                            if dx[j] < 0.005 and dy[j] < 0.005:
+                            if dx[j] < 0.05 and dy[j] < 0.05:
                                 current_frame_locs.append(coord_list[i][0:2] + np.array(
                                     [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j] ]))
                 else:
@@ -314,7 +314,7 @@ def validate_cs_inception_model():
                     current_frame_locs = []
 
                     classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
-                    classifier[np.where(classifier < 0.5)] = 0
+                    classifier[np.where(classifier < 0.4)] = 0
 
                     indices = get_coords(classifier).T
 
@@ -324,7 +324,7 @@ def validate_cs_inception_model():
                     dy = result_tensor[i, indices[0], indices[1], 4]
 
                     for j in range(indices[0].shape[0]):
-                        if dx[j] < 0.005 and dy[j] < 0.005:
+                        if dx[j] < 0.05 and dy[j] < 0.05:
                             current_frame_locs.append(coord_list[i][0:2] + np.array(
                                 [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j]]))
             # append last frame

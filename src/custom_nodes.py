@@ -234,7 +234,7 @@ def crop(axis1,axis2,axis3):
 
 
 class IDWT2D(tf.keras.layers.Layer):
-    def __init__(self,shape, level ):#todo: need shape here
+    def __init__(self,shape, level ):#todo: use tf shape here
         super(IDWT2D, self).__init__()
         h_shape = int(shape/2)
         self.levels = level
