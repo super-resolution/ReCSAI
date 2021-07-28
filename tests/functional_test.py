@@ -64,7 +64,7 @@ def create(im_shape):
     #done: run layer
 class ViewLayerOutputs():
     def __init__(self):
-        path = get_root_path() + r"/trainings/cs_inception/_new_decodeL_T3"
+        path = get_root_path() + r"/trainings/cs_inception/_new_decodeL_ndata"
         self.network = CompressedSensingInceptionNet()
         self.optimizer = tf.keras.optimizers.Adam(1e-4)
         self.network.sigma = 150
@@ -83,7 +83,7 @@ class ViewLayerOutputs():
             crop_new[:, :, i] = crop
         crop = crop_new.astype(np.float32)
         crop /= crop.max()
-        crop_tensor = tf.constant((crop*3), dtype=tf.float64)
+        crop_tensor = tf.constant((crop), dtype=tf.float64)
         im = tf.stack([crop_tensor, crop_tensor])
         out,cs_out = self.network.inception1(im)
 #        print(self.network.inception1.cs.lam)

@@ -24,7 +24,7 @@ class CompressedSensingInception(tf.keras.layers.Layer):
 
         #self.max_pooling_x1 = tf.keras.layers.MaxPooling2D(pool_size=(4,4),strides=(4,4),padding="same")#reduce dimension todo try not to use max pooling...
         #self.max_pooling_x2 = tf.keras.layers.MaxPooling2D(pool_size=(2,2), strides=(2,2),padding="same")#reduce dimension
-        self.x_path = [#self.convolution1x1_x1,
+        self.x_path = [self.convolution1x1_x1,
                        self.cs,
                        self.reshape,  #72x72x1
                        self.convolution5x1_x,  #72x72x1
@@ -81,12 +81,13 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         z = self.hidden1(z)
         z = self.hidden2(z)
         z = self.hidden3(z)
-
+        #print(z.numpy())
 
         #todo: split input in three..
         x = input
-        x = self.x_path[0](x, z)
-        for i,layer in enumerate(self.x_path[1:]):
+        x = self.x_path[0](x)
+        x = self.x_path[1](x, z*0.02)
+        for i,layer in enumerate(self.x_path[2:]):
             x = layer(x)
             if i==0:
                 cs_out = x#todo: additional loss with mat mul
@@ -173,9 +174,11 @@ class CompressedSensing(tf.keras.layers.Layer):
 
 
     def psf_initializer(self):
+        print("setting sigma")
+
         #mat1 = create_psf_matrix(9, 8, self.psf)
         v = self._sigma/self._px_size
-        mat = old_psf_matrix(9,9,72,72, v*9/(64),v*9/(64)).T#todo: WTF why is this like this???
+        mat = old_psf_matrix(9,9,72,72, v*8/(81),v*8/(81)).T#todo: WTF why is this like this???
         # mat1 /= mat1[0,0]
         # mat1 *= mat[0,0]
         return mat
@@ -207,3 +210,23 @@ class CompressedSensing(tf.keras.layers.Layer):
             r.append(y_new)
 
         return tf.stack(r,axis=-1)
+
+class CompressedSensingConvolutional(tf.keras.layers.Layer):
+    def __init__(self,*args, **kwargs):
+        super(CompressedSensingConvolutional, self).__init__(*args, **kwargs, dtype="float32")
+        self._iterations = tf.constant(200, dtype=tf.int32)
+
+        self._sigma =150
+        self._px_size = 100
+        self.matrix_update()#mat and psf defined outside innit
+
+        self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
+        #self.lam = tf.Variable(initial_value=tf.ones((1))*0.005, dtype=tf.float32, name="lambda",
+         #                      trainable=True)#was0.005
+        #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
+        #self.sparse_dense = tf.keras.layers.Lambda(dense)003
+        self.y = tf.constant(tf.zeros((5184,3)), dtype=tf.float32)[tf.newaxis, :]#todo: use input dim
+        #self.result = tf.Variable(np.zeros((73,73,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]
+        self.flatten= tf.keras.layers.Flatten()
+        self.tcompute = tf.keras.layers.Lambda(lambda t: (1+tf.sqrt(1+4*tf.square(t)))/2)
+        self.matmul = tf.keras.layers.Lambda(lambda x: tf.keras.backend.dot(x,x))

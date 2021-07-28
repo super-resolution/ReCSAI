@@ -63,7 +63,7 @@ class NetworkFacade():
             classifier =uniform_filter(result_tensor[i, :, :, 2], size=3)*9
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
-                classifier[np.where(classifier < 0.3)] = 0
+                classifier[np.where(classifier < 0.2)] = 0
                 #indices = np.where(classifier>self.threshold)
 
                 indices = get_coords(classifier).T
@@ -137,7 +137,7 @@ class NetworkFacade():
     def loop_d(self, iterator, save=True):
         for j in range(3):
             train_image,noiseless_gt, coords,t = iterator.get_next()#todo: noiseless image here
-            for i in range(50):
+            for i in range(20):
                 loss_value = self.train_step_d(train_image, noiseless_gt, coords)
                 self.ckpt.step.assign_add(1)
                 if int(self.ckpt.step) % 10 == 0 and save:

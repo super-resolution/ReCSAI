@@ -276,7 +276,7 @@ def crop_generator_saved_file_coords():
                 per_image[k,0:2] = c
                 per_image[k, 2] = 1
             coords.append(np.array(per_image))
-        yield data[i], noiseless[i]/noiseless[i].max(), np.array(coords), truth[i]
+        yield data[i], noiseless[i], np.array(coords), truth[i]
 
 
 if __name__ == '__main__':

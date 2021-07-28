@@ -2,7 +2,7 @@ from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInce
 #from tensorflow.keras.layers import *
 import tensorflow as tf
 from src.custom_layers.utility_layer import downsample,upsample
-import tensorflow_probability as tfp
+#import tensorflow_probability as tfp
 import math as m
 
 #todo: imitate yolo architecture and use 9x9 output grid
@@ -12,6 +12,9 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         super(CompressedSensingInceptionNet, self).__init__()
         self.inception1 = CompressedSensingInception(iterations=10)
         self.batch_norm = tf.keras.layers.BatchNormalization()
+        self.inception2 = CompressedSensingInception(iterations=10)
+        self.batch_norm2 = tf.keras.layers.BatchNormalization()
+
         #todo: extend depth?
         self.ReduceSum = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[-1,-2]))
         self.ReduceSumKD = tf.keras.layers.Lambda(lambda z: tf.keras.backend.sum(z, axis=[-1,-2], keepdims=True))
@@ -57,8 +60,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         x = inputs
         x, cs = self.inception1(x, training=training)
         x = self.batch_norm(x)
-        # x = self.inception2(x, training=training)
-        # x = self.batch_norm2(x)
+        x,_ = self.inception2(x, training=training)
+        x = self.batch_norm2(x)
 
         for layer in self.horizontal_path:
             x = layer(x)
@@ -260,7 +263,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
                             )
         #L2+= 1000*ce(predict[:, :, :, 2],truth_i[:,:,:,2])
         sigma_c = self.ReduceSum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]))
-        #i=0
+        #i=0#todo: learn background and photon count
         c_loss = tf.reduce_sum(1/2*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*m.pi*sigma_c)))
         return  L2+c_loss
 
