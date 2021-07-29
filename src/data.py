@@ -106,7 +106,20 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_g
                 image_list.append(image_s)
                 image_noiseless_list.append(image_noiseless)
             if noiseless_ground_truth:
-                yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list), tf.convert_to_tensor(image_noiseless_list)  # todo: shuffle?
+                current = np.array(truth_cs_list)
+                coords = []
+                for j in range(current.shape[0]):
+                    page = current[j]
+                    indices = np.array(np.where(page[:, :, 2] == 1))
+                    per_image = np.zeros((10, 3))
+                    for k, ind in enumerate(indices.T):
+                        c = ind + np.array(
+                            [page[ind[0], ind[1], 0], page[ind[0], ind[1], 1]]) + 0.5  # this is probably wrong!
+                        per_image[k, 0:2] = c
+                        per_image[k, 2] = 1
+                    coords.append(np.array(per_image))
+                yield tf.convert_to_tensor(image_list),  tf.convert_to_tensor(image_noiseless_list),\
+                      tf.convert_to_tensor(coords),  tf.convert_to_tensor(truth_cs_list),# todo: change in create data
             else:
                 yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list)#todo: shuffle?
     return generator

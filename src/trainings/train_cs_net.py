@@ -2,6 +2,7 @@ from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet,Com
 from src.facade import NetworkFacade
 from src.utility import get_root_path
 
+CURRENT_INCEPTION_NETWORK_PATH = get_root_path()+r"/trainings/cs_inception/_new_decodeL_ndata_id"
 
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):

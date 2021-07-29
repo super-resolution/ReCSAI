@@ -55,7 +55,7 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         self.down2 = downsample(24,5,strides=3)
         self.hidden1 = tf.keras.layers.Dense(24)
         self.hidden2 = tf.keras.layers.Dense(12)
-        self.hidden3 = tf.keras.layers.Dense(1)
+        self.hidden3 = tf.keras.layers.Dense(2)
 
 
         # self.up1 = upsample(12,3,strides=3)
@@ -80,13 +80,13 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         z = tf.keras.layers.Flatten()(z)
         z = self.hidden1(z)
         z = self.hidden2(z)
-        z = self.hidden3(z)
+        param = self.hidden3(z)
         #print(z.numpy())
 
         #todo: split input in three..
         x = input
         x = self.x_path[0](x)
-        x = self.x_path[1](x, z*0.02)
+        x = self.x_path[1](x, param)
         for i,layer in enumerate(self.x_path[2:]):
             x = layer(x)
             if i==0:
@@ -128,7 +128,7 @@ class CompressedSensing(tf.keras.layers.Layer):
         self._px_size = 100
         self.matrix_update()#mat and psf defined outside innit
 
-        self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
+        #self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
         #self.lam = tf.Variable(initial_value=tf.ones((1))*0.005, dtype=tf.float32, name="lambda",
          #                      trainable=True)#was0.005
         #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
@@ -190,7 +190,10 @@ class CompressedSensing(tf.keras.layers.Layer):
         return one-two
 
     #@tf.function
-    def __call__(self, input, lam):
+    def __call__(self, input, param):
+        lam = param[:,0]
+        mu = param[:,1]
+        print(lam)
         inp = tf.unstack(input, axis=-1)
         y_n = tf.unstack(self.y, axis=-1)
         r = []
@@ -201,8 +204,8 @@ class CompressedSensing(tf.keras.layers.Layer):
             t = tf.constant((1.0),dtype=tf.float32)
             for j in range(self.iterations):#todo iteration as variable
                 re =tf.linalg.matvec(self.mat, im - tf.linalg.matvec(tf.transpose(self.mat), y_tmp))
-                w = y_tmp+1/self.mu*re
-                y_new = self.softthresh2(w, lam/self.mu)#todo: not exactly the same as softthresh
+                w = y_tmp+1/mu*re
+                y_new = self.softthresh2(w, lam/mu)#todo: not exactly the same as softthresh
                 t_n = self.tcompute(t)
                 y_tmp = y_new+ (t-1)/t_n*(y_new-y_new_last_it)
                 y_new_last_it = y_new

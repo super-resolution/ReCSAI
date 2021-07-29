@@ -80,7 +80,7 @@ class NetworkFacade():
         print(np.mean(np.array(test),axis=0))
         return np.array(result_array)
 
-    def predict(self, image, drift_path=None):
+    def predict(self, image, drift_path=None, raw=False):
         if drift_path:
             drift = pd.read_csv(drift_path).as_matrix()#r"C:\Users\biophys\Downloads\confocalSTORM_beads+MT\alpha_drift.csv"
         #todo: implement drift
@@ -98,6 +98,8 @@ class NetworkFacade():
                 coord_list[z][2] += j * 5000
             print(crop_tensor.shape[0])
             result_tensor = self.network.predict(crop_tensor)
+            if raw:
+                return result_tensor, coord_list
             if self.network.TYPE == self.IMAGE_ENCODING:
                 result = self.get_localizations_from_image_tensor(result_tensor, coord_list)
             elif self.network.TYPE == self.COORDINATE_ENCODING:
@@ -137,7 +139,7 @@ class NetworkFacade():
     def loop_d(self, iterator, save=True):
         for j in range(3):
             train_image,noiseless_gt, coords,t = iterator.get_next()#todo: noiseless image here
-            for i in range(20):
+            for i in range(400):
                 loss_value = self.train_step_d(train_image, noiseless_gt, coords)
                 self.ckpt.step.assign_add(1)
                 if int(self.ckpt.step) % 10 == 0 and save:
@@ -165,6 +167,16 @@ class NetworkFacade():
         iterator = iter(dataset)
 
         self.loop(iterator, save=False)
+
+    def pretrain_current_sigma_d(self):
+        sigma = self.sigma
+        generator = crop_generator_u_net(9, sigma_x=sigma, noiseless_ground_truth=True)
+        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 10, 3),(1*100, 9, 9, 4) ))
+        iterator = iter(dataset)
+
+        self.loop_d(iterator)
+
 
     def train(self):
         for j in range(self.train_loops):

@@ -12,7 +12,7 @@ import pandas as pd
 from src.data import data_generator_coords
 from src.utility import bin_localisations_v2, get_coords, get_root_path
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
-
+from src.trainings.train_cs_net import TrainInceptionNet
 
 def read_Rapidstorm(path):
     data = pd.read_csv(path, header=1, delim_whitespace=True).as_matrix()
@@ -139,7 +139,7 @@ def validate_thunderstorm():
     np.save(os.getcwd() +r"\test_data\thunderstorm_results.npy", thunderstorm_final)
 
 def validate_cs_model():
-    cs_net = CompressedSensingNet()
+    cs_net =TrainInceptionNet
     # Create a callback that saves the model's weights every 5 epochs
     optimizer = tf.keras.optimizers.Adam()
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
@@ -227,35 +227,22 @@ def validate_cs_model():
     np.save(os.getcwd() +r"\test_data\ai_results_cs4.npy", ai_final)
 
 def validate_cs_inception_model():
-        cs_net = CompressedSensingInceptionNet()
+        facade = TrainInceptionNet()
         # checkpoint_path = "cs_training/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
-        optimizer = tf.keras.optimizers.Adam()
-        # accuracy = tf.metrics.Accuracy()
-        ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=cs_net)
-        manager = tf.train.CheckpointManager(ckpt, './trainings/cs_inception/_new_decodeL_ndata_id',
-                                             max_to_keep=3)
-        ckpt.restore(manager.latest_checkpoint)
-        if manager.latest_checkpoint:
-            print("Restored from {}".format(manager.latest_checkpoint))
-        else:
-            print("Initializing from scratch.")
 
-        cs_net.sigma = 150
+        facade.sigma = 150
 
-        denoising = WaveletAI()
+        facade.pretrain_current_sigma_d()
 
-        checkpoint_path = "./trainings/wavelet/training_lvl2/cp-10000.ckpt"
-
-        denoising.load_weights(checkpoint_path)
         result_list_ai = []  # jac,rmse,fp,fn,tp
 
         for i in range(10):
-            image = os.getcwd() + r"\test_data\dataset_n" + str(
+            image_p = os.getcwd() + r"\test_data\dataset_n" + str(
                 i) + ".tif"  # r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction_flim.tif"
             truth = os.getcwd() + r"\test_data\dataset_n" + str(
                 i) + ".npy"  # r"C:\Users\biophys\PycharmProjects\ISTA\artificial_data\100x100maxi_batch\coordinate_reconstruction.npz"
             #gen = data_generator_coords(image, offset=0)
-            gen = data_generator_coords(image, offset=0)
+            gen = data_generator_coords(image_p, offset=0)
             image = np.zeros((100, 128, 128, 3))
             # truth = np.zeros((100, 64, 64, 3))
             truth_coords = np.load(truth, allow_pickle=True)
@@ -280,10 +267,10 @@ def validate_cs_inception_model():
             # image_tf2 = tf.convert_to_tensor(image[90:100, :, :])#todo: use 20% test
             # truth_tf1 = tf.convert_to_tensor(truth[0:90, :, :])
             # truth_tf2 = tf.convert_to_tensor(truth[90:100, :, :])#todo: use 20% test
+            with TiffFile(image_p) as tif:
+                x = tif.asarray()
 
-            data, truth_new, coord_list = bin_localisations_v2(image_tf1, denoising, truth_array=truth_coords[:],
-                                                               th=0.15)
-            result_tensor = cs_net.predict(data)
+            result_tensor, coord_list = facade.predict(x, raw=True)
             per_fram_locs = []
             current_frame = 0
             current_frame_locs = []
