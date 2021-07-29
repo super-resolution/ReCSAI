@@ -10,7 +10,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
     TYPE = 0
     def __init__(self):
         super(CompressedSensingInceptionNet, self).__init__()
-        self.inception1 = CompressedSensingInception(iterations=1000)
+        self.inception1 = CompressedSensingInception(iterations=10)
         self.batch_norm = tf.keras.layers.BatchNormalization()
         self.inception2 = CompressedSensingInception(iterations=10)
         self.batch_norm2 = tf.keras.layers.BatchNormalization()
@@ -224,7 +224,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         STD = l2(self.sigma/100, predict[:,:,:,5])
         return 1*BCE+tf.reduce_sum(L2)#+count_loss#tf.reduce_sum(L2)+BCE#count_loss
 
-    def compute_loss_decode(self, truth,predict, noiseless_gt, cs_out):
+    def compute_loss_decode(self, truth,predict, noiseless_gt, cs_out, data):
 
         l2 = tf.keras.losses.MeanSquaredError()#todo: switched to l1
 
@@ -265,7 +265,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         sigma_c = self.ReduceSum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]))
         #i=0#todo: learn background and photon count
         c_loss = tf.reduce_sum(1/2*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*m.pi*sigma_c)))
-        return  L2+c_loss
+        b_loss = l2(data[:,:,:,1]-noiseless_gt,predict[:,:,:,5])
+        return  L2+c_loss+ b_loss
 
     def compute_data_loss_perfect_reconstruction(self):
         pass

@@ -149,7 +149,7 @@ class NetworkFacade():
 
         train_image,noiseless_gt, coords,t = iterator.get_next()
         pred,cs_out = self.network(train_image, training=True)
-        vloss = self.network.compute_loss_decode(coords, pred, noiseless_gt, cs_out)
+        vloss = self.network.compute_loss_decode(coords, pred, noiseless_gt, cs_out, train_image)
         print(f"validation loss = {vloss}" )
         self.metrics.update_state(coords.numpy(), pred.numpy())
         accuracy = self.metrics.result(int(self.ckpt.step))
@@ -210,7 +210,7 @@ class NetworkFacade():
     def train_step_d(self, train_image,noiseless_gt, coords):
         with tf.GradientTape() as tape:
             logits, cs_out = self.network(train_image, training=True)
-            loss = self.network.compute_loss_decode(coords, logits, noiseless_gt, cs_out)#todo, cs_out, noiseless_gt)
+            loss = self.network.compute_loss_decode(coords, logits, noiseless_gt, cs_out, train_image)#todo, cs_out, noiseless_gt)
         gradients = tape.gradient(loss, self.network.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.network.trainable_variables))
         return loss
@@ -273,6 +273,8 @@ class NetworkFacade():
                 fig,axs = plt.subplots(3,3)
                 axs[0][0].imshow(truth[i, :, :, 2])
                 axs[0][1].imshow(result[i,:,:,2])
+                axs[0][2].imshow(result[i,:,:,5])
+
 
                 axs[1][0].imshow(truth[i, :, :, 1])
                 axs[1][1].imshow(result[i,:,:,1])

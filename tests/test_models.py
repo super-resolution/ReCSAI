@@ -131,7 +131,7 @@ class TestCsInceptionNet(BaseTest):
         #                                  + tf.square(predict[:,:, :, 1] + X - truth[:,i:i+1,1:2])
         #                                  / predict[:, :, :, 4]  # todo: activation >= 0
         #                                  )))
-        print(self.network.compute_loss_decode(truth,predict,0))
+        print(self.network.compute_loss_decode(truth,predict,0))#todo: adjust parameters
         self.fail()
 
 
