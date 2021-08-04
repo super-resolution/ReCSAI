@@ -241,9 +241,9 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         X, Y = tf.meshgrid(x, x)
         L2 = tf.constant(0.0)
         count = tf.zeros(tf.shape(truth)[0])
-        for j in range(3):
+        for j in range(10):
             count += truth[:,j,2]
-        for i in range(3):
+        for i in range(10):#up to 10 localisations
 
             L2 += tf.reduce_sum(truth[:,i,2]/(count+0.001)*(-tf.math.log(self.ReduceSum(
                 predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])
@@ -265,7 +265,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         sigma_c = self.ReduceSum(predict[:,:, :, 2] * (1 - predict[:, :,:, 2]))
         #i=0#todo: learn background and photon count
         c_loss = tf.reduce_sum(1/2*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*m.pi*sigma_c)))
-        b_loss = l2(data[:,:,:,1]-noiseless_gt,predict[:,:,:,5])
+        b_loss = l2(data[:,:,:,1]-noiseless_gt[:,:,:,1],predict[:,:,:,5])
         return  L2+c_loss+ b_loss
 
     def compute_data_loss_perfect_reconstruction(self):

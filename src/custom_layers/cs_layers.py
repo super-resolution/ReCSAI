@@ -55,7 +55,7 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         self.down2 = downsample(24,5,strides=3)
         self.hidden1 = tf.keras.layers.Dense(24)
         self.hidden2 = tf.keras.layers.Dense(12)
-        self.hidden3 = tf.keras.layers.Dense(2)
+        self.hidden3 = tf.keras.layers.Dense(1)
 
 
         # self.up1 = upsample(12,3,strides=3)
@@ -191,8 +191,8 @@ class CompressedSensing(tf.keras.layers.Layer):
 
     #@tf.function
     def __call__(self, input, param):
-        lam = param[:,0]
-        mu = param[:,1]
+        lam = 0.01+tf.keras.activations.relu(param)
+        mu = 1.0
         print(lam)
         inp = tf.unstack(input, axis=-1)
         y_n = tf.unstack(self.y, axis=-1)

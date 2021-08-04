@@ -9,7 +9,7 @@ from astropy.convolution import Gaussian2DKernel
 from src.utility import get_root_path
 
 CROP_TRANSFORMS = 4
-OFFSET=14
+OFFSET=0
 
 def build_switching_array(n):
     bef_after = np.random.randint(0, 2, 2 * n)
@@ -218,14 +218,14 @@ def real_data_generator(im_shape, switching_rate=0.2):
 
 def generate_generator(image):
     def data_generator_real():
-        for i in range(1):
-            dat = image[i * 10000:(i + 1) * 10000,]#14:-14,14:-14]
+        for i in range(3):
+            dat = image[i * 5000:(i + 1) * 5000,]#14:-14,14:-14]
             #dat = dat[:dat.shape[0]//4*4]
             #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
             #dat[:,1::2,1:] = dat[:,1::2,:-1]
             dat -= dat.min()
-            data = np.zeros((dat.shape[0], 128, 128, 3))  # todo: this is weird data
+            data = np.zeros((dat.shape[0], dat.shape[1], dat.shape[1], 3))  # todo: this is weird data
             data[:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 1] = dat
             data[1:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 0] = dat[:-1]
             data[:-1, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 2] = dat[1:]

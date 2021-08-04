@@ -19,11 +19,16 @@ class JaccardIndex():
         self.fp = 0
         self.fn = 0
         self.error = []
+        self.accuracy = 0
 
     def save(self):
         np.save(self.path, np.array(self.result_manager))
 
-    def update_state(self, y_true, y_pred, sample_weight=None):
+    def update_state(self, y_true, y_pred, validation=None, sample_weight=None):
+        if validation:
+            self.accuracy = validation
+        else:
+            self.accuracy = 0
         try:
             coords = result_image_to_coordinates(y_true)
         except: #this is for coordinate truth data
@@ -58,7 +63,7 @@ class JaccardIndex():
         if self.values:
             jac = self.tp/ (self.tp + self.fp + self.fn)
             rmse = np.std(np.array(self.error))
-            self.result_manager.append(np.array([step, jac, rmse]))
+            self.result_manager.append(np.array([step, jac, rmse, self.accuracy]))
             return jac, rmse, self.fp, self.fn
         else:
             self.result_manager.append(np.array([step, 0.0, 9000]))

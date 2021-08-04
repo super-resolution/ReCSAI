@@ -12,9 +12,9 @@ from scipy.ndimage.filters import gaussian_filter, uniform_filter
 class NetworkFacade():
     IMAGE_ENCODING = 0
     COORDINATE_ENCODING = 1
-    def __init__(self, network_class, path, denoising_chkpt):
+    def __init__(self, network_class, path, denoising_chkpt, shape=128):
         self.network = network_class()
-        self.denoising = WaveletAI()
+        self.denoising = WaveletAI(shape=shape)
 
         self.denoising.load_weights(denoising_chkpt)
 
@@ -61,6 +61,8 @@ class NetworkFacade():
         for i in range(result_tensor.shape[0]):
 
             classifier =uniform_filter(result_tensor[i, :, :, 2], size=3)*9
+            #plt.imshow(classifier)
+            # plt.show()
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
                 classifier[np.where(classifier < 0.2)] = 0
@@ -138,8 +140,8 @@ class NetworkFacade():
 
     def loop_d(self, iterator, save=True):
         for j in range(3):
-            train_image,noiseless_gt, coords,t = iterator.get_next()#todo: noiseless image here
-            for i in range(400):
+            train_image,noiseless_gt, coords,t = iterator.get_next()#done: noiseless image here
+            for i in range(50):
                 loss_value = self.train_step_d(train_image, noiseless_gt, coords)
                 self.ckpt.step.assign_add(1)
                 if int(self.ckpt.step) % 10 == 0 and save:
@@ -151,7 +153,7 @@ class NetworkFacade():
         pred,cs_out = self.network(train_image, training=True)
         vloss = self.network.compute_loss_decode(coords, pred, noiseless_gt, cs_out, train_image)
         print(f"validation loss = {vloss}" )
-        self.metrics.update_state(coords.numpy(), pred.numpy())
+        self.metrics.update_state(coords.numpy(), pred.numpy(), validation=vloss)#todo: save accuracy with metrics
         accuracy = self.metrics.result(int(self.ckpt.step))
         print("jaccard index {:1.2f}".format(accuracy[0])+ " rmse {:1.2f}".format(accuracy[1]) +
               " fp {:1.2f}".format(accuracy[2]) + " fn {:1.2f}".format(accuracy[3]))
@@ -163,7 +165,6 @@ class NetworkFacade():
         generator = crop_generator_u_net(9, sigma_x=sigma, noiseless_ground_truth=True)
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32,tf.float32 ,tf.float32),
                                                  output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4), (1 * 100, 9, 9, 3)))
-        # self.sigma = sigma#todo: reactivate!!!!!
         iterator = iter(dataset)
 
         self.loop(iterator, save=False)

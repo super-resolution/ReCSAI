@@ -69,15 +69,15 @@ def dwt1d(input_node, wavelet, levels=1):
     return tf.concat(coeffs, axis=2)
 
 class DWT2D(Layer):
-    def __init__(self, level):
+    def __init__(self,shape, level ):
         super(DWT2D, self).__init__()
         self.padding = []
+        amplifier = shape/128
         self.levels = level
-        p= 8
         pad = 0
         for i in range(level):
             self.padding.append(ZeroPadding2D(padding=(int(pad), int(pad)), data_format="channels_last"))
-            pad += int(2**(4-i))
+            pad += int(amplifier*2**(4-i))#todo: this depends on image size!
             #x=0
 
     def __call__(self, input_node, wavelet):

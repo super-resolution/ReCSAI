@@ -1,5 +1,6 @@
 import tensorflow as tf
 from src.models.cs_model import CompressedSensingNet, CompressedSensingCVNet, CompressedSensingInceptionNet
+from src.models.wavelet_model import WaveletAI
 from unittest import skip
 from tests.test import BaseTest
 import copy
@@ -11,6 +12,18 @@ import seaborn as sns
 import functools
 import matplotlib.pyplot as plt; plt.style.use('ggplot')
 
+class TestWaveletNet(BaseTest):
+    def setUp(self):
+        self.network = WaveletAI(test=True, )
+
+    def test_full_reconstruction(self):
+        data_old = np.random.random((1,128,128,1))
+        data = self.network(copy.deepcopy(data_old))
+        fig,axs= plt.subplots(2)
+        axs[0].imshow(data_old[0,:,:,0])
+        axs[1].imshow(data[0,:,:,0])
+        plt.show()
+        self.assertAllClose(data_old,data,atol=1e-3)
 
 class TestCompressedSensingNet(BaseTest):
     def setUp(self):

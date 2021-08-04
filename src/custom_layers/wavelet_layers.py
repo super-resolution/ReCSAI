@@ -80,13 +80,14 @@ class FullWavelet(tf.keras.layers.Layer):
             dtype=tf.float32,)
         self.activation = tf.keras.layers.ReLU(max_value=1.0)
         self.idwt2d = nodes.IDWT2D(shape, level=level )
-        self.dwt2 = nodes.DWT2D(level=level)
+        self.dwt2 = nodes.DWT2D(shape, level=level)
 
-    def call(self, inp):
+    def call(self, inp, test=False):
 
         t = self.dwt2(inp, wavelet=self,)
-        t = tf.math.subtract(t, self.bias)
-        t = tf.keras.activations.relu(t)
+        if not test:
+            t = tf.math.subtract(t, self.bias)
+            t = tf.keras.activations.relu(t)
         t = self.idwt2d(t, wavelet=self)
 
         return t

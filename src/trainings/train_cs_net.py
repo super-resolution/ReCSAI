@@ -3,6 +3,9 @@ from src.facade import NetworkFacade
 from src.utility import get_root_path
 
 CURRENT_INCEPTION_NETWORK_PATH = get_root_path()+r"/trainings/cs_inception/_new_decodeL_ndata_id"
+#todo: increase deapth and save trainingsaccuracy...
+#todo: hope that deapth improves sigma learning
+
 
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
