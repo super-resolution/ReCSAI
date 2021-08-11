@@ -10,9 +10,9 @@ class CompressedSensingInceptionNet(tf.keras.Model):
     TYPE = 0
     def __init__(self):
         super(CompressedSensingInceptionNet, self).__init__()
-        self.inception1 = CompressedSensingInception(iterations=10)
+        self.inception1 = CompressedSensingInception(iterations=100)
         self.batch_norm = tf.keras.layers.BatchNormalization()
-        self.inception2 = CompressedSensingInception(iterations=10)
+        self.inception2 = CompressedSensingInception(iterations=100)
         self.batch_norm2 = tf.keras.layers.BatchNormalization()
 
         #todo: extend depth?
@@ -227,6 +227,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
     def compute_loss_decode(self, truth,predict, noiseless_gt, cs_out, data):
 
         l2 = tf.keras.losses.MeanSquaredError()#todo: switched to l1
+        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
 
 
         #todo: loss for cs part...
@@ -235,7 +236,9 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         inp_ns = tf.unstack(noiseless_gt, axis=-1)#todo: this needs to be an input
         for i,j in zip(inp_cs, inp_ns):
             res = tf.linalg.matvec(tf.transpose(self.inception1.cs.mat), tf.keras.layers.Reshape((5184,), )(i), )
-            loss += l2(tf.keras.layers.Reshape((9,9), )(res/(0.001+tf.reduce_max(res,axis=[1],keepdims=True))),j)
+            val = tf.keras.layers.Reshape((9,9), )(res/(0.001+tf.reduce_max(tf.abs(res),axis=[1],keepdims=True)))
+            loss += 0.001*tf.reduce_sum(tf.square(val-j))
+            loss += 10*l1(val, tf.zeros_like(val))#sparsity constraint
 
         x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
         X, Y = tf.meshgrid(x, x)

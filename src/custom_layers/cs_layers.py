@@ -1,7 +1,7 @@
 import tensorflow as tf
 from src.utility import get_psf,create_psf_matrix,old_psf_matrix
 from src.custom_layers.utility_layer import downsample,upsample
-
+from tensorflow.keras import initializers
 
 class CompressedSensingInception(tf.keras.layers.Layer):
     def __init__(self,*args, iterations=100, **kwargs ):
@@ -16,7 +16,9 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         self.cs.iterations = iterations
         self.reshape = tf.keras.layers.Reshape((72, 72, 3), )#done: compare low iteration with high iteration and implement additional loss
         #self.padding = tf.keras.layers.Lambda(lambda x:  tf.pad(x, paddings, "REFLECT"))
-        self.convolution1x1_x1 = tf.keras.layers.Conv2D(3,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dim to 1 for cs max intensity proj? padding doesnt matter
+        self.convolution1x1_x1 = tf.keras.layers.Conv2D(3,(1,1), activation=tf.keras.layers.LeakyReLU(),
+                                                        kernel_initializer=initializers.truncated_normal(mean=1.0, stddev=0.3),
+                                                        kernel_constraint=tf.keras.constraints.non_neg())#reduce dim to 1 for cs max intensity proj? padding doesnt matter
         self.convolution1x1_x2 = tf.keras.layers.Conv2D(8,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dimension after max pooling
         self.convolution5x1_x = tf.keras.layers.Conv2D(16,(5,1),strides=(2,2), activation=None,padding="same")#reduce dim by 2 todo: prio2 include asymetric
         self.convolution1x5_x2 = tf.keras.layers.Conv2D(32,(1,5),strides=(2,2), activation=None,padding="same")#reduce dim by 2 todo: prio2 include asymetric
@@ -25,12 +27,13 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         #self.max_pooling_x1 = tf.keras.layers.MaxPooling2D(pool_size=(4,4),strides=(4,4),padding="same")#reduce dimension todo try not to use max pooling...
         #self.max_pooling_x2 = tf.keras.layers.MaxPooling2D(pool_size=(2,2), strides=(2,2),padding="same")#reduce dimension
         self.x_path = [self.convolution1x1_x1,
+                        #self.batch_norm1,
                        self.cs,
                        self.reshape,  #72x72x1
                        self.convolution5x1_x,  #72x72x1
                        self.convolution1x5_x2,  # 72x72x1
                        self.convolution5x5_x3,  # 72x72x1
-                       self.batch_norm1,
+
 
                        #self.max_pooling_x1,#18x18x8
                        self.convolution1x1_x2,  #18x18x2
@@ -52,12 +55,13 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         #defince filters for path z micro u net
         #todo: prio1 include skips with concat
         self.down1 = downsample(12,5,strides=3,apply_batchnorm=True)
-        self.down2 = downsample(24,5,strides=3)
-        self.hidden1 = tf.keras.layers.Dense(24)
-        self.hidden2 = tf.keras.layers.Dense(12)
-        self.hidden3 = tf.keras.layers.Dense(1)
+        self.down2 = downsample(24,5,strides=3)#todo: concat sigma here? concat sigma in extra z-path
+        self.hidden1 = tf.keras.layers.Dense(24,kernel_initializer=initializers.RandomNormal(mean=-1,stddev=2),bias_initializer=initializers.Zeros())
+        self.hidden2 = tf.keras.layers.Dense(12,kernel_initializer=initializers.RandomNormal(mean=-1,stddev=2),bias_initializer=initializers.Zeros())
+        self.hidden3 = tf.keras.layers.Dense(1,kernel_initializer=initializers.RandomNormal(mean=-1,stddev=2),bias_initializer=initializers.Zeros(),
+                                             kernel_constraint=tf.keras.constraints.min_max_norm(min_value=1e-6, max_value=0.05,))
 
-
+        self.lam_activation = tf.keras.layers.Lambda(lambda x: 0.1*tf.keras.activations.sigmoid(x))
         # self.up1 = upsample(12,3,strides=3)
         # self.up2 = upsample(3,3,strides=3)
 
@@ -80,13 +84,15 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         z = tf.keras.layers.Flatten()(z)
         z = self.hidden1(z)
         z = self.hidden2(z)
-        param = self.hidden3(z)
+        z = self.hidden3(z)
+        param = self.lam_activation(z)
         #print(z.numpy())
 
         #todo: split input in three..
         x = input
         x = self.x_path[0](x)
-        x = self.x_path[1](x, param)
+
+        x = self.x_path[1](x, param*0.1)
         for i,layer in enumerate(self.x_path[2:]):
             x = layer(x)
             if i==0:
@@ -178,7 +184,7 @@ class CompressedSensing(tf.keras.layers.Layer):
 
         #mat1 = create_psf_matrix(9, 8, self.psf)
         v = self._sigma/self._px_size
-        mat = old_psf_matrix(9,9,72,72, v*8/(81),v*8/(81)).T#todo: WTF why is this like this???
+        mat = old_psf_matrix(9,9,72,72, v*9/(64),v*9/(64)).T#todo: WTF why is this like this???
         # mat1 /= mat1[0,0]
         # mat1 *= mat[0,0]
         return mat
@@ -191,7 +197,7 @@ class CompressedSensing(tf.keras.layers.Layer):
 
     #@tf.function
     def __call__(self, input, param):
-        lam = 0.01+tf.keras.activations.relu(param)
+        lam = param#todo: changed to softplus
         mu = 1.0
         print(lam)
         inp = tf.unstack(input, axis=-1)
