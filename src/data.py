@@ -9,7 +9,7 @@ from astropy.convolution import Gaussian2DKernel
 from src.utility import get_root_path
 
 CROP_TRANSFORMS = 4
-OFFSET=0
+OFFSET=14
 
 def build_switching_array(n):
     bef_after = np.random.randint(0, 2, 2 * n)
@@ -91,7 +91,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_g
 
                 image_s,truth_cs, image_noiseless = build_image(ind, switching_array)
 
-                image_s -= image_s.min()
+                image_s -= image_s.min()#todo: skip normalization
                 image_s += 0.0001
                 image_s /= image_s.max()
                 image_s *= np.random.rand()*0.3+0.7
@@ -101,7 +101,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_g
                 #axs[2].imshow(truth_cs[:,:,2])
 
                 #plt.show()
-
+                image_noiseless /= image_noiseless.max()
                 truth_cs_list.append(truth_cs)
                 image_list.append(image_s)
                 image_noiseless_list.append(image_noiseless)
@@ -118,8 +118,8 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150, seed=0, noiseless_g
                         per_image[k, 0:2] = c
                         per_image[k, 2] = 1
                     coords.append(np.array(per_image))
-                yield tf.convert_to_tensor(image_list),  tf.convert_to_tensor(image_noiseless_list),\
-                      tf.convert_to_tensor(coords),  tf.convert_to_tensor(truth_cs_list),# todo: change in create data
+                yield tf.convert_to_tensor(image_list),  tf.convert_to_tensor(image_noiseless_list),  tf.convert_to_tensor(coords),\
+                      tf.convert_to_tensor(truth_cs_list),# todo: change in create data
             else:
                 yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list)#todo: shuffle?
     return generator
@@ -218,14 +218,14 @@ def real_data_generator(im_shape, switching_rate=0.2):
 
 def generate_generator(image):
     def data_generator_real():
-        for i in range(3):
-            dat = image[i * 5000:(i + 1) * 5000,]#14:-14,14:-14]
+        for i in range(1):
+            dat = image[i * 15000:(i + 1) * 15000,]#14:-14,14:-14]
             #dat = dat[:dat.shape[0]//4*4]
             #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             #dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
             #dat[:,1::2,1:] = dat[:,1::2,:-1]
             dat -= dat.min()
-            data = np.zeros((dat.shape[0], dat.shape[1], dat.shape[1], 3))  # todo: this is weird data
+            data = np.zeros((dat.shape[0], dat.shape[1]+2*OFFSET, dat.shape[1]+2*OFFSET, 3))  # todo: this is weird data
             data[:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 1] = dat
             data[1:, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 0] = dat[:-1]
             data[:-1, OFFSET:OFFSET + dat.shape[1], OFFSET:OFFSET + dat.shape[2], 2] = dat[1:]
@@ -273,9 +273,9 @@ def crop_generator_saved_file_EX():
         yield data[i], truth[i], noiseless[i]
 
 def crop_generator_saved_file_coords():
-    data = np.load(get_root_path() +r"/crop_dataset_train_VS.npy", allow_pickle=True).astype(np.float32)
-    truth = np.load(get_root_path() +r"/crop_dataset_truth_VS.npy", allow_pickle=True).astype(np.float32)
-    noiseless = np.load(get_root_path() +r"/crop_dataset_noiseless_VS.npy", allow_pickle=True).astype(np.float32)
+    data = np.load(get_root_path() +r"/crop_dataset_train_VS_1000.npy", allow_pickle=True).astype(np.float32)
+    truth = np.load(get_root_path() +r"/crop_dataset_truth_VS_1000.npy", allow_pickle=True).astype(np.float32)
+    noiseless = np.load(get_root_path() +r"/crop_dataset_noiseless_VS_1000.npy", allow_pickle=True).astype(np.float32)
 
     for i in range(data.shape[0]):
         coords = []

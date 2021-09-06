@@ -40,7 +40,7 @@ class JaccardIndex():
             coords = np.array(coords)
 
         coords[:,0:2] *= 100
-        coords_pred = result_image_to_coordinates(y_pred, threshold=0.3)
+        coords_pred = result_image_to_coordinates(y_pred)
         if len(coords_pred.shape)!=2:
             self.values =False
         else:
@@ -66,7 +66,7 @@ class JaccardIndex():
             self.result_manager.append(np.array([step, jac, rmse, self.accuracy]))
             return jac, rmse, self.fp, self.fn
         else:
-            self.result_manager.append(np.array([step, 0.0, 9000]))
+            self.result_manager.append(np.array([step, 0.0, 9000,0]))
             return 0.0, 9000, 0,0
 
     def compute_jaccard(self, truth, pred):
@@ -77,7 +77,7 @@ class JaccardIndex():
         :param reconstruction:
         """
         distance_th= 100
-
+        pred = pred[:,0:3]
         for i in range(int(pred[:,2].max())):
             pred_f = pred[np.where(pred[:,2]==i)]
             truth_f = truth[np.where(truth[:,2]==i)]

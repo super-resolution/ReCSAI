@@ -8,6 +8,8 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         super(CompressedSensingInception, self).__init__(*args, **kwargs, dtype="float32")
         #define filters for path x
         #for all paths
+        self.batch_norm0 = tf.keras.layers.BatchNormalization()
+
         self.batch_norm1 = tf.keras.layers.BatchNormalization()
         self.batch_norm2 = tf.keras.layers.BatchNormalization()
         #done: estimate mu and sigma for cs layer?
@@ -22,11 +24,11 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         self.convolution1x1_x2 = tf.keras.layers.Conv2D(8,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dimension after max pooling
         self.convolution5x1_x = tf.keras.layers.Conv2D(16,(5,1),strides=(2,2), activation=None,padding="same")#reduce dim by 2 todo: prio2 include asymetric
         self.convolution1x5_x2 = tf.keras.layers.Conv2D(32,(1,5),strides=(2,2), activation=None,padding="same")#reduce dim by 2 todo: prio2 include asymetric
-        self.convolution5x5_x3 = tf.keras.layers.Conv2D(16,(5,5),strides=(2,2), activation=None,padding="same")#reduce dim by 2 todo: prio2 include asymetric
+        self.convolution5x5_x3 = tf.keras.layers.Conv2D(64,(5,5),strides=(2,2), activation=None,padding="same")#reduce dim by 2 todo: prio2 include asymetric
 
         #self.max_pooling_x1 = tf.keras.layers.MaxPooling2D(pool_size=(4,4),strides=(4,4),padding="same")#reduce dimension todo try not to use max pooling...
         #self.max_pooling_x2 = tf.keras.layers.MaxPooling2D(pool_size=(2,2), strides=(2,2),padding="same")#reduce dimension
-        self.x_path = [self.convolution1x1_x1,
+        self.x_path = [self.convolution1x1_x1,#todo: normalize input here
                         #self.batch_norm1,
                        self.cs,
                        self.reshape,  #72x72x1
@@ -40,13 +42,14 @@ class CompressedSensingInception(tf.keras.layers.Layer):
                        #self.max_pooling_x2
                        ]#9x9x2
         #define filters for path y
-        self.convolution1x7_y1 = tf.keras.layers.Conv2D(6,(1,7), activation=None, padding="same")
-        self.convolution7x1_y2 = tf.keras.layers.Conv2D(12,(7,1), activation=None, padding="same")
-        self.convolution1x1_y1 = tf.keras.layers.Conv2D(6,(1,1), activation=tf.keras.layers.LeakyReLU())#todo: leaky relu?
-        self.y_path = [self.convolution1x7_y1,
+        self.convolution1x7_y1 = tf.keras.layers.Conv2D(32,(1,7), activation=None, padding="same")
+        self.convolution7x1_y2 = tf.keras.layers.Conv2D(32,(7,1), activation=None, padding="same")
+        self.convolution1x1_y1 = tf.keras.layers.Conv2D(32,(1,1), activation=tf.keras.layers.LeakyReLU())#todo: leaky relu?
+        self.y_path = [
+                       self.convolution1x7_y1,
                        self.convolution7x1_y2,
-                       self.convolution1x1_y1,
-                       self.batch_norm2]
+                        self.convolution1x1_y1,
+]
         #define filters for path w
         self.convolution1x1_w1 = tf.keras.layers.Conv2D(1,(1,1), activation=tf.keras.layers.LeakyReLU())
 
@@ -59,14 +62,14 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         self.hidden1 = tf.keras.layers.Dense(24,kernel_initializer=initializers.RandomNormal(mean=-1,stddev=2),bias_initializer=initializers.Zeros())
         self.hidden2 = tf.keras.layers.Dense(12,kernel_initializer=initializers.RandomNormal(mean=-1,stddev=2),bias_initializer=initializers.Zeros())
         self.hidden3 = tf.keras.layers.Dense(1,kernel_initializer=initializers.RandomNormal(mean=-1,stddev=2),bias_initializer=initializers.Zeros(),
-                                             kernel_constraint=tf.keras.constraints.min_max_norm(min_value=1e-6, max_value=0.05,))
+                                             kernel_constraint=tf.keras.constraints.min_max_norm(min_value=-1, max_value=1,))
 
         self.lam_activation = tf.keras.layers.Lambda(lambda x: 0.1*tf.keras.activations.sigmoid(x))
-        # self.up1 = upsample(12,3,strides=3)
-        # self.up2 = upsample(3,3,strides=3)
 
-        self.z_path_down= [self.down1,
-                           self.down2]
+        # self.z_down1 = downsample(16,3,strides=3,apply_batchnorm=True)
+        # self.z_down2 = downsample(32,3,strides=3)#todo: concat sigma here? concat sigma in extra z-path
+        # self.z_up1 = upsample(64,3,strides=3)
+        # self.z_up2 = upsample(128,3,strides=3)
 
 
         #defince output layer
@@ -79,8 +82,9 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         outputs.append(w)
 
         z = input
-        for layer in self.z_path_down:
-            z = layer(z)
+        z = self.batch_norm0(z)
+        z = self.down1(z)
+        z = self.down2(z)
         z = tf.keras.layers.Flatten()(z)
         z = self.hidden1(z)
         z = self.hidden2(z)
@@ -88,8 +92,8 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         param = self.lam_activation(z)
         #print(z.numpy())
 
-        #todo: split input in three..
-        x = input
+        x = input#todo: normalize input
+        x = x/(0.001+tf.reduce_max(tf.abs(x),axis=[1],keepdims=True))
         x = self.x_path[0](x)
 
         x = self.x_path[1](x, param*0.1)
@@ -102,10 +106,22 @@ class CompressedSensingInception(tf.keras.layers.Layer):
 
 
         # #todo: input path y
-        y = input
-        for layer in self.y_path:
-            y = layer(y)
+        y1 = self.y_path[0](input)
+        y2 = self.y_path[1](input)
+        y = self.concat([y1,y2])
+        #y = self.batch_norm2(y)
+        y = self.y_path[2](y)
         outputs.append(y)
+
+
+        # d1 = self.z_down1(input)
+        # d2 = self.z_down2(d1)
+        # z = self.concat([d2,tf.repeat(tf.cast(self.cs.sigma,tf.float32),100)[:,tf.newaxis,tf.newaxis,tf.newaxis]])
+        # z = self.z_up1(z)
+        # z = self.concat([d1,z])
+        # z = self.z_up2(z)
+        # outputs.append(z)
+
 
         #todo: input path w no path because it's pass through
 
@@ -199,7 +215,7 @@ class CompressedSensing(tf.keras.layers.Layer):
     def __call__(self, input, param):
         lam = param#todo: changed to softplus
         mu = 1.0
-        print(lam)
+        print(lam[0])
         inp = tf.unstack(input, axis=-1)
         y_n = tf.unstack(self.y, axis=-1)
         r = []
@@ -224,18 +240,77 @@ class CompressedSensingConvolutional(tf.keras.layers.Layer):
     def __init__(self,*args, **kwargs):
         super(CompressedSensingConvolutional, self).__init__(*args, **kwargs, dtype="float32")
         self._iterations = tf.constant(200, dtype=tf.int32)
-
-        self._sigma =150
+        self._sigma = 150
         self._px_size = 100
-        self.matrix_update()#mat and psf defined outside innit
 
-        self.mu = tf.Variable(initial_value=tf.ones((1)), dtype=tf.float32, trainable=False)
-        #self.lam = tf.Variable(initial_value=tf.ones((1))*0.005, dtype=tf.float32, name="lambda",
-         #                      trainable=True)#was0.005
-        #dense = lambda x: tf.sparse.to_dense(tf.SparseTensor(x[0], x[1], tf.shape(x[2], out_type=tf.int64)))
-        #self.sparse_dense = tf.keras.layers.Lambda(dense)003
-        self.y = tf.constant(tf.zeros((5184,3)), dtype=tf.float32)[tf.newaxis, :]#todo: use input dim
-        #self.result = tf.Variable(np.zeros((73,73,3)), dtype=tf.float32, trainable=False)[tf.newaxis, :]
-        self.flatten= tf.keras.layers.Flatten()
+        self.convtrap1 = tf.keras.layers.Conv2DTranspose(3, (5,5), strides=(8,8),padding="same")
+        self.conv2D = tf.keras.layers.Conv2D(3,(40,40), strides=(8,8),padding="same")
         self.tcompute = tf.keras.layers.Lambda(lambda t: (1+tf.sqrt(1+4*tf.square(t)))/2)
-        self.matmul = tf.keras.layers.Lambda(lambda x: tf.keras.backend.dot(x,x))
+
+    def __call__(self, input, lam):
+        mu = 1.0
+        batch = tf.shape(input)[0]
+        y_tmp = tf.zeros((batch,72,72,3))#todo: variable shape
+        y_new_last_it = tf.zeros((batch,72,72,3))
+        y_new= tf.zeros((batch,72,72,3))
+        t = tf.constant((1.0), dtype=tf.float32)
+
+        for i in range(self._iterations):
+            re = self.convtrap1(input-self.conv2D(y_tmp))
+            w = y_tmp-1/mu*re
+            y_new = self.softthresh2(w, lam / mu)  # todo: not exactly the same as softthresh
+            t_n = self.tcompute(t)
+            y_tmp = y_new + (t - 1) / t_n * (y_new - y_new_last_it)
+            y_new_last_it = y_new
+            t = t_n
+        return y_new
+
+    @property
+    def px_size(self):
+        return self._px_size
+
+    @property
+    def sigma(self):
+        return self._sigma
+
+    @px_size.setter
+    def px_size(self, value):
+        self._px_size = value
+        self.matrix_update()
+
+    @sigma.setter
+    def sigma(self, value):
+        self._sigma = value
+        self.matrix_update()
+
+
+    @property
+    def iterations(self):
+        return self._iterations.numpy()
+
+    @iterations.setter
+    def iterations(self, value):
+        self._iterations = tf.constant(value, dtype=tf.int32)
+
+    def matrix_update(self):
+        self.psf = get_psf(self.sigma, self._px_size)
+        self.mat = tf.constant(self.psf_initializer(), dtype=tf.float32)#works in training
+
+
+    def psf_initializer(self):
+        print("setting sigma")
+
+        #mat1 = create_psf_matrix(9, 8, self.psf)
+        v = self._sigma/self._px_size
+        mat = old_psf_matrix(9,9,72,72, v*9/(64),v*9/(64)).T#todo: WTF why is this like this???
+        # mat1 /= mat1[0,0]
+        # mat1 *= mat[0,0]
+        return mat
+
+
+    @tf.function
+    def softthresh2(self, input, lam):
+        one = tf.keras.activations.relu(input-lam[:,tf.newaxis,tf.newaxis], threshold=0)
+        two = tf.keras.activations.relu(-input-lam[:,tf.newaxis,tf.newaxis], threshold=0)
+        return one-two
+

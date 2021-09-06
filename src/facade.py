@@ -59,13 +59,14 @@ class NetworkFacade():
         result_array = []
         test=[]
         for i in range(result_tensor.shape[0]):
+            #classifier =result_tensor[i, :, :, 2]
 
             classifier =uniform_filter(result_tensor[i, :, :, 2], size=3)*9
             #plt.imshow(classifier)
             # plt.show()
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
-                classifier[np.where(classifier < 0.2)] = 0
+                classifier[np.where(classifier < self.threshold)] = 0
                 #indices = np.where(classifier>self.threshold)
 
                 indices = get_coords(classifier).T
@@ -119,7 +120,7 @@ class NetworkFacade():
             x = truth.numpy()
             print(tf.reduce_min(truth),tf.reduce_max(truth))
 
-            for i in range(50):
+            for i in range(200):
                 loss_value = self.train_step(train_image, truth, noiseless_gt)
                 self.ckpt.step.assign_add(1)
                 if int(self.ckpt.step) % 10 == 0 and save:
@@ -139,9 +140,18 @@ class NetworkFacade():
         self.metrics.save()
 
     def loop_d(self, iterator, save=True):
+        tr = []
+        n = []
+        c = []
         for j in range(3):
-            train_image,noiseless_gt, coords,t = iterator.get_next()#done: noiseless image here
-            for i in range(50):
+            train_image,noiseless_gt, coords,t = iterator.get_next()#todo: train all 3 at once
+        #     tr.append(train_image)
+        #     n.append(noiseless_gt)
+        #     c.append(coords)
+        # train_image = tf.concat(tr,axis=0)
+        # noiseless_gt = tf.concat(n, axis=0)
+        # coords = tf.concat(c,axis=0)
+            for i in range(100):
                 loss_value = self.train_step_d(train_image, noiseless_gt, coords)
                 self.ckpt.step.assign_add(1)
                 if int(self.ckpt.step) % 10 == 0 and save:
@@ -182,7 +192,6 @@ class NetworkFacade():
     def train(self):
         for j in range(self.train_loops):
             print(self.ckpt.step//50)
-
             sigma = np.random.randint(100, 250)
             generator = crop_generator_u_net(9, sigma_x=sigma)
             dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
@@ -193,11 +202,11 @@ class NetworkFacade():
         self.test()
 
     def train_saved_data(self):
-        sigma = np.load(get_root_path() + r"/crop_dataset_sigma.npy", allow_pickle=True).astype(np.float32)
+        sigma = np.load(get_root_path() + r"/crop_dataset_sigma_VS_1000.npy", allow_pickle=True).astype(np.float32)
         # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
         #                                         output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
         dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 10, 3),(1*100, 9, 9, 4) ))
+                                                  output_shapes=((1 * 1000, 9, 9, 3),(1*1000, 9, 9, 3), (1 * 1000, 10, 3),(1*1000, 9, 9, 4) ))
         iterator = iter(dataset)
         for j in range(self.train_loops):
             print(self.ckpt.step//50)
@@ -231,7 +240,7 @@ class NetworkFacade():
         X, Y = tf.meshgrid(x, x)
 
         dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 3), (1 * 100, 10, 3),(1*100, 9, 9, 4)))
+                                                  output_shapes=((1 * 1000, 9, 9, 3),(1*1000, 9, 9, 3), (1 * 1000, 10, 3),(1*1000, 9, 9, 4)))
 
         self.sigma = sigma
         for train_image, tru,truth_c, truth_i in dataset.take(1):
@@ -264,7 +273,7 @@ class NetworkFacade():
         generator = crop_generator_u_net(9, sigma_x=sigma)
 
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32),
-                                                 output_shapes=((1*100, 9, 9, 3),  (1*100, 9,9,4)))
+                                                 output_shapes=((1*1000, 9, 9, 3),  (1*1000, 9,9,4)))
 
         self.sigma = sigma
         for train_image, truth in dataset.take(1):

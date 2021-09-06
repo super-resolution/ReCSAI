@@ -231,8 +231,9 @@ def validate_cs_inception_model():
         # checkpoint_path = "cs_training/cp-{epoch:04d}.ckpt"  # done: load latest checkpoint
 
         facade.sigma = 150
+        facade.wavelet_thresh = 0.2
 
-        facade.pretrain_current_sigma_d()
+        #facade.pretrain_current_sigma_d()
 
         result_list_ai = []  # jac,rmse,fp,fn,tp
 
@@ -279,39 +280,30 @@ def validate_cs_inception_model():
 
 
             for i in range(result_tensor.shape[0]):
+                classifier = uniform_filter(result_tensor[i, :, :, 2], size=3)
+                #classifier = result_tensor[i, :, :, 2]
+
+                classifier[np.where(classifier < 0.01)] = 0
+
+                indices = get_coords(classifier).T
+
+                x = result_tensor[i, indices[0], indices[1], 0]
+                y = result_tensor[i, indices[0], indices[1], 1]
+                dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
+                dy = result_tensor[i, indices[0], indices[1], 4]
                 if coord_list[i][2] == current_frame:
-                    classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
 
-
-                    if np.sum(classifier) > 0.6:
-                        classifier[np.where(classifier < 0.4)] = 0
-                        indices = get_coords(classifier).T
-                        x = result_tensor[i, indices[0], indices[1], 0]
-                        y = result_tensor[i, indices[0], indices[1], 1]
-                        dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
-                        dy = result_tensor[i, indices[0], indices[1], 4]
-
-                        for j in range(indices[0].shape[0]):
-                            if dx[j] < 0.05 and dy[j] < 0.05:
-                                current_frame_locs.append(coord_list[i][0:2] + np.array(
-                                    [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j] ]))
+                    for j in range(indices[0].shape[0]):
+                        if dx[j] < 0.02 and dy[j] < 0.02:
+                            current_frame_locs.append(coord_list[i][0:2] + np.array(
+                                [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j] ]))
                 else:
                     per_fram_locs.append(np.array(current_frame_locs))
                     current_frame = coord_list[i][2]
                     current_frame_locs = []
 
-                    classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
-                    classifier[np.where(classifier < 0.4)] = 0
-
-                    indices = get_coords(classifier).T
-
-                    x = result_tensor[i, indices[0], indices[1], 0]
-                    y = result_tensor[i, indices[0], indices[1], 1]
-                    dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
-                    dy = result_tensor[i, indices[0], indices[1], 4]
-
                     for j in range(indices[0].shape[0]):
-                        if dx[j] < 0.05 and dy[j] < 0.05:
+                        if dx[j] < 0.02 and dy[j] < 0.02:
                             current_frame_locs.append(coord_list[i][0:2] + np.array(
                                 [float(indices[0][j]) + x[j] , float(indices[1][j]) + y[j]]))
             # append last frame

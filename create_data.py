@@ -9,12 +9,12 @@ def create_crop_dataset(iterations):
     sig = []
     data_noiseless = []
 
-    for j in range(60):
-        sigma = np.random.randint(100, 250) #todo: vary sigma with dataset
+    for j in range(10):
+        sigma = np.random.randint(130, 200) #todo: vary sigma with dataset
         generator = crop_generator_u_net(9, sigma_x=sigma, noiseless_ground_truth=True)
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32),
-                                                 output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4), (1 * 100, 9, 9, 3)))
-        for train_image, truth, noiseless in dataset.take(4):
+                                                 output_shapes=((1 * 1000, 9, 9, 3), (1 * 1000, 9, 9, 3), (1 * 1000, 9, 9, 4)))
+        for train_image, noiseless, truth in dataset.take(4):
             data_train.append(train_image.numpy())
             data_truth.append(truth.numpy())
             data_noiseless.append(noiseless.numpy())
@@ -61,14 +61,14 @@ def build_dataset(im_shape, dataset_size, file_name, switching_rate=0.1, on_time
 
 
 if __name__ == '__main__':
-    data = np.load("crop_dataset.npy", allow_pickle=True)
+    #data = np.load("crop_dataset.npy", allow_pickle=True)
 
     data, truth, sigma, noiseless = create_crop_dataset(1)
-    np.save("crop_dataset_train_VS.npy", data)#NS = non switching
-    np.save("crop_dataset_truth_VS.npy", truth)#VS = variable sigma
-    np.save("crop_dataset_noiseless_VS.npy", noiseless)#VS = variable sigma
+    np.save("crop_dataset_train_VS_1000.npy", data)#NS = non switching
+    np.save("crop_dataset_truth_VS_1000.npy", truth)#VS = variable sigma
+    np.save("crop_dataset_noiseless_VS_1000.npy", noiseless)#VS = variable sigma
 
-    np.save("crop_dataset_sigma_VS.npy", sigma)
+    np.save("crop_dataset_sigma_VS_1000.npy", sigma)
 
 
     # for j in range(10):

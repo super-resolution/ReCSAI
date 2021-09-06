@@ -29,7 +29,7 @@ def create(im_shape):
     image = factory.create_points_add_photons(image, points[ind:ind + n], points[ind:ind + n, 2])
     image = factory.reduce_size(image)
     image = factory.accurate_noise_simulations_camera(image)
-    return image
+    return image, points[ind:ind + n]
 #
 # def test_output():
 #     #todo: useful for debugging might be outsourced to display?
@@ -64,7 +64,7 @@ def create(im_shape):
     #done: run layer
 class ViewLayerOutputs():
     def __init__(self):
-        path = get_root_path() + r"/trainings/cs_inception/_background_l_cs_10_LI"
+        path = get_root_path() + r"/trainings/cs_inception/_cncs_background_l_cs_10_large_dataset2"
         self.network = CompressedSensingInceptionNet()
         self.optimizer = tf.keras.optimizers.Adam(1e-4)
         self.network.sigma = 150
@@ -77,7 +77,7 @@ class ViewLayerOutputs():
             print("Initializing from scratch.")
 
     def cs_inception_path_output(self):
-        crop = create(9)
+        crop, points = create(9)
         crop_new = np.zeros((crop.shape[0], crop.shape[1], 3))
         for i in range(3):
             crop_new[:, :, i] = crop
@@ -110,20 +110,61 @@ class ViewLayerOutputs():
         axs[2][3].imshow(im[0,:,:,1])
         plt.show()
 
+    def noiseless_gt_output_loss(self):
+        crop, points = create(9)
+        plt.imshow(crop)
+        plt.scatter(points[:,1]/100-0.5, points[:,0]/100-0.5)
+        plt.show()
+        crop_new = np.zeros((crop.shape[0], crop.shape[1], 3))
+        for i in range(3):
+            crop_new[:, :, i] = crop
+        crop = crop_new.astype(np.float32)
+        crop /= crop.max()
+        crop_tensor = tf.constant((crop), dtype=tf.float64)
+        im = tf.stack([crop_tensor, crop_tensor])
+        out, cs_out = self.network.inception1(im)
+        #        print(self.network.inception1.cs.lam)
+        test = tf.reshape(
+            tf.linalg.matvec(tf.transpose(self.network.inception1.cs.mat), tf.reshape(cs_out[0, :, :, 1], 5184), ),
+            (9, 9))
+        self.network.compute_loss_decode()
+
+    def plot_generator_output(self):
+        sigma = np.load(get_root_path() + r"/crop_dataset_sigma.npy", allow_pickle=True).astype(np.float32)
+        # dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_EX, (tf.float32, tf.float32, tf.float32),
+        #                                         output_shapes=((1 * 100, 9, 9, 3), (1 * 100, 9, 9, 4),(1 * 100, 9, 9, 3)))
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=((1 * 1000, 9, 9, 3),(1*1000, 9, 9, 3), (1 * 1000, 10, 3),(1*1000, 9, 9, 4) ))
+        for image, noiseless, coords, truth in dataset.take(3):
+            for i in range(100):
+                c_image = image[i,:,:,1]
+                c_noiseless = noiseless[i,:,:,1]
+                c_coords = coords[i]
+
+                fig,axs = plt.subplots((2))
+                axs[0].imshow(c_image)
+                axs[1].imshow(c_noiseless)
+                axs[0].scatter(c_coords[:,1],c_coords[:,0])
+                axs[1].scatter(c_coords[:,1],c_coords[:,0])
+                plt.show()
+
     def t_perfect_reconstruction_loss_is_zero(self):
-        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 100, 9, 9, 3),(1*100, 9, 9, 4), (1 * 100, 3, 3)))
-        for train_image, truth_i,truth_c in dataset.take(1):
+        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32, tf.float32),
+                                                 output_shapes=(
+                                                 (1 * 1000, 9, 9, 3), (1 * 1000, 9, 9, 3), (1 * 1000, 10, 3),
+                                                 (1 * 1000, 9, 9, 4)))
+        for train_image, noiseless,truth_c, truth_i in dataset.take(3):
             test = truth_i.numpy()
-            r = [1,2]
+            r = [0,200]
             x= truth_c.numpy()[r[0]:r[1]]
-            new = np.ones((test.shape[0],test.shape[1],test.shape[2],6))*1/(2*np.pi)
-            new[:,:,:,0:3] = test[:,:,:,0:3]#+0.00001
+            new = np.ones((test.shape[0],test.shape[1],test.shape[2],6))*1/(20*np.pi)
+            new[:,:,:,0:3] = test[:,:,:,0:3]+0.00001
+            new[:,:,:,2] += 0.01
             new = new[r[0]:r[1]]
             if np.all(new==1):
                 print("all one test failed")
-            print(self.network.compute_loss_decode(tf.constant(x, tf.float32), tf.constant(new, tf.float32), tf.constant(new, tf.float32)))#use truth image instead of predict
-
+            res = self.network.compute_loss_decode_ncs(tf.constant(x, tf.float32), tf.constant(new, tf.float32))#use truth image instead of predict
+            print(res)
 
 if __name__ == '__main__':
     V = ViewLayerOutputs()

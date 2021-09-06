@@ -7,33 +7,42 @@ from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 from pathlib import Path
 import numpy as np
 import scipy
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter, uniform_filter
 
 
-def result_image_to_coordinates(result, coords=None, threshold=0.3):
+def result_image_to_coordinates(result_tensor, coord_list=None, threshold=0.2, sigma_thresh=0.1):
     result_array = []
-    for i in range(result.shape[0]):
-        classifier = result[i, :, :, 2]
-        # fig,axs = plt.subplots(2)
-        # axs[0].imshow(classifier)
-        # axs[1].imshow(crop_tensor[i,:,:,1])
+    test = []
+    for i in range(result_tensor.shape[0]):
+        classifier =result_tensor[i, :, :, 2]
+
+        #classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
+        # plt.imshow(classifier)
         # plt.show()
-        classifier = gaussian_filter(classifier, sigma=0.6, truncate=1) * 3/2
-        classifier[np.where(classifier<0.2)] = 0
-        indices = get_coords(classifier).T
+        # classifier = result_tensor[i, :, :, 2]
+        if np.sum(classifier) > threshold:
+            classifier[np.where(classifier < threshold)] = 0
+            # indices = np.where(classifier>self.threshold)
 
-        #indices = np.where(classifier > threshold)
-        x = result[i, indices[0], indices[1], 0]
-        y = result[i, indices[0], indices[1], 1]
-        #data = []
-        for j in range(indices[0].shape[0]):
-            c = np.array([indices[0][j] + x[j], indices[1][j] + y[j]])
-            #data.append(c)
-            if coords:
-                result_array.append(coords[i][0:2] + c)
-            else:
-                result_array.append(np.array([indices[0][j] + x[j], indices[1][j] + y[j], i]))
+            indices = get_coords(classifier).T
+            x = result_tensor[i, indices[0], indices[1], 0]
+            y = result_tensor[i, indices[0], indices[1], 1]
+            dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
+            dy = result_tensor[i, indices[0], indices[1], 4]
 
+            for j in range(indices[0].shape[0]):
+                #if dx[j] < sigma_thresh and dy[j] < sigma_thresh:
+                    if coord_list:
+                        result_array.append(np.array([coord_list[i][0] + float(indices[0][j]) + (x[j])
+                                                         , coord_list[i][1] + float(indices[1][j]) + y[j], coord_list[i][2],
+                                                      dx[j], dy[j]]))
+                        test.append(np.array([x[j], y[j]]))
+                    else:
+                        result_array.append(np.array([float(indices[0][j]) + (x[j])
+                                                    ,float(indices[1][j]) + y[j], i,
+                                                      dx[j], dy[j]]))
+                        test.append(np.array([x[j], y[j]]))
+    print(np.mean(np.array(test), axis=0))
     return np.array(result_array)
 
 def predict_sigma(psf_crops, result_array, ai):

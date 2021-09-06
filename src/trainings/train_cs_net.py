@@ -9,9 +9,9 @@ CURRENT_INCEPTION_NETWORK_PATH = get_root_path()+r"/trainings/cs_inception/_new_
 
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_background_l_cs_10_LI",
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_background_l_cs_10_large_dataset2",
                                                 get_root_path()+r"/trainings/wavelet/training_lvl2/cp-10000.ckpt")
-        self.train_loops = 60
+        self.train_loops = 10
 
 class TrainCVNet(NetworkFacade):
     def __init__(self):
