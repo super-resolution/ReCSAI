@@ -19,7 +19,7 @@ import numpy as np
 
 path = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
 #path = r"D:\Daten\Dominik_B\JF646_Aktin_100us_45px_100nm_Framefrq2.4Hz_linefrq108.7Hz_100LP_4000Frames.tif kept stack.tif"
-path = r"D:\Daten\Artificial\ContestHD.tif"
+#path = r"D:\Daten\Artificial\ContestHD.tif"
 #path = r"D:\Daten\Christina\U2OS_+Ac4ManAz_5uM.tif"
 #path = r"C:\Users\biophys\matlab\test2_crop_BP.tif"
 
@@ -33,23 +33,23 @@ with TiffFile(path) as tif:
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_crazy_test_specific",
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_crazy_test_transfer",
                                                 get_root_path()+r"\src\trainings\training_lvl5\cp-5000.ckpt",shape=128)
 
 
 
 facade = TrainInceptionNet()
-facade.sigma = 150
+facade.sigma = 180
 #facade.pretrain_current_sigma_d()
-facade.wavelet_thresh = 0.13#todo: retrain wavelet
-facade.threshold = 0.1 # todo: still has artefacts...
-facade.sigma_thresh = 0.1
-facade.photon_filter = 0.1
-result_tensor,coord_list = facade.predict(image, raw=True)
-if not os.path.exists(os.getcwd()+r"\tmp"):
-    os.mkdir(os.getcwd()+r"\tmp")
-np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
-np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
+facade.wavelet_thresh = 0.1#todo: retrain wavelet
+facade.threshold = 0.2 # todo: still has artefacts...
+facade.sigma_thresh = 0.01
+facade.photon_filter = 0.3
+# result_tensor,coord_list = facade.predict(image, raw=True)
+# if not os.path.exists(os.getcwd()+r"\tmp"):
+#     os.mkdir(os.getcwd()+r"\tmp")
+# np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
+# np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
 result_tensor = np.load(os.getcwd()+r"\tmp\current_result.npy",allow_pickle=True)
 coord_list = np.load(os.getcwd()+ r"\tmp\current_coordinate_list.npy",allow_pickle=True)
 result_array = facade.get_localizations_from_image_tensor(result_tensor, coord_list)

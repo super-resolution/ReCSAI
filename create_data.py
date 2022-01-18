@@ -12,7 +12,7 @@ def create_crop_dataset(iterations):
     size = 100
     im_size = 9
     for j in range(10):
-        sigma = np.random.randint(150, 180) #todo: vary sigma with dataset
+        sigma = np.random.randint(145, 155) #todo: vary sigma with dataset
         generator = crop_generator_u_net(im_size, sigma_x=sigma, noiseless_ground_truth=True,size=size)
         # for image in generator():
         #     pass
@@ -71,13 +71,13 @@ def create_crop_dataset(iterations):
 
 if __name__ == '__main__':
     #data = np.load("crop_dataset.npy", allow_pickle=True)
-
+    #todo: create hd dataset
     data, truth, sigma, noiseless, coordinates = create_crop_dataset(1)
-    np.save("HD_crop_dataset_train_1.npy", data)#NS = non switching
-    np.save("HD_crop_dataset_noiseless_1.npy", noiseless)#VS = variable sigma
-    np.save("HD_crop_dataset_truth_1.npy", truth)#VS = variable sigma
-    np.save("HD_crop_dataset_coordinates_1.npy", coordinates)
-    np.save("HD_crop_dataset_sigma_1.npy", sigma)
+    np.save("train.npy", data)#NS = non switching
+    np.save("noiseless.npy", noiseless)#VS = variable sigma
+    np.save("truth.npy", truth)#VS = variable sigma
+    np.save("coordinates.npy", coordinates)
+    np.save("sigma.npy", sigma)
 
 
     # for j in range(10):

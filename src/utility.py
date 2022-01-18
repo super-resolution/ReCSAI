@@ -110,6 +110,7 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
         y = tf.constant([th])
         mask = tf.greater(wave, y)
         wave_mask = wave * tf.cast(mask, tf.float32)
+        c_data_masked = current_data*tf.cast(tf.greater(current_data, y), tf.float32)
         # fig, axs = plt.subplots(3)
         # axs[0].imshow(wave_mask[0, :, :, 0])
         # axs[1].imshow(data[i, :, :, 1])
@@ -340,6 +341,16 @@ def old_psf_matrix(M_x,M_y,N_x,N_y,sigma_x,sigma_y):
         for j in range(N):   # j-te Spalte
             A[i,j] = gaus_kernel(K[i,0]*h_M_x-L[j,0]*h_N_x,  K[i,1]*h_M_y-L[j,1]*h_N_y)
     return A
+
+
+def get_reconstruct_coords(tensor, th, neighbors=3):
+    filter = np.ones((neighbors,neighbors))
+    filter[0::2,0::2] = 1
+    #todo: np where result> threshold
+    convolved = scipy.ndimage.convolve(tensor, filter)
+    indices = np.where(np.logical_and(tensor > th, convolved >1.5*th))
+    return indices
+    #todo: where convolved > 1.5 threshold
 
 def get_coords(reconstruct, neighbors=5):
     neighborhood = np.ones((neighbors,neighbors)).astype(np.bool)

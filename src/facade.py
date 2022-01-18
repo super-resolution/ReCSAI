@@ -5,7 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt #todo: plot in main?
 from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net, generate_generator, crop_generator_saved_file_coords_airy, DataGeneratorFactory, crop_generator_saved_file_coords, crop_generator_saved_file_specific
 from src.custom_metrics import JaccardIndex
-from src.utility import bin_localisations_v2, get_coords, get_root_path
+from src.utility import bin_localisations_v2, get_coords, get_root_path, get_reconstruct_coords
 from src.models.loss_functions import compute_loss_decode, compute_loss_decode_ncs
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
 
@@ -16,7 +16,7 @@ class NetworkFacade():
     def __init__(self, network_class, path, denoising_chkpt, shape=128):
         self.network = network_class()
         self.denoising = WaveletAI(shape=shape)
-        self.data_factory = DataGeneratorFactory(r"/dataset_airy")
+        self.data_factory = DataGeneratorFactory(r"/dataset_hd")
 
         self.denoising.load_weights(denoising_chkpt)
 
@@ -127,10 +127,11 @@ class NetworkFacade():
             # plt.show()
             #classifier = result_tensor[i, :, :, 2]
             if np.sum(classifier) > self.threshold:
-                classifier[np.where(classifier < self.threshold)] = 0
-                indices = np.where(np.logical_and(classifier>self.threshold,classifier<1))
+                #classifier[np.where(classifier < self.threshold)] = 0
+                #indices = np.where(np.logical_and(classifier>self.threshold,classifier<1))
 
-                indices = get_coords(classifier,neighbors=3).T
+                #indices = get_coords(classifier,neighbors=3).T
+                indices = get_reconstruct_coords(classifier, self.threshold)
                 #todo: cross filter on coords and second threshold
                 x = result_tensor[i, indices[0], indices[1], 0]
                 y = result_tensor[i, indices[0], indices[1], 1]

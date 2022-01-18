@@ -144,8 +144,8 @@ class CompressedSensingInceptionNet(tf.keras.Model):
                 res = tf.linalg.matvec(tf.transpose(self.inception1.cs.mat), tf.keras.layers.Reshape((5184,), )(i), )
                 val = tf.keras.layers.Reshape((9,9), )(res/(0.001+tf.reduce_max(tf.abs(res),axis=[1],keepdims=True)))
                 ns =(j/(0.001+tf.reduce_max(tf.abs(j),axis=[1],keepdims=True)))
-                loss += 300*tf.reduce_mean(tf.square(val-ns))
-                loss += 1500*tf.abs(tf.reduce_mean(i))#sparsity constraint
+                loss += 30*tf.reduce_mean(tf.square(val-ns))
+                loss += 150*tf.abs(tf.reduce_mean(i))#sparsity constraint
 
         x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
         X, Y = tf.meshgrid(x, x)

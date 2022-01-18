@@ -29,7 +29,7 @@ def display_storm_data(data_in):
     for i in range(localizations.shape[0]):
         array[int(localizations[i,0]),int(localizations[i,1])] += (200/data_in[i,4])*data_in[i,5]
     array = cv2.GaussianBlur(array, (21, 21), 0)
-    array -= 10
+    #array -= 10
     array = np.clip(array,0,255)
     downsampled = cv2.resize(array, (int(array.shape[0]/10),int(array.shape[1]/10)), interpolation=cv2.INTER_AREA)
     with TiffWriter('tmp/temp.tif', bigtiff=True) as tif:

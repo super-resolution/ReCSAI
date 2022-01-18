@@ -2,11 +2,11 @@ from src.models.cs_model import CompressedSensingInceptionNet, CompressedSensing
 from src.facade import NetworkFacade
 from src.utility import get_root_path
 
-CURRENT_INCEPTION_NETWORK_PATH = get_root_path()+r"/trainings/cs_inception/_crazy_test_low_it"
-CURRENT_CV_NETWORK_PATH = get_root_path()+r"/trainings/cs_cnn/_background_l_cs_100_large_dataset_airy6"
+CURRENT_INCEPTION_NETWORK_PATH = get_root_path()+r"/trainings/cs_inception/__transfer_hd_100_100"
+CURRENT_CV_NETWORK_PATH = get_root_path()+r"/trainings/cs_cnn/_final_training_100_100"
 
-#todo: increase deapth and save trainingsaccuracy...
-#todo: hope that deapth improves sigma learning
+#todo: final training rounds.... transfer learning?
+
 
 
 class TrainInceptionNet(NetworkFacade):

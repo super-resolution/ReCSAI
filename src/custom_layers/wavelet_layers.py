@@ -3,8 +3,6 @@ import src.custom_nodes as nodes
 import numpy as np
 from tfwavelets.dwtcoeffs import haar, db3
 
-
-
 class OrthonormalConstraint(tf.keras.constraints.Constraint):
     def __call__(self, x):
         v,w = tf.unstack(x, axis=0)

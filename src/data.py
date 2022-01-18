@@ -39,7 +39,7 @@ class DataGeneratorFactory():
             coords[:, :, :, 3] /= 0.001 + coords[:, :, :, 3].max()
             for i in range(data.shape[0]):
                 c = coords[i]
-                yield data[i], noiseless[i], c, truth[i], sigma[i]
+                yield data[i]/data[i].max(), noiseless[i]/noiseless[i].max(), c, truth[i], sigma[i]
         return generator
 
 def build_switching_array(n):
@@ -72,8 +72,8 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, no
     factory.image_shape = (im_shape,im_shape)# select points here
     def generator():
         for z in range(100):
-            ph = np.random.randint(2500,3000)#todo: add photons to dataset
-            points = factory.create_crop_point_set(photons=ph, on_time=90)
+            ph = np.random.randint(1400,2000)#todo: add photons to dataset
+            points = factory.create_crop_point_set(photons=ph, on_time=300)
             #sigma_y = np.random.randint(100, 250)
             sig_y = sigma_x+np.random.rand()*10-5
             sig_x = sigma_y+np.random.rand()*10-5
@@ -108,6 +108,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, no
                         #image_noiseless[:,:,i] = copy.deepcopy(image)
                         image += np.random.rand()*20+10 #noise was 2
                         image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
+                        # plt.scatter(on_points[:,1]/100,on_points[:,0]/100)
                         # plt.imshow(image)
                         # plt.show()
 
