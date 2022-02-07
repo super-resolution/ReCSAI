@@ -1,3 +1,6 @@
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
 from src.models.cs_model import CompressedSensingInceptionNet, CompressedSensingCVNet, CompressedSensingUNet, CompressedSensingConvNet, CompressedSensingResUNet
 from src.facade import NetworkFacade
 from src.utility import get_root_path
