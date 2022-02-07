@@ -29,7 +29,7 @@ class Shifting(tf.keras.layers.Layer):
         substack2 = tf.cast(substack2,tf.float64)
         return self.restack(substack1, substack2)
 
-def downsample(filters, size, apply_batchnorm=True, strides=2):
+def downsample(filters, size, apply_batchnorm=True, strides=2, activation=True):
     initializer = tf.random_normal_initializer(0., 0.02)
 
     result = tf.keras.Sequential()
@@ -38,8 +38,8 @@ def downsample(filters, size, apply_batchnorm=True, strides=2):
                              kernel_initializer=initializer, use_bias=False))
     if apply_batchnorm:
         result.add(tf.keras.layers.BatchNormalization())
-
-    result.add(tf.keras.layers.LeakyReLU())
+    if activation:
+        result.add(tf.keras.layers.LeakyReLU())
 
     return result
 

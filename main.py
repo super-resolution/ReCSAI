@@ -1,19 +1,11 @@
 from src.models.cs_model import CompressedSensingInceptionNet
 from src.facade import NetworkFacade
-from src.visualization import display_storm_data
-from src.utility import get_root_path
+from src.visualization import display_storm_data, render
+from src.utility import get_root_path, FRC_loss
 from tifffile.tifffile import TiffFile
 import os
 import numpy as np
-
-
-
-
-
-#validate_cs_model()
-#train_cs_net()
-#train_nonlinear_shifter_ai()
-#learn_psf()
+from src.trainings.train_cs_net import CSUNetFacade, InceptionNetFacade, CVNetFacade
 
 #path = r"D:\Daten\Dominik_B\Cy5_AI_enhanced_5.tif"
 
@@ -33,28 +25,34 @@ with TiffFile(path) as tif:
 #image = r"D:\Daten\Domi\origami\201203_10nM-Trolox_ScSystem_50mM-MgCl2_kA_TiRF_568nm_100ms_45min_no-gain-10MHz_zirk.tif"
 class TrainInceptionNet(NetworkFacade):
     def __init__(self):
-        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_crazy_test_transfer",
+        super(TrainInceptionNet, self).__init__(CompressedSensingInceptionNet, get_root_path()+r"/trainings/cs_inception/_final_training_100_10_ndata",
                                                 get_root_path()+r"\src\trainings\training_lvl5\cp-5000.ckpt",shape=128)
-
+class TrainCVNet(NetworkFacade):
+    def __init__(self):
+        super(TrainCVNet, self).__init__(CompressedSensingCVNet, CURRENT_CV_NETWORK_PATH,
+                                         get_root_path()+r"\trainings\wavelet\training_lvl2\cp-10000.ckpt")
+        self.train_loops = 60
 
 
 facade = TrainInceptionNet()
 facade.sigma = 180
 #facade.pretrain_current_sigma_d()
-facade.wavelet_thresh = 0.1#todo: retrain wavelet
-facade.threshold = 0.2 # todo: still has artefacts...
-facade.sigma_thresh = 0.01
-facade.photon_filter = 0.3
-# result_tensor,coord_list = facade.predict(image, raw=True)
-# if not os.path.exists(os.getcwd()+r"\tmp"):
-#     os.mkdir(os.getcwd()+r"\tmp")
-# np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
-# np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
+facade.wavelet_thresh = 0.09
+facade.threshold = 0.2
+facade.sigma_thresh = 0.15
+facade.photon_filter = 0.1
+result_tensor,coord_list = facade.predict(image, raw=True)
+if not os.path.exists(os.getcwd()+r"\tmp"):
+    os.mkdir(os.getcwd()+r"\tmp")
+np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
+np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
 result_tensor = np.load(os.getcwd()+r"\tmp\current_result.npy",allow_pickle=True)
 coord_list = np.load(os.getcwd()+ r"\tmp\current_coordinate_list.npy",allow_pickle=True)
 result_array = facade.get_localizations_from_image_tensor(result_tensor, coord_list)
 print(result_array.shape[0])
 print("finished AI")
-np.save(os.getcwd()+r"\HDContest_extended_path.npy",result_array)
-display_storm_data(result_array)#todo: save all datapoints/tensors? to array and filter in display
+print(FRC_loss(render(result_array[:result_array.shape[0]//2,]), render(result_array[result_array.shape[0]//2:,])))
+
+#todo: compute fourier ring correlation in display?
+display_storm_data(result_array)
 

@@ -7,14 +7,14 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from scipy import interpolate
-from src.models.cs_model import CompressedSensingInceptionNet
+from src.models.cs_model import CompressedSensingInceptionNet, CompressedSensingCVNet, CompressedSensingConvNet
 from src.data import crop_generator_saved_file_coords
 from src.trainings import train_cs_net
 from src.facade import NetworkFacade
 from tests.create_test_datasets import TestDatasets
 
-CURRENT1 = get_root_path()+r"/trainings/cs_inception/_background_l_cs_100_large_dataset_airy6"
-CURRENT2 = get_root_path()+r"/trainings/cs_inception/_background_l_cs_1_large_dataset_airy6"
+CURRENT1 = get_root_path()+r"/trainings/cs_cnn/_final_training_100_100"
+CURRENT2 = get_root_path()+r"/trainings/cs_inception/_final_10_100"
 
 
 
@@ -77,19 +77,19 @@ class ViewLayerOutputs():
         self.data_fac = TestDatasets(9)
 
 
-        self.facade_hcs = NetworkFacade(CompressedSensingInceptionNet, CURRENT1,
+        self.facade_hcs = NetworkFacade(CompressedSensingCVNet, CURRENT1,
                                                 get_root_path()+r"/trainings/wavelet/training_lvl2/cp-10000.ckpt")
-        self.facade_hcs.threshold = 0.3  # todo: still has artefacts...
+        self.facade_hcs.threshold = 0.15  # todo: still has artefacts...
         self.facade_hcs.sigma_thresh = 0.3
-        self.facade_hcs.photon_filter = 0.4
+        self.facade_hcs.photon_filter = 0.1
         self.network1 = self.facade_hcs.network
         self.network1.sigma = 150
 
         self.facade_lcs = NetworkFacade(CompressedSensingInceptionNet, CURRENT2,
                                                 get_root_path()+r"/trainings/wavelet/training_lvl2/cp-10000.ckpt")
         self.network2 = self.facade_lcs.network
-        self.network2.inception1.cs.iterations=1
-        self.network2.inception2.cs.iterations=1
+        #self.network2.inception1.cs.iterations=1
+        #self.network2.inception2.cs.iterations=1
 
         self.network2.sigma = 150
 
@@ -130,6 +130,45 @@ class ViewLayerOutputs():
         axs[2][3].imshow(im[0,:,:,1])
         plt.show()
 
+    def cs_conv(self):
+        crop, points = create(9)
+        crop_new = np.zeros((crop.shape[0], crop.shape[1], 3))
+        for i in range(3):
+            crop_new[:, :, i] = crop
+        crop = crop_new.astype(np.float32)
+        crop /= crop.max()
+        crop_tensor = tf.constant((crop), dtype=tf.float64)
+        im = tf.stack([crop_tensor, crop_tensor])
+        cs_out = tf.keras.layers.Conv2DTranspose(3, (1,1), strides=(8,8),padding="same", use_bias=False)(im)
+        #out,cs_out = self.network1.inception1(im)
+        #t = self.network1.inception1.cs.conv2D(cs_out)
+        #print(self.network.inception1.cs.lam)
+        #test = tf.reshape(tf.linalg.matvec(tf.transpose(self.network1.inception1.cs.mat),tf.reshape(cs_out[0,:,:,1],5184), ),(9,9))
+        #plt.imshow(test/tf.reduce_max(test,axis=[0,1], keepdims=True))
+        #plt.show()
+
+        fig, axs = plt.subplots(2,3)
+
+        axs[0][0].imshow(cs_out[0,:,:,1])
+        axs[0][1].imshow(cs_out[0,:,:,2])
+        axs[0][2].imshow(cs_out[0,:,:,0])
+
+        axs[1][0].imshow(im[0,:,:,1])
+
+        # axs[0][2].imshow(out[0,:,:,2])
+        # axs[0][3].imshow(out[0,:,:,3])
+        #
+        # axs[1][0].imshow(out[0,:,:,4])
+        # axs[1][1].imshow(out[0,:,:,5])
+        # axs[1][2].imshow(out[0,:,:,6])
+        # axs[1][3].imshow(out[0,:,:,7])
+        #
+        # axs[2][0].imshow(out[0,:,:,8])
+        # axs[2][1].imshow(out[0,:,:,9])
+        #axs[2][2].imshow(tf.reshape(test,(9,9)))
+
+        plt.show()
+
     def noiseless_gt_output_loss(self):
         crop, points = create(9)
         plt.imshow(crop)
@@ -148,6 +187,25 @@ class ViewLayerOutputs():
             tf.linalg.matvec(tf.transpose(self.network.inception1.cs.mat), tf.reshape(cs_out[0, :, :, 1], 5184), ),
             (9, 9))
         self.network.compute_loss_decode()
+
+
+    def plot_facade_generator_output(self):
+        dataset = tf.data.Dataset.from_generator(self.facade_hcs.data_factory(), (tf.float32, tf.float32, tf.float32, tf.float32, tf.float32),
+                                                  output_shapes=self.facade_hcs.data_factory.shape)
+        for image, noiseless, coords, truth,_ in dataset.take(10):
+            for i in range(1):
+                i+=299
+                c_image = image[i,:,:,1]
+                c_noiseless = noiseless[i,:,:,1]
+                c_coords = coords[i]
+
+                fig,axs = plt.subplots((2))
+                axs[0].imshow(c_image)
+                axs[1].imshow(c_noiseless)
+                axs[0].scatter(c_coords[:,1],c_coords[:,0])
+                axs[1].scatter(c_coords[:,1],c_coords[:,0])
+                plt.show()
+
 
     def plot_generator_output(self):
         sigma = np.load(get_root_path() + r"/crop_dataset_sigma.npy", allow_pickle=True).astype(np.float32)
@@ -278,4 +336,4 @@ class ViewLayerOutputs():
 
 if __name__ == '__main__':
     V = ViewLayerOutputs()
-    V.lifetime_test()
+    V.plot_facade_generator_output()

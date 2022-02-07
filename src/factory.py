@@ -65,7 +65,7 @@ class Factory():
             points[i, 4] = np.random.randint(-25, 25)
         return points
 
-    def accurate_noise_simulations_camera(self, image, quantum_efficiency=0.70, dark_noise=64 / 10,
+    def accurate_noise_simulations_camera(self, image, quantum_efficiency=0.45, dark_noise=25 / 10,
                                               sensitivity=1, bitdepth=12):
         image = image.astype(np.uint16)
 

@@ -88,6 +88,62 @@ def extrude_perfect_psf(psf_crops, result_array):
     return full_psf[32:,32:]/np.sum(full_psf[32:,32:])
     #todo: return psf and use as matrix
 
+def FRC_loss(i1, i2):
+    dim = min(i1.shape[0], i1.shape[1], i2.shape[0], i2.shape[1])
+    if dim % 2 != 0:
+        dim -= 1
+    i1 = i1[np.newaxis, 0:dim, 0:dim, np.newaxis]
+    i2 = i2[np.newaxis, 0:dim, 0:dim, np.newaxis]
+    size = dim
+    size_half = size // 2
+
+    r = np.zeros([size])
+    r[:size_half] = np.arange(size_half) + 1
+    r[size_half:] = np.arange(size_half, 0, -1)
+
+    c = np.zeros([size])
+    c[:size_half] = np.arange(size_half) + 1
+    c[size_half:] = np.arange(size_half, 0, -1)
+
+    [R, C] = np.meshgrid(r, c)
+
+    help_index = np.round(np.sqrt(R ** 2 + C ** 2))
+    kernel_list = []
+
+    for i in range(1, 102):
+        new_matrix = np.zeros(shape=[size, size])
+        new_matrix[help_index == i] = 1
+        kernel_list.append(new_matrix)
+
+    kernel_list = tf.constant(kernel_list, dtype=tf.complex64)
+
+    i1 = tf.squeeze(i1, axis=0)
+    i1 = tf.squeeze(i1, axis=-1)
+
+    i2 = tf.squeeze(i2, axis=0)
+    i2 = tf.squeeze(i2, axis=-1)
+
+    i1 = tf.cast(i1, dtype=tf.complex64)
+    i2 = tf.cast(i2, dtype=tf.complex64)
+
+    I1 = tf.signal.fft2d(i1)
+    I2 = tf.signal.fft2d(i2)
+
+    A = tf.multiply(I1, tf.math.conj(I2))
+    B = tf.multiply(I1, tf.math.conj(I1))
+    C = tf.multiply(I2, tf.math.conj(I2))
+
+    A_val = tf.reduce_mean(tf.multiply(A, kernel_list), axis=(1, 2))
+    B_val = tf.reduce_mean(tf.multiply(B, kernel_list), axis=(1, 2))
+    C_val = tf.reduce_mean(tf.multiply(C, kernel_list), axis=(1, 2))
+
+    res = tf.abs(A_val) / tf.sqrt(tf.abs(tf.multiply(B_val, C_val)))
+
+    return 1.0 - tf.reduce_sum(res) / 102.0
+
+
+
+
 def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
     train_new = []
     truth_new = []
@@ -117,7 +173,11 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
         # axs[2].imshow(im[i, :, :, 1])
         # plt.show()
         #ax.imshow(wave[0,:,:,0])
+        #coords = get_coords(c_data_masked.numpy()[ :, :, 1])
+
         coords = get_coords(wave_mask.numpy()[0, :, :, 0])
+        # from src.visualization import plot_wavelet_bin_results
+        # plot_wavelet_bin_results(current_data[:,:,1].numpy(), wave_mask.numpy()[0, :, :, 0], coords)
         # todo: crop PSFs done here
         for coord in coords:
             # ax.add_patch(rect)
@@ -228,12 +288,6 @@ def create_shift_data(data_tensor, denoising, truth_array=None, th=0.1):
     train_new = tf.stack(train_new)
     truth_new = tf.stack(truth_new)
     return train_new, truth_new, coord_list
-
-
-
-
-
-
 
 
 

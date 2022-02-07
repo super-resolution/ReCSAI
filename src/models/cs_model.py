@@ -1,11 +1,10 @@
-from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInception
+from src.custom_layers.cs_layers import CompressedSensing, CompressedSensingInception, CompressedSensingConvolutional, UNetLayer
 #from tensorflow.keras.layers import *
 import tensorflow as tf
 from src.custom_layers.utility_layer import downsample,upsample
 #import tensorflow_probability as tfp
 import math as m
 
-#todo: imitate yolo architecture and use 9x9 output grid
 class CompressedSensingInceptionNet(tf.keras.Model):
     TYPE = 0
     def __init__(self):
@@ -53,7 +52,6 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         x = inputs
         x = x / (tf.reduce_max(tf.abs(x)))
 
-        #todo: normalize input on max stack intensity
         x, cs1 = self.inception1(x, training=training)
         x = self.batch_norm(x)
         x, cs2 = self.inception2(x, training=training)
@@ -65,7 +63,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
 
         x = self.activation(x)
         if training:
-            return x,[cs1]#todo: bacck to cs_out2
+            return x#,[cs1]
         else:
             return x
     @property
@@ -82,104 +80,6 @@ class CompressedSensingInceptionNet(tf.keras.Model):
     def sigma(self, value):
         self.inception1.cs.sigma = value
         self.inception2.cs.sigma = value
-
-
-
-    def compute_loss_decode_ncs(self, truth,predict):
-
-        l2 = tf.keras.losses.MeanSquaredError()#todo: switched to l1
-        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
-
-
-        #todo: loss for cs part...
-        loss = 0
-
-
-        x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
-        X, Y = tf.meshgrid(x, x)
-        L2 = tf.constant(0.0)
-        count = tf.zeros(tf.shape(truth)[0])
-        for j in range(10):
-            count += truth[:,j,2]
-        for i in range(10):#up to 10 localisations
-
-            L2 += tf.reduce_sum(truth[:,i,2]/(count+0.001)*(-tf.math.log(self.ReduceSum(
-                (predict[:, :, :, 2]+0.0001) /(self.ReduceSumKD(predict[:, :, :, 2]+0.0001)
-                                     *
-                                  tf.math.sqrt(predict[:,:, :, 3]*predict[:,:, :, 4]*predict[:,:, :, 6]
-                                               *(2 * tf.constant(m.pi))**2)
-                                               )
-            *tf.math.exp(-1/2*(
-                                tf.square(
-                                        predict[:,:, :, 0] - (truth[:,i:i+1,0:1]-Y))  # todo: test that this gives expected values
-                                         / (predict[:,:, :, 3])#Ydirection
-                                         + tf.square(predict[:,:, :, 1] - (truth[:,i:i+1,1:2]-X))
-                                         / (predict[:, :, :, 4])#Xdirection
-                                            +tf.square(predict[:,:, :, 5] - truth[:,i:i+1,3:4])/predict[:,:, :, 6]
-                                        #Photon count
-                                             ))
-            ))) # todo: activation >= 0
-                                        ,
-                            )
-        #L2+= 1000*ce(predict[:, :, :, 2],truth_i[:,:,:,2])
-        sigma_c = self.ReduceSum((predict[:,:, :, 2]+0.0001) * (1 - predict[:, :,:, 2]))
-        #i=0#todo: learn background and photon count
-        t = self.ReduceSum(predict[:, :, :, 2])
-        c_loss = tf.reduce_sum(1/2*tf.square(t-count)/sigma_c-tf.math.log(tf.sqrt(2*m.pi*sigma_c)))
-        #b_loss = l2(data[:,:,:,1]-noiseless_gt[:,:,:,1],predict[:,:,:,5])
-        return  L2+c_loss#+ b_loss
-
-    def compute_loss_decode(self, truth,predict, noiseless_gt, cs_out, data):
-
-        l2 = tf.keras.losses.MeanSquaredError()#todo: switched to l1
-        l1 = tf.keras.losses.MeanAbsoluteError()#todo: switched to l1
-
-
-        #todo: loss for cs part...
-        loss = tf.constant(0.0)
-        for cs_slice in cs_out:
-            inp_cs = tf.unstack(cs_slice, axis=-1)#todo: this needs to be an input
-            inp_ns = tf.unstack(noiseless_gt, axis=-1)#todo: this needs to be an input
-            for i,j in zip(inp_cs, inp_ns):
-                res = tf.linalg.matvec(tf.transpose(self.inception1.cs.mat), tf.keras.layers.Reshape((5184,), )(i), )
-                val = tf.keras.layers.Reshape((9,9), )(res/(0.001+tf.reduce_max(tf.abs(res),axis=[1],keepdims=True)))
-                ns =(j/(0.001+tf.reduce_max(tf.abs(j),axis=[1],keepdims=True)))
-                loss += 30*tf.reduce_mean(tf.square(val-ns))
-                loss += 150*tf.abs(tf.reduce_mean(i))#sparsity constraint
-
-        x = tf.constant([0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5])  # [tf.newaxis,tf.newaxis,tf.newaxis,:]
-        X, Y = tf.meshgrid(x, x)
-        L2 = tf.constant(0.0)
-        count = tf.zeros(tf.shape(truth)[0])
-        for j in range(10):
-            count += truth[:,j,2]
-        for i in range(10):#up to 10 localisations
-
-            L2 += tf.reduce_sum(truth[:,i,2]/(count+0.001)*(-tf.math.log(self.ReduceSum(
-                predict[:, :, :, 2] /(self.ReduceSumKD(predict[:, :, :, 2])
-                                     *
-                                      tf.math.sqrt(predict[:, :, :, 3] * predict[:, :, :, 4] * predict[:, :, :, 6]
-                                                   * (2 * tf.constant(m.pi)) ** 3)
-                                      )
-
-            *tf.math.exp(-1/2*(
-                                tf.square(
-                                        predict[:,:, :, 0] - (truth[:,i:i+1,0:1]-Y))  # todo: test that this gives expected values
-                                         / (predict[:,:, :, 3])
-                                         + tf.square(predict[:,:, :, 1] - (truth[:,i:i+1,1:2]-X))
-                                         / (predict[:, :, :, 4])
-                                        + tf.square(predict[:, :, :, 5] - truth[:, i:i + 1, 3:4]) / predict[:, :, :, 6]
-                                             ))
-            ))) # todo: activation >= 0
-                                        ,
-                            )
-        #L2+= 1000*ce(predict[:, :, :, 2],truth_i[:,:,:,2])
-        sigma_c = self.ReduceSum(predict[:,:,:,2] * (1 - predict[:,:,:,2]))
-        #print(self.ReduceSum(predict[:, :, :, 2]))
-        #i=0#todo: learn background and photon count
-        c_loss = tf.reduce_sum(1/2*tf.square(self.ReduceSum(predict[:, :, :, 2])-count)/sigma_c-tf.math.log(tf.sqrt(2*m.pi*sigma_c)))
-        b_loss = l2(data[:,:,:,1]-noiseless_gt[:,:,:,1], predict[:,:,:,7])
-        return  L2+c_loss+ loss + b_loss
 
 
 class CompressedSensingCVNet(tf.keras.Model):
@@ -245,7 +145,7 @@ class CompressedSensingCVNet(tf.keras.Model):
 
         x = self.activation(x)
         if training:
-            return x,[cs]#todo: bacck to cs_out2
+            return x#,[cs]#todo: bacck to cs_out2
         else:
             return x
 
@@ -261,3 +161,232 @@ class CompressedSensingCVNet(tf.keras.Model):
     def sigma(self, value):
         self.cs_layer.sigma = value
 
+
+class CompressedSensingUNet(tf.keras.Model):
+    TYPE = 0
+    OUTPUT_CHANNELS = 8
+    def __init__(self):
+        super(CompressedSensingUNet, self).__init__()
+        self.cs_layer = CompressedSensing(iterations=1)
+        self.reshape = tf.keras.layers.Reshape((72, 72, 3), input_shape=(72*72,3) )
+        self.batch_norm = tf.keras.layers.BatchNormalization()
+        initializer = tf.random_normal_initializer(0., 0.02)
+        #todo: keep part of the down path
+        self.down_path = [downsample(8,3,apply_batchnorm=False),#36
+        downsample(16,3),#18
+        downsample(32,3),#9
+        downsample(64,5, strides=3),#3
+        downsample(128,5,apply_batchnorm=False,strides=3),#1
+                          ]
+        self.up_path = [upsample(64, 4, apply_dropout=False, strides=3),
+                        tf.keras.layers.Conv2DTranspose(8, 4,
+                                                        strides=3,
+                                                        padding='same',
+                                                        kernel_initializer=initializer,)
+                        #works better due to tanh activation and bias,  #9
+        #upsample(32, 4, apply_dropout=True),
+        #upsample(16, 4),  # (batch_size, 16, 16, 1024)
+        #upsample(8, 4),  # (batch_size, 16, 16, 1024)
+]
+        # self.down_path2 =[
+        # downsample(32,5, strides=3),#3
+        # downsample(64,5,strides=3),#1
+        # ]
+        # self.up_path2 = [upsample(64, 4, apply_dropout=True, strides=3),
+        #                 #upsample(8, 4, apply_dropout=False, strides=3),  # 9
+        #                  tf.keras.layers.Conv2DTranspose(8, 4,
+        #                                                         strides=3,
+        #                                                         padding='same',
+        #                                                         kernel_initializer=initializer,
+        #                                                        )#works better due to tanh activation and bias
+                        # upsample(32, 4, apply_dropout=True),
+                        # upsample(16, 4),  # (batch_size, 16, 16, 1024)
+                        # upsample(8, 4),  # (batch_size, 16, 16, 1024)
+        #                ]
+        #self.conv2 = tf.keras.layers.Conv2D(8, (5, 1), activation=None, padding="same")
+        #self.conv3 = tf.keras.layers.Conv2D(8, (1, 5), activation=None, padding="same")
+
+        self.conv1 = tf.keras.layers.Conv2D(8, (3, 3), activation=None, padding="same")
+
+        #self.down_path2 = [downsample(8,3,apply_batchnorm=False), #36
+        #downsample(8,3), #18
+        #downsample(8,3)] #9
+        #todo: add vertical layers for unet++
+
+        #todo: upsample path here
+
+        def sigmoid_activation(inputs):#softplus activation
+            inputs_list = tf.unstack(inputs, axis=-1)
+            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
+            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
+            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
+
+            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
+            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
+            #todo: add input vec for intensity
+            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
+            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
+
+            return tf.stack(inputs_list, axis=-1)
+
+        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
+        self.concat = tf.keras.layers.Concatenate()
+
+    def __call__(self, inputs, training=False):
+        x = inputs/(0.001+tf.reduce_max(tf.abs(inputs),axis=[1,2],keepdims=True))
+        cs =self.cs_layer(x, 0.03)
+        x = self.reshape(cs)#72x72
+        skip = []
+        x = self.down_path[0](x)
+        skip.append(x)
+        x = self.down_path[1](x)
+        skip.append(x)
+        x = self.down_path[2](x)
+        x = tf.keras.layers.Concatenate()([x, inputs])
+        skip.append(x)
+
+        #todo: concat input here
+        x = self.down_path[3](x)
+        skip.append(x)
+        x = self.down_path[4](x)
+
+        x = self.up_path[0](x)
+        x = tf.keras.layers.Concatenate()([x, skip[-1]])
+        x = self.up_path[1](x)
+        x = tf.keras.layers.Concatenate()([x, skip[-2]])
+
+
+        #x = tf.keras.layers.Concatenate()([x, skip2[-2]])
+
+        # y = self.conv2(x)
+        # z = self.conv3(x)
+        # x = tf.keras.layers.Concatenate()([y, z])
+
+        x = self.conv1(x)
+
+        x = self.activation(x)
+        if training:
+            return x#,[cs]#todo: bacck to cs_out2
+        else:
+            return x
+
+    @property
+    def mat(self):
+        return self.cs_layer.mat
+
+    @property
+    def sigma(self):
+        return self.cs_layer.sigma
+
+    @sigma.setter
+    def sigma(self, value):
+        self.cs_layer.sigma = value
+
+class CompressedSensingResUNet(tf.keras.Model):
+    TYPE = 0
+    OUTPUT_CHANNELS = 8
+    def __init__(self):
+        super(CompressedSensingResUNet, self).__init__()
+        self.initial_layer = UNetLayer(8)
+
+        self.decoder = UNetLayer(1)
+        self.update_encoder = UNetLayer(8)
+
+        def sigmoid_activation(inputs):#softplus activation
+            inputs_list = tf.unstack(inputs, axis=-1)
+            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
+            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
+            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
+
+            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
+            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
+            #todo: add input vec for intensity
+            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
+            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
+
+            return tf.stack(inputs_list, axis=-1)
+
+        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
+
+    def __call__(self, inputs, training=False):
+        x = self.initial_layer(inputs)
+        x = self.activation(x)
+        for i in range(8):
+            y = self.decoder(x)
+            y += x[:,:,:,7:8]
+            y -= inputs[:,:,:,1:2]
+            update = self.update_encoder(y)
+            update = tf.keras.activations.tanh(update)
+            x += update
+        #x = tf.keras.layers.Concatenate()([x, skip2[-2]])
+
+        # y = self.conv2(x)
+        # z = self.conv3(x)
+        # x = tf.keras.layers.Concatenate()([y, z])
+
+       # x = self.conv1(x)
+
+        x = self.activation(x)
+        if training:
+            return x#,[cs]#todo: bacck to cs_out2
+        else:
+            return x
+
+    @property
+    def mat(self):
+        return self._mat
+
+    @property
+    def sigma(self):
+        return self._sigma
+
+    @sigma.setter
+    def sigma(self, value):
+        self._sigma = value
+
+
+class CompressedSensingConvNet(tf.keras.Model):
+    TYPE = 0
+    OUTPUT_CHANNELS = 8
+    def __init__(self):
+        super(CompressedSensingConvNet, self).__init__()
+        self.cs_layer = CompressedSensingConvolutional(iterations=5)
+
+        def sigmoid_activation(inputs):#softplus activation
+            inputs_list = tf.unstack(inputs, axis=-1)
+            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
+            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
+            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
+
+            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
+            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
+            #todo: add input vec for intensity
+            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
+            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
+
+            return tf.stack(inputs_list, axis=-1)
+
+        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
+
+    def __call__(self, inputs, training=False):
+        x = inputs#/(0.001+tf.reduce_max(tf.abs(inputs),axis=[1,2],keepdims=True))
+        cs = tf.zeros((tf.shape(inputs)[0], 72*72, 3))
+        x =self.cs_layer(x, 0.03)
+
+        x = self.activation(x)
+        if training:
+            return x,[cs]#todo: bacck to cs_out2
+        else:
+            return x
+
+    @property
+    def mat(self):
+        return self.cs_layer.mat
+
+    @property
+    def sigma(self):
+        return self.cs_layer.sigma
+
+    @sigma.setter
+    def sigma(self, value):
+        self.cs_layer.sigma = value

@@ -66,14 +66,14 @@ def build_switching_array(n):
 
 def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, noiseless_ground_truth=False):
     #todo: create dynamical
-    mean_loc_count = 2#2
+    mean_loc_count = 1.5#2
     factory = Factory()
     factory.shape= (im_shape*100,im_shape*100)
     factory.image_shape = (im_shape,im_shape)# select points here
     def generator():
         for z in range(100):
-            ph = np.random.randint(1400,2000)#todo: add photons to dataset
-            points = factory.create_crop_point_set(photons=ph, on_time=300)
+            ph = np.random.randint(500,1500)#todo: add photons to dataset
+            points = factory.create_crop_point_set(photons=ph, on_time=30)
             #sigma_y = np.random.randint(100, 250)
             sig_y = sigma_x+np.random.rand()*10-5
             sig_x = sigma_y+np.random.rand()*10-5
@@ -86,7 +86,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, no
             for i in range(size): #todo: while loop here
                 print(i)
 
-                n = int(np.random.poisson(mean_loc_count))#np.random.poisson(1.7)
+                n = int(np.random.normal(mean_loc_count, 0.2*mean_loc_count))#np.random.poisson(1.7)
 
                 if n<0:
                     n=0
@@ -106,7 +106,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, no
 
                         image = factory.reduce_size(image).astype(np.float32)
                         #image_noiseless[:,:,i] = copy.deepcopy(image)
-                        image += np.random.rand()*20+10 #noise was 2
+                        image += np.random.rand()*5+10 #noise was 2
                         image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
                         # plt.scatter(on_points[:,1]/100,on_points[:,0]/100)
                         # plt.imshow(image)
@@ -148,7 +148,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, no
                 for j in range(current.shape[0]):
                     page = current[j]
                     indices = np.array(np.where(page[:, :, 2] == 1))
-                    per_image = np.zeros((1000, 4))#todo first size was 10
+                    per_image = np.zeros((10, 4))#todo first size was 10
                     for k, ind in enumerate(indices.T):
                         c = ind + np.array(
                             [page[ind[0], ind[1], 0], page[ind[0], ind[1], 1]]) + 0.5  # this is probably wrong!

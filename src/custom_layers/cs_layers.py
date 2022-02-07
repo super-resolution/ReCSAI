@@ -216,44 +216,99 @@ class CompressedSensing(tf.keras.layers.Layer):
 
         return tf.stack(r,axis=-1)
 
+class UNetLayer(tf.keras.layers.Layer):
+    def __init__(self,outputs,*args,  **kwargs):
+        super(UNetLayer, self).__init__(*args, **kwargs, dtype="float32")
+        initializer = tf.random_normal_initializer(0., 0.02)
+        self.down_path = [downsample(128,5, strides=3),#3
+                        downsample(256,5,strides=3),#1
+                          ]
+        self.up_path = [
+            upsample(256, 4, apply_dropout=True, strides=3),
+                        tf.keras.layers.Conv2DTranspose(outputs, 4,
+                                                        strides=3,
+                                                        padding='same',
+                                                        kernel_initializer=initializer,
+                                                        )]#todo encoder 8 outputs decoder 1 output
+
+    def __call__(self, inp):
+        skip = []
+        inp = self.down_path[0](inp)
+        skip.append(inp)
+        inp = self.down_path[1](inp)
+        inp = self.up_path[0](inp)
+        inp = tf.keras.layers.Concatenate()([inp, skip[0]])
+        inp = self.up_path[1](inp)
+        return inp
+
+
 class CompressedSensingConvolutional(tf.keras.layers.Layer):
     def __init__(self,iterations,*args,  **kwargs):
         super(CompressedSensingConvolutional, self).__init__(*args, **kwargs, dtype="float32")
-        self._iterations = iterations
+        self._iterations = 10
         self._sigma = 150
         self._px_size = 100
         self.layer_loss = 0.0
         self.l2 = tf.keras.losses.MeanSquaredError()
         self.l1 = tf.keras.losses.MeanAbsoluteError()
-        self.convtrap1 = tf.keras.layers.Conv2DTranspose(3, (8,8), strides=(8,8),padding="same", use_bias=False)
+        self.convtrap1 = tf.keras.layers.Conv2DTranspose(3, (1,1), strides=(8,8),padding="same", use_bias=False)#basically upsampling
         #todo: use convtrap for upsampling followed by n convolutional layers with relu activation?!
-        self.filters = []
-        print(self._iterations)
-        self.filters.append(tf.keras.layers.Conv2D(8,(17,17),padding="same", use_bias=False, activation=None))
-        for i in range(self._iterations-1):
-            self.filters.append(tf.keras.layers.Conv2D(8,(3,3),padding="same",kernel_initializer=initializers.RandomNormal(mean=0.5,stddev=0.4), use_bias=False, activation=tf.keras.layers.LeakyReLU(alpha=0.01), kernel_constraint=tf.keras.constraints.non_neg()))
-        #todo: conv2D reconstructs original noiseless image
-        self.conv2D = tf.keras.layers.Conv2D(3,(17,17), strides=(1,1),padding="same", use_bias=False, kernel_constraint=tf.keras.constraints.non_neg())
-        self.down = tf.keras.layers.AveragePooling2D(
-            pool_size=(8, 8), strides=None, padding='valid', data_format=None,
-            **kwargs
-        )
+        self.horizontal = []
+        self.down = []
+        self.up = []
+        self.reconzontal = []
+        self.final = []
+        self.final2 = []
+        self.feature_space_normalization = []
+        for i in range(self._iterations):
+            self.reconzontal.append(tf.keras.layers.BatchNormalization())
+            self.horizontal.append(tf.keras.layers.Conv2D(8,(12,12),padding="same",kernel_initializer=tf.random_normal_initializer(0., 0.02),  activation=tf.keras.layers.LeakyReLU(alpha=0.01)))
+        #for j in range(1):
+            self.down.append([downsample(8, (3,3)),
+                              downsample(16, (3,3)),
+                              downsample(32, (3,3)),
+                              tf.keras.layers.Conv2D(8, (3, 3), padding="same",
+                                                     kernel_initializer=tf.random_normal_initializer(0., 0.02),
+                                                     activation=tf.keras.layers.LeakyReLU(alpha=0.01))
+                              #downsample(64, (3,3), strides=3), #3x3
+                              #downsample(128, (3,3), strides=3)
+                              ]) #1x1
+            self.feature_space_normalization.append(tf.keras.layers.BatchNormalization())
 
+            #todo batch norm after adding?! delete u net?
+            self.final.append(tf.keras.layers.Conv2D(8, (3, 3), padding="same",kernel_initializer=tf.random_normal_initializer(0., 0.02),
+                                                     activation=tf.keras.layers.LeakyReLU(alpha=0.01)))
+            self.final2.append(tf.keras.layers.Conv2D(8, (3, 3), padding="same",kernel_initializer=tf.random_normal_initializer(0., 0.02)))
+
+        self.last = tf.keras.layers.Conv2D(8, (3, 3), padding="same",kernel_initializer=tf.random_normal_initializer(0., 0.02))
+
+    def compute_update(self, update, i):
+        for j, d_layer in enumerate(self.down[i]):
+            update = d_layer(update)
+
+        return update
 
     def __call__(self, inp, lam):
         self.layer_loss = 0
+        #initialization
         re = self.convtrap1(inp)
-        for i in range(self._iterations):
-            re = self.filters[i](re)
-            im = self.down(self.conv2D(re))
-            self.layer_loss += self.l2(im,inp)/256*4**i
-            self.layer_loss += tf.abs(tf.reduce_sum(re*(1-re))/10240*4**i)
-            #y_new = self.softthresh2(y_new, lam / mu)  # todo: not exactly the same as softthresh
-            # t_n = self.tcompute(t)
-            # y_tmp = y_new + (t - 1) / t_n * (y_new - y_new_last_it)
-            # y_new_last_it = y_new
-            # t = t_n
-        return re
+        first = self.compute_update(re, 0)
+        x = first#todo: first via u-net?
+        #todo: extra loss?
+        #iterative updates
+        for i in range(self._iterations-1):
+            i+=1
+            re = self.horizontal[i](re)
+            re = self.reconzontal[i](re)
+            x = self.final[i](x)
+            x = self.final2[i](x)
+            update = self.compute_update(re, i)
+            x = x + update + first
+            x = self.feature_space_normalization[i](x)
+
+
+        x = self.last(x)#todo: U-Net here?
+        return x
 
     @property
     def px_size(self):
@@ -297,10 +352,4 @@ class CompressedSensingConvolutional(tf.keras.layers.Layer):
         # mat1 *= mat[0,0]
         return mat
 
-
-    @tf.function
-    def softthresh2(self, input, lam):
-        one = tf.keras.activations.relu(input-lam[:,tf.newaxis,tf.newaxis], threshold=0)
-        two = tf.keras.activations.relu(-input-lam[:,tf.newaxis,tf.newaxis], threshold=0)
-        return one-two
 

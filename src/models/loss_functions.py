@@ -8,24 +8,24 @@ def compute_loss_decode_ncs(truth, predict):
     return loc_loss(truth, predict) + count_loss(truth, predict)  # + b_loss
 
 @tf.function
-def compute_loss_decode(truth, predict, noiseless_gt, cs_out, data, mat):
+def compute_loss_decode(truth, predict, noiseless_gt,  data):
     l2 = tf.keras.losses.MeanSquaredError()  # todo: switched to l1
 
     # todo: loss for cs part...
-    loss = tf.constant(0.0)
-    for cs_slice in cs_out:
-        inp_cs = tf.unstack(cs_slice, axis=-1)  # todo: this needs to be an input
-        inp_ns = tf.unstack(noiseless_gt, axis=-1)  # todo: this needs to be an input
-        for i, j in zip(inp_cs, inp_ns):
-            res = tf.linalg.matvec(tf.transpose(mat), tf.keras.layers.Reshape((5184,), )(i), )
-            val = tf.keras.layers.Reshape((9, 9), )(res / (0.001 + tf.reduce_max(tf.abs(res), axis=[1], keepdims=True)))
-            ns = (j / (0.001 + tf.reduce_max(tf.abs(j), axis=[1], keepdims=True)))
-            loss += 300 * tf.reduce_mean(tf.square(val - ns))
-            loss += 1500 * tf.abs(tf.reduce_mean(i))  # sparsity constraint
+    # loss = tf.constant(0.0)
+    # for cs_slice in cs_out:
+    #     inp_cs = tf.unstack(cs_slice, axis=-1)  # todo: this needs to be an input
+    #     inp_ns = tf.unstack(noiseless_gt, axis=-1)  # todo: this needs to be an input
+    #     for i, j in zip(inp_cs, inp_ns):
+    #         res = tf.linalg.matvec(tf.transpose(mat), tf.keras.layers.Reshape((5184,), )(i), )
+    #         val = tf.keras.layers.Reshape((9, 9), )(res / (0.001 + tf.reduce_max(tf.abs(res), axis=[1], keepdims=True)))
+    #         ns = (j / (0.001 + tf.reduce_max(tf.abs(j), axis=[1], keepdims=True)))
+    #         loss += 300 * tf.reduce_mean(tf.square(val - ns))
+    #         loss += 1500 * tf.abs(tf.reduce_mean(i))  # sparsity constraint
 
 
     b_loss = l2(data[:, :, :, 1] - noiseless_gt[:, :, :, 1], predict[:, :, :, 7])
-    return  loc_loss(truth,predict) + count_loss(truth, predict) + loss+  b_loss
+    return  loc_loss(truth,predict) + count_loss(truth, predict) +  b_loss #+ loss
 
 
 

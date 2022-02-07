@@ -9,17 +9,18 @@ def create_crop_dataset(iterations):
     sig = []
     data_noiseless = []
     coordinates = []
-    size = 100
+    size = 1000
     im_size = 9
-    for j in range(10):
-        sigma = np.random.randint(145, 155) #todo: vary sigma with dataset
+    for j in range(200):
+        sigma = np.random.randint(175, 185) #todo: vary sigma with dataset
         generator = crop_generator_u_net(im_size, sigma_x=sigma, noiseless_ground_truth=True,size=size)
         # for image in generator():
         #     pass
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
                                                  output_shapes=((1 * size, im_size, im_size, 3), (1 * size, im_size, im_size, 3),
-                                                                (1 * size, 1000, 4), (1 * size, im_size, im_size, 4)))
+                                                                (1 * size, 10, 4), (1 * size, im_size, im_size, 4)))
         for train_image, noiseless,coords, truth in dataset.take(4):
+            #todo create noiseless and transform it with different noise...
             data_train.append(train_image.numpy())
             data_truth.append(truth.numpy())
             data_noiseless.append(noiseless.numpy())
