@@ -9,7 +9,7 @@ CURRENT_U2_NETWORK_PATH = get_root_path()+r"/trainings/cs_u/_final2_training_100
 
 CURRENT_CONV_NETWORK_PATH = get_root_path()+r"/trainings/cs_conv/_conv_training_ndata"
 
-CURRENT_WAVELET_PATH = get_root_path()+r"\src\trainings\training_lvl5\cp-5000.ckpt"
+CURRENT_WAVELET_PATH = get_root_path()+r"/trainings/wavelet/training_lvl5/cp-5000.ckpt"
 
 
 class InceptionNetFacade(NetworkFacade):
