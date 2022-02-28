@@ -34,10 +34,15 @@ def count_loss(truth, predict):
     count = tf.zeros(tf.shape(truth)[0])
     for j in range(10):
         count += truth[:, j, 2]
-    sigma_c = tf.keras.backend.sum((predict[:, :, :, 2] + 0.0001) * (1 - predict[:, :, :, 2]), axis=[-1, -2])
+    sigma_c = tf.keras.backend.sum((predict[:, :, :, 2]+0.01) * (1 - predict[:, :, :, 2]), axis=[-1, -2])
     # i=0#todo: learn background and photon count
     t = tf.keras.backend.sum(predict[:, :, :, 2], axis=[-1, -2])
-    c_loss = tf.reduce_sum(1 / 2 * tf.square(t - count) / sigma_c - tf.math.log(tf.sqrt(2 * m.pi * sigma_c)))
+    L2 = 1 / 2 * tf.square(t - count)
+    ten =  1 / 2 * tf.square(t - count)/ sigma_c - tf.math.log(tf.sqrt(2 * m.pi * sigma_c))
+    c_loss = tf.reduce_sum(ten)
+    #c_loss = tf.reduce_sum(tf.gather(ten, tf.where(count>0.9)))
+    #c_loss += tf.reduce_sum(tf.gather(L2, tf.where(count<0.1)))
+
     return c_loss
 
 @tf.function
@@ -50,11 +55,10 @@ def loc_loss(truth, predict):
     for j in range(10):
         count += truth[:, j, 2]
     for i in range(10):  # up to 10 localisations
-
-        L2 += tf.reduce_sum(truth[:, i, 2] / (count + 0.001) * (-tf.math.log(tf.keras.backend.sum(
+        ten = truth[:, i, 2]/ (count+0.001) * (-tf.math.log(tf.keras.backend.sum(
             predict[:, :, :, 2] / (tf.keras.backend.sum(predict[:, :, :, 2], axis=[-1,-2], keepdims=True)
                                    *
-                                   tf.math.sqrt(predict[:, :, :, 3] * predict[:, :, :, 4] * predict[:, :, :, 6]
+                                   tf.math.sqrt(predict[:, :, :, 3]**2 * predict[:, :, :, 4]**2 * predict[:, :, :, 6]**2
                                                 * (2 * tf.constant(m.pi)) ** 3)
                                    )
 
@@ -62,11 +66,30 @@ def loc_loss(truth, predict):
                     tf.square(
                         predict[:, :, :, 0] - (
                                     truth[:, i:i + 1, 0:1] - Y))  # todo: test that this gives expected values
-                    / (predict[:, :, :, 3])
+                    / (predict[:, :, :, 3]**2)
                     + tf.square(predict[:, :, :, 1] - (truth[:, i:i + 1, 1:2] - X))
-                    / (predict[:, :, :, 4])
-                    + tf.square(predict[:, :, :, 5] - truth[:, i:i + 1, 3:4]) / predict[:, :, :, 6]
+                    / (predict[:, :, :, 4]**2)
+                    + tf.square(predict[:, :, :, 5] - truth[:, i:i + 1, 3:4]) / predict[:, :, :, 6]**2
             ))
             , axis=[-1, -2])))  # todo: activation >= 0
-                            )
+
+        L2 += tf.reduce_sum(ten)
+        # L2 += tf.reduce_sum(truth[:, i, 2] / (count + 0.001) * (-tf.math.log(tf.keras.backend.sum(
+        #     predict[:, :, :, 2] / (tf.keras.backend.sum(predict[:, :, :, 2], axis=[-1,-2], keepdims=True)
+        #                            *
+        #                            tf.math.sqrt(predict[:, :, :, 3]**2 * predict[:, :, :, 4]**2 * predict[:, :, :, 6]**2
+        #                                         * (2 * tf.constant(m.pi)) ** 3)
+        #                            )
+        #
+        #     * tf.math.exp(-1 / 2 * (
+        #             tf.square(
+        #                 predict[:, :, :, 0] - (
+        #                             truth[:, i:i + 1, 0:1] - Y))  # todo: test that this gives expected values
+        #             / (predict[:, :, :, 3]**2)
+        #             + tf.square(predict[:, :, :, 1] - (truth[:, i:i + 1, 1:2] - X))
+        #             / (predict[:, :, :, 4]**2)
+        #             + tf.square(predict[:, :, :, 5] - truth[:, i:i + 1, 3:4]) / predict[:, :, :, 6]**2
+        #     ))
+        #     , axis=[-1, -2])))  # todo: activation >= 0
+        #                     )
     return L2

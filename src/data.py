@@ -254,12 +254,20 @@ def real_data_generator(im_shape, switching_rate=0.2):
     return generator
 
 
-def generate_generator(image):
-    offset = int((128 - image.shape[1]) / 2)  # pad to 128
+def generate_generator(image):#todo needs image size
+    if image.shape[1]>128:
+        offset = int((256 - image.shape[1]) / 2)
+    else:
+        offset = int((128 - image.shape[1]) / 2)  # pad to 128
     batch_size = 2000
     def data_generator_real():
-        print(image.shape[0]//batch_size+1)
-        for i in range(image.shape[0]//batch_size+1):
+        if image.shape[0]% batch_size == 0:
+            batches_count = image.shape[0]//batch_size
+        else:
+            batches_count = 1+image.shape[0]// batch_size
+        print(batches_count)
+
+        for i in range(batches_count):
             dat = image[i * batch_size:(i + 1) * batch_size,]#14:-14,14:-14]
             # dat = dat[:dat.shape[0]//4*4]
             # dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade

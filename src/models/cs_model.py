@@ -4,8 +4,28 @@ import tensorflow as tf
 from src.custom_layers.utility_layer import downsample,upsample
 #import tensorflow_probability as tfp
 import math as m
+from src.models.loss_functions import compute_loss_decode
 
-class CompressedSensingInceptionNet(tf.keras.Model):
+class BaseModel(tf.keras.Model):
+    def __init__(self):
+        super(BaseModel, self).__init__()
+        def sigmoid_activation(inputs):#softplus activation
+            inputs_list = tf.unstack(inputs, axis=-1)
+            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
+            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
+            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
+
+            inputs_list[3] = 0.01+3*tf.keras.activations.sigmoid(inputs_list[3])
+            inputs_list[4] = 0.01+3*tf.keras.activations.sigmoid(inputs_list[4])
+            #todo: add input vec for intensity
+            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
+            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
+
+            return tf.stack(inputs_list, axis=-1)
+        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
+
+
+class CompressedSensingInceptionNet(BaseModel):
     TYPE = 0
     def __init__(self):
         super(CompressedSensingInceptionNet, self).__init__()
@@ -29,24 +49,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
             tf.keras.layers.Conv2D(8, (3, 3), activation=None, padding="same"),
         ]#x,y,sigmax,sigmay,classifier
 
-        #todo: only need one actvation
-        def sigmoid_activation(inputs):#softplus activation
-            inputs_list = tf.unstack(inputs, axis=-1)
-            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
-            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
-            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
 
-            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
-            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
-            #todo: add input vec for intensity
-            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
-            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
-
-            return tf.stack(inputs_list, axis=-1)
-
-
-
-        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
 
     def __call__(self, inputs, training=False):
         x = inputs
@@ -82,7 +85,7 @@ class CompressedSensingInceptionNet(tf.keras.Model):
         self.inception2.cs.sigma = value
 
 
-class CompressedSensingCVNet(tf.keras.Model):
+class CompressedSensingCVNet(BaseModel):
     TYPE = 0
 
     def __init__(self):
@@ -112,21 +115,7 @@ class CompressedSensingCVNet(tf.keras.Model):
 
         ]
 
-        def sigmoid_activation(inputs):#softplus activation
-            inputs_list = tf.unstack(inputs, axis=-1)
-            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
-            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
-            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
 
-            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
-            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
-            #todo: add input vec for intensity
-            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
-            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
-
-            return tf.stack(inputs_list, axis=-1)
-
-        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
         self.concat = tf.keras.layers.Concatenate()
 
     def __call__(self, inputs, training=False):
@@ -162,7 +151,7 @@ class CompressedSensingCVNet(tf.keras.Model):
         self.cs_layer.sigma = value
 
 
-class CompressedSensingUNet(tf.keras.Model):
+class CompressedSensingUNet(BaseModel):
     TYPE = 0
     OUTPUT_CHANNELS = 8
     def __init__(self):
@@ -215,21 +204,6 @@ class CompressedSensingUNet(tf.keras.Model):
 
         #todo: upsample path here
 
-        def sigmoid_activation(inputs):#softplus activation
-            inputs_list = tf.unstack(inputs, axis=-1)
-            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
-            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
-            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
-
-            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
-            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
-            #todo: add input vec for intensity
-            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
-            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
-
-            return tf.stack(inputs_list, axis=-1)
-
-        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
         self.concat = tf.keras.layers.Concatenate()
 
     def __call__(self, inputs, training=False):
@@ -282,7 +256,7 @@ class CompressedSensingUNet(tf.keras.Model):
     def sigma(self, value):
         self.cs_layer.sigma = value
 
-class CompressedSensingResUNet(tf.keras.Model):
+class CompressedSensingResUNet(BaseModel):
     TYPE = 0
     OUTPUT_CHANNELS = 8
     def __init__(self):
@@ -292,41 +266,61 @@ class CompressedSensingResUNet(tf.keras.Model):
         self.decoder = UNetLayer(1)
         self.update_encoder = UNetLayer(8)
 
-        def sigmoid_activation(inputs):#softplus activation
-            inputs_list = tf.unstack(inputs, axis=-1)
-            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
-            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
-            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
 
-            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
-            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
-            #todo: add input vec for intensity
-            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
-            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
-
-            return tf.stack(inputs_list, axis=-1)
-
-        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
 
     def __call__(self, inputs, training=False):
         x = self.initial_layer(inputs)
-        x = self.activation(x)
-        for i in range(8):
+        x_zero = self.activation(x)
+        x = x_zero
+        reconstruction_delta_list = []
+        for i in range(4):
             y = self.decoder(x)
             y += x[:,:,:,7:8]
             y -= inputs[:,:,:,1:2]
+            reconstruction_delta_list.append(y)
             update = self.update_encoder(y)
             update = tf.keras.activations.tanh(update)
             x += update
-        #x = tf.keras.layers.Concatenate()([x, skip2[-2]])
+        x = self.activation(x) #todo not compute this every time!
+        if training:
+            return x,reconstruction_delta_list #,[cs]#todo: bacck to cs_out2
+        else:
+            return x
 
-        # y = self.conv2(x)
-        # z = self.conv3(x)
-        # x = tf.keras.layers.Concatenate()([y, z])
+    def compute_loss(self,feature_map,reconstruction_delta_list, truth, noiseless_gt, data):
+        loss = compute_loss_decode(truth, feature_map, noiseless_gt, data)
+        # for feature_map in reconstruction_delta_list:
+        #     loss += tf.reduce_sum(tf.square(feature_map))
+        return loss
 
-       # x = self.conv1(x)
 
+    @property
+    def mat(self):
+        return self._mat
+
+    @property
+    def sigma(self):
+        return self._sigma
+
+    @sigma.setter
+    def sigma(self, value):
+        self._sigma = value
+
+
+class StandardUNet(BaseModel):
+    TYPE = 0
+    OUTPUT_CHANNELS = 8
+    def __init__(self):
+        super(StandardUNet, self).__init__()
+        self.initial_layer = UNetLayer(8)
+        self.layer2 = UNetLayer(8)
+
+
+    def __call__(self, inputs, training=False):
+        x = self.initial_layer(inputs)
+        x = self.layer2(x)
         x = self.activation(x)
+
         if training:
             return x#,[cs]#todo: bacck to cs_out2
         else:
@@ -344,29 +338,13 @@ class CompressedSensingResUNet(tf.keras.Model):
     def sigma(self, value):
         self._sigma = value
 
-
-class CompressedSensingConvNet(tf.keras.Model):
+class CompressedSensingConvNet(BaseModel):
     TYPE = 0
     OUTPUT_CHANNELS = 8
     def __init__(self):
         super(CompressedSensingConvNet, self).__init__()
         self.cs_layer = CompressedSensingConvolutional(iterations=5)
 
-        def sigmoid_activation(inputs):#softplus activation
-            inputs_list = tf.unstack(inputs, axis=-1)
-            inputs_list[0] = tf.keras.activations.tanh(inputs_list[0])
-            inputs_list[1] = tf.keras.activations.tanh(inputs_list[1])
-            inputs_list[2] = tf.keras.activations.sigmoid(inputs_list[2])  # last is classifier
-
-            inputs_list[3] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[3])
-            inputs_list[4] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[4])
-            #todo: add input vec for intensity
-            inputs_list[5] = 0.0001+tf.keras.activations.sigmoid(inputs_list[5])
-            inputs_list[6] = 0.001+3*tf.keras.activations.sigmoid(inputs_list[6])
-
-            return tf.stack(inputs_list, axis=-1)
-
-        self.activation = tf.keras.layers.Lambda(sigmoid_activation)
 
     def __call__(self, inputs, training=False):
         x = inputs#/(0.001+tf.reduce_max(tf.abs(inputs),axis=[1,2],keepdims=True))

@@ -220,7 +220,7 @@ class UNetLayer(tf.keras.layers.Layer):
     def __init__(self,outputs,*args,  **kwargs):
         super(UNetLayer, self).__init__(*args, **kwargs, dtype="float32")
         initializer = tf.random_normal_initializer(0., 0.02)
-        self.down_path = [downsample(128,5, strides=3),#3
+        self.down_path = [downsample(128,5, strides=3),#3#todo extend?
                         downsample(256,5,strides=3),#1
                           ]
         self.up_path = [

@@ -12,6 +12,7 @@ from src.data import crop_generator_saved_file_coords
 from src.trainings import train_cs_net
 from src.facade import NetworkFacade
 from tests.create_test_datasets import TestDatasets
+from src.trainings.train_cs_net import *
 
 CURRENT1 = get_root_path()+r"/trainings/cs_cnn/_final_training_100_100"
 CURRENT2 = get_root_path()+r"/trainings/cs_inception/_final_10_100"
@@ -77,8 +78,7 @@ class ViewLayerOutputs():
         self.data_fac = TestDatasets(9)
 
 
-        self.facade_hcs = NetworkFacade(CompressedSensingCVNet, CURRENT1,
-                                                get_root_path()+r"/trainings/wavelet/training_lvl2/cp-10000.ckpt")
+        self.facade_hcs = CSUNetFacade()
         self.facade_hcs.threshold = 0.15  # todo: still has artefacts...
         self.facade_hcs.sigma_thresh = 0.3
         self.facade_hcs.photon_filter = 0.1
@@ -247,12 +247,12 @@ class ViewLayerOutputs():
     def distance_test(self):
         im, points = self.data_fac.create_decreasing_distance()
         #cs_out = tf.keras.layers.UpSampling2D(size=(8, 8), interpolation='bilinear', )(im)
-        out = self.network1.predict(im)
+        out = self.network1.predict(tf.cast(im/(2*tf.reduce_max(im)), tf.float32))
 
         c = [np.array([0,0,i]) for i in range(5)]
         coords = self.facade_hcs.get_localizations_from_image_tensor(out, c)
 
-        out = self.network2.predict(im)
+        #out = self.network2.predict(im)
         coords_lcs = self.facade_hcs.get_localizations_from_image_tensor(out, c)
 
         self.plot(coords, coords_lcs, im, points)
@@ -296,12 +296,12 @@ class ViewLayerOutputs():
         #     tif.save(dataset)
         #todo: safe tensor for thunderstorm evaluation
         #cs_out = tf.keras.layers.UpSampling2D(size=(8, 8), interpolation='bilinear', )(im)
-        out = self.network1.predict(im)
+        out = self.network1.predict(tf.cast(im/(3*tf.reduce_max(im)), tf.float32))
 
         c = [np.array([0,0,i]) for i in range(5)]
         coords = self.facade_hcs.get_localizations_from_image_tensor(out, c)
 
-        out = self.network2.predict(im)
+        #out = self.network2.predict(im)
         coords_lcs = self.facade_hcs.get_localizations_from_image_tensor(out, c)
         self.plot(coords, coords_lcs, im, points, th=th_data)
 
@@ -336,4 +336,4 @@ class ViewLayerOutputs():
 
 if __name__ == '__main__':
     V = ViewLayerOutputs()
-    V.plot_facade_generator_output()
+    V.distance_test()

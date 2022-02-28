@@ -28,20 +28,22 @@ def result_image_to_coordinates(result_tensor, coord_list=None, threshold=0.2, s
             indices = get_coords(classifier).T
             x = result_tensor[i, indices[0], indices[1], 0]
             y = result_tensor[i, indices[0], indices[1], 1]
+            p = result_tensor[i, indices[0], indices[1], 2]
             dx = result_tensor[i, indices[0], indices[1], 3]  # todo: if present
             dy = result_tensor[i, indices[0], indices[1], 4]
+            N = result_tensor[i, indices[0], indices[1], 5]
 
             for j in range(indices[0].shape[0]):
                 #if dx[j] < sigma_thresh and dy[j] < sigma_thresh:
                     if coord_list:
                         result_array.append(np.array([coord_list[i][0] + float(indices[0][j]) + (x[j])
                                                          , coord_list[i][1] + float(indices[1][j]) + y[j], coord_list[i][2],
-                                                      dx[j], dy[j]]))
+                                                      dx[j], dy[j], N[j], p[j]]))
                         test.append(np.array([x[j], y[j]]))
                     else:
                         result_array.append(np.array([float(indices[0][j]) + (x[j])
                                                     ,float(indices[1][j]) + y[j], i,
-                                                      dx[j], dy[j]]))
+                                                      dx[j], dy[j], N[j], p[j]]))
                         test.append(np.array([x[j], y[j]]))
     print(np.mean(np.array(test), axis=0))
     return np.array(result_array)
@@ -397,12 +399,85 @@ def old_psf_matrix(M_x,M_y,N_x,N_y,sigma_x,sigma_y):
     return A
 
 
+def read_thunderstorm_drift_json(path):
+    import json
+    from scipy.interpolate import CubicSpline
+    with open(path, 'r') as f:
+        data = json.load(f)
+
+    def get_knots_drift(name):
+        knots = data[name]["knots"]
+        drift = []
+        polynom = data[name]['polynomials']
+
+        for poly in polynom:
+            coeff = poly["coefficients"]
+            drift.append(coeff[0])
+        drift.append(coeff[0] + coeff[1] * (knots[-1] - knots[-2] - 1))
+        return knots, drift
+
+    knots_x, drift_x = get_knots_drift("xFunction")
+
+    x = np.arange(knots_x[0], knots_x[-1] + 1)
+    poly_x = CubicSpline(knots_x, drift_x)
+    x_drift = poly_x(x)
+    knots_y, drift_y = get_knots_drift("yFunction")
+    poly_y = CubicSpline(knots_y, drift_y)
+    y_drift = poly_y(x)
+    return np.stack([x_drift, y_drift],axis=-1)
+
+def read_thunderstorm_drift(path):
+    import pandas as pd
+    from scipy.interpolate import interp1d
+    #done: read json
+    data = pd.read_csv(path, sep=",")
+    frames_x = data['X2'].values
+    frames_y = data['X3'].values
+    drift_x = data['Y2'].values
+    drift_y = data['Y3'].values
+    x_pol = interp1d(frames_x, drift_x, kind='cubic')
+    y_pol = interp1d(frames_y, drift_y, kind='cubic')
+    X = np.arange(1, 4800)#todo: image shape
+    Y = np.arange(1, 4800)
+    driftx_n = x_pol(X)
+    drifty_n = y_pol(Y)
+    return np.stack([driftx_n, drifty_n],axis=-1)
+
+
+
+    #todo: pick X2 Y2 X3 Y3
+
+    #todo: interpolate linear between entries
+
+    #todo: return drift per frame
+
+    pass
+
 def get_reconstruct_coords(tensor, th, neighbors=3):
+    import copy
     filter = np.ones((neighbors,neighbors))
-    filter[0::2,0::2] = 1
-    #todo: np where result> threshold
+    filter[0::2,0::2] = 0
+    tensor = copy.deepcopy(tensor)
     convolved = scipy.ndimage.convolve(tensor, filter)
-    indices = np.where(np.logical_and(tensor > th, convolved >1.5*th))
+    #todo: if convolved >1 pick maximum
+    #todo: if convolved > 2 pick both
+
+    indices = np.where(np.logical_and(tensor > th, convolved >2*th))
+    x = []
+    y = []
+    for i in range(indices[0].shape[0]):
+        ind_x_min = indices[0][i]-1
+        ind_y_min = indices[1][i]-1
+        if ind_x_min<0:
+            ind_x_min = 0
+        if ind_y_min < 0:
+            ind_y_min = 0
+        t = tensor[ind_x_min:indices[0][i]+2, ind_y_min:indices[1][i]+2]
+        max_ind = np.where(t==t.max())
+        x.append(max_ind[0][0] + indices[0][i]-1)
+        y.append(max_ind[1][0] + indices[1][i]-1)
+
+    indices = np.unique(np.array((np.array(x).astype(np.int), np.array(y).astype(np.int))),axis=1)
     return indices
     #todo: where convolved > 1.5 threshold
 

@@ -11,6 +11,7 @@
   "test_compressed_sensing.py::TestCompressedSensingInceptionLayer::test_u_net_has_skip_layers": true,
   "test_compressed_sensing.py::TestCompressedSensingLayer::test_output_is_sparse": true,
   "test_compressed_sensing.py::TestCompressedSensingLayer::test_perfect_reconstruction_from_noiseless_data": true,
+  "test_emitter_set.py": true,
   "test_models.py": true,
   "test_models.py::TestCompressedSensingNet::test_network_learns_loss_function": true,
   "test_models.py::TestCompressedSensingNet::test_permutation_loss": true,
