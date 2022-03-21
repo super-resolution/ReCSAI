@@ -1,9 +1,14 @@
 # Tf Wavelet Layers
+(integrations for colab zenodo)
 is a Single Molecule Localisation Microscopy software, that combines the following components:
 * Efficient prefiltering by learnable wavelet filters
+(pics)
 * A differentiable compressed sensing algorithm implemented into a neuronal network fro accurate localisation reconstructions
+(update)
 * A set of localisation filters
+(emitter set)
 * State of the art rendering of SMLM data
+(more like rendering)
 
 ## Requirements
 Additionally to installing the requirements.txt you need to get:

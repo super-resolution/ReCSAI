@@ -1,12 +1,21 @@
 import warnings
 import numpy as np
+import pandas as pd
+from copy import deepcopy
+from src.utility import get_reconstruct_coords, read_thunderstorm_drift_json
+import os
+import json
 
 class Emitter():
-    attributes = ["xyz", "photons", "sigxsigy", "frames", "ids"]
+    """
+    Emitter set for SMLM data
+    """
+
+    ATTRIBUTES = ["xyz", "photons", "sigxsigy", "frames", "ids", "p"]
     def __init__(self, xyz, photons,  frames,sigxsigy=None, p=None, ids=None):
-        self.xyz = np.array(xyz)
+        self.xyz = np.array(xyz)#in nm
         self.photons = np.array(photons)
-        self.sigxsigy = np.array(sigxsigy)
+        self.sigxsigy = np.array(sigxsigy)#in nm?
         self.frames = np.array(frames,dtype=np.int32)
         if np.any(sigxsigy):
             self.sigxsigy = np.array(sigxsigy)
@@ -15,33 +24,51 @@ class Emitter():
         if np.any(ids):
             self.ids = np.array(ids,dtype=np.int32)
         else:
-            self.ids = np.arange(0, xyz.shape[0])
+            self.ids = np.arange(0, self.xyz.shape[0])
         if np.any(p):
             self.p = np.array(p)
         else:
-            self.p = np.ones(xyz.shape[0])
+            self.p = np.ones(self.xyz.shape[0])
         self.check_data_integrety()
+        self.metadata = ""
 
     def check_data_integrety(self):
-        for attr1 in self.attributes:
-            for attr2 in self.attributes:
+        for attr1 in self.ATTRIBUTES:
+            for attr2 in self.ATTRIBUTES:
                 if getattr(self, attr1).shape[0] != getattr(self,attr2).shape[0] and getattr(self,attr2).shape[0] !=0 and getattr(self, attr1).shape[0] !=0:
                     warnings.warn(f"{attr1} and {attr2} dont have the some length data might be corrupted")
 
 
     def add_emitters(self, xyz, photons, sigxsigy, frames, ids):
+        """
+        Add emitters to current set
+        """
         #todo use numpy append here
-        self.xyz.append(xyz)
-        self.photons.append(photons)
-        self.sigxsigy.append(sigxsigy)
-        self.frames.append(frames)
-        self.ids.append(ids.astpye(np.int32))
+        self.xyz = np.append(self.xyz, xyz, axis=0)
+        self.sigxsigy = np.append(self.sigxsigy, sigxsigy, axis=0)
+        self.frames = np.append(self.frames, frames, axis=0)
+        self.ids = np.append(self.ids, np.arange(self.ids[-1], xyz.shape[0], 1), axis=0)
+
         self.check_data_integrety()
 
+    def __add__(self, other):
+        """
+        Concatenates two emitter set to a new one
+        :param other: Emitter set
+        """
+        self.xyz = np.append(self.xyz, other.xyz, axis=0)
+        self.sigxsigy = np.append(self.sigxsigy, other.sigxsigy, axis=0)
+        self.frames = np.append(self.frames, other.frames, axis=0)
+        self.ids = np.append(self.ids, np.arange(self.ids[-1], other.xyz.shape[0], 1), axis=0)
+        self.photons = np.append(self.photons, other.photons, axis=0)
 
-    #todo: overwrite substract? and modulo?
-    #todo: compute difference between emitter sets and return emitter set
+    #compute difference between emitter sets and return emitter set
     def __sub__(self, other):
+        """
+        Compute the difference between two emitter sets.
+        :param other: Emitter set
+        :return: Emitters that don`t overlap within a 100nm range
+        """
         #todo: should have same frame length
         found_emitters = []
         for i in range(int(self.frames.max())):
@@ -70,9 +97,171 @@ class Emitter():
         return self.subset(diff)
 
     def subset(self, ids):
-        new = Emitter(self.xyz[ids], self.photons[ids], self.frames[ids], self.sigxsigy[ids])
+        """
+        Returns a new emitter set from a list of given ids
+        """
+        new = Emitter(deepcopy(self.xyz[ids]), deepcopy(self.photons[ids]), deepcopy(self.frames[ids]), deepcopy(self.sigxsigy[ids]))
         return new
 
-    def plot_failures(self, images, result_array):
-        #todo: plot
+    def filter(self, sig_x=3, sig_y=3, photons=0, p=0, frames=None):
+        """
+        Filter emitter set
+        :param sig_x:
+        :param sig_y:
+        :param photons:
+        :param p:
+        :param frames:
+        :return: New emitter set with filters applied
+        """
+        metadata = f"""Filters:\n sigma x:{sig_x}\n sigma y:{sig_y}\n photons:{photons}\n  p:{p}\n frames:{frames}"""
+        conditions=[]
+        conditions.append(self.sigxsigy[:,0]<sig_x)
+        conditions.append(self.sigxsigy[:,1]<sig_y)
+        conditions.append(self.photons>photons)
+        conditions.append(self.p>p)
+        if frames:
+            conditions.append(self.frames>frames[0])
+            conditions.append(self.frames<frames[1])
+        indices = self.ids[np.where(np.all(np.array(conditions),axis=0))]
+        s = self.subset(indices)
+        s.metadata += metadata
+        return s
+
+    def save(self, path, format="npy"):
+        """
+        Save emitter set in the given format
+        :param path: save path
+        :param format: save format
+        :return:
+        """
+        names = {}
+        data = []
+        for col,att in enumerate(self.ATTRIBUTES):
+            val = getattr(self, att)
+            if val:
+                names[att] = col
+                data.append(val)
+        names["metadata"] = self.metadata
+        data = np.concatenate(data, axis=-1)
+        if format =="npy":
+            #make if exists test for non mandatory columns
+            path_m = os.path.splitext(path)
+            with open(path_m + '_metadata.json', 'w') as fp:
+                json.dump(names, fp)
+            np.save(path, data)
+        elif format == "csv":
+            pass
+        elif format == "txt":
+            pass
+
+    def apply_drift(self, path):
+        """
+        Apply thunderstorm c-spline drift or raw drif in csv format
+        :param path:
+        :return:
+        """
+        if path.split(".")[-1] == "csv":
+            print("drift correction activated")
+            drift = pd.read_csv(self.drift_path).as_matrix()[::,(2,1)]
+            #drift[:,0] *= -1
+        else:
+            print("drift correction activated")
+            path = self.drift_path+r"\drift.json"
+            drift = read_thunderstorm_drift_json(path)
+        for i,frame in enumerate(self.frames.max()):
+            self.xyz[np.where(self.frames == frame),0] += drift[i,1]
+            self.xyz[np.where(self.frames == frame),1] -= drift[i,0]
+
+
+
+    @classmethod
+    def load(cls, path, raw=False):
+        """
+        Load emitter set from given path
+        :param path:
+        :param raw:
+        :return:
+        """
+        #todo: if raw load put throught image_to_tensor
         pass
+
+    @classmethod
+    def from_result_tensor(cls, result_tensor, p_threshold, coord_list=None):
+        """
+        Build an emitter set from the neural network output
+        :param result_tensor: Feature map output of the AI
+        :param coord_list: Coordinates of the crops detected by the wavelet filter bank
+        :param p_threshold: Threshold value for a classifier pixel to contain a localisation
+        :return:
+        """
+        xyz = []
+        N_list = []
+        sigx_sigy = []
+        sN_list = []
+        p_list = []
+        frames = []
+        for i in range(result_tensor.shape[0]):
+            classifier =result_tensor[i, :, :, 2]
+            x= np.sum(classifier)
+            if x > p_threshold:
+                indices = get_reconstruct_coords(classifier, p_threshold)#todo: import and use function
+
+                x = result_tensor[i, indices[0], indices[1], 0]
+                y = result_tensor[i, indices[0], indices[1], 1]
+                p = result_tensor[i, indices[0], indices[1], 2]
+                dx = result_tensor[i, indices[0], indices[1], 3]#todo: if present
+                dy = result_tensor[i, indices[0], indices[1], 4]
+                N = result_tensor[i, indices[0], indices[1], 5]
+                dN = result_tensor[i, indices[0], indices[1], 6]
+
+                for j in range(indices[0].shape[0]):
+                    if np.any(coord_list):
+                        xyz.append(np.array([coord_list[i][0] +float(indices[0][j]) + (x[j]),#x
+                                             coord_list[i][1] +float(indices[1][j]) + y[j]])*100)#y
+                        frames.append(coord_list[i][2])
+
+                    else:
+                        print("warning no coordinate list loaded -> no offsets are added")
+                        xyz.append(np.array([float(indices[0][j]) + (x[j]),#x
+                                             float(indices[1][j]) + y[j]])*100)#y
+                        frames.append(i)
+                    p_list.append(p[j])
+                    sigx_sigy.append(np.array([dx[j],dy[j]]))
+                    N_list.append(N[j])
+                    sN_list.append(dN[j])
+        return cls(xyz, N_list, frames, sigx_sigy, p_list)
+
+    @classmethod
+    def from_ground_truth(cls, coordinate_tensor):
+        coords = []
+        for i, crop in enumerate(coordinate_tensor):
+            for coord in crop:
+                if coord[2] != 0:
+                    #todo add photons
+                    coords.append(np.array([coord[0], coord[1], i, coord[3]]))
+        coords = np.array(coords)
+        coords[:, 0:2] *= 100
+        return cls(coords[:,0:2], coords[:,3], coords[:,2])
+
+
+
+    def get_frameset_generator(self, images, frames, gt=None):
+        """
+        Generator for plotting emitter sets on images
+        :param images:
+        :param gt:
+        :param frames:
+        :return: Generator with image, emitters, ground truth
+        """
+        def frameset_generator():
+            for frame in frames:
+                emitters = self.xyz[np.where(self.frames==frame)]/100
+                if np.any(emitters):
+                    print(f"current frame: {frame}")
+                    image = images[frame]
+                    if gt:
+                        gt_emitters = gt.xyz[np.where(gt.frames==frame)]/100
+                        yield image[:,:,1], emitters, gt_emitters
+                    else:
+                        yield image[:,:,1], emitters
+        return frameset_generator

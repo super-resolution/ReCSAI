@@ -7,9 +7,9 @@ from src.utility import get_root_path
 
 CURRENT_INCEPTION_NETWORK_PATH = get_root_path()+r"/trainings/cs_inception/_final_training_100_10_ndata"
 CURRENT_CV_NETWORK_PATH = get_root_path()+r"/trainings/cs_cnn/_final_training_100_ndata_test_thresholding"
-CURRENT_U_NETWORK_PATH = get_root_path()+r"/trainings/cs_u/_final_training_100_ndata"
-CURRENT_U2_NETWORK_PATH = get_root_path()+r"/trainings/cs_u/_final2_training_100_ndata_further_higherit"
-CURRENT_U2_NETWORK_PATH = get_root_path()+r"/trainings/cs_u/_final2_training_100_ndata_constrain_sig"#best so far
+CURRENT_U_NETWORK_PATH = get_root_path()+r"/trainings/cs_u/_final_training_100_ndata2"
+#CURRENT_U2_NETWORK_PATH = get_root_path()+r"/trainings/cs_u/_final2_training_100_ndata_further_higherit"
+CURRENT_U2_NETWORK_PATH = get_root_path()+r"/trainings/cs_u/_final2_training_100_ndata_test_compare"#best so far
 CURRENT_STANDARD_U_NETWORK = get_root_path()+r"/trainings/cs_u/standard_unet_ndata"
 
 CURRENT_CONV_NETWORK_PATH = get_root_path()+r"/trainings/cs_conv/_conv_training_ndata"
@@ -28,7 +28,7 @@ class CVNetFacade(NetworkFacade):
     def __init__(self):
         super(CVNetFacade, self).__init__(CompressedSensingCVNet, CURRENT_CV_NETWORK_PATH,
                                           CURRENT_WAVELET_PATH)
-        self.train_loops = 60
+        self.train_loops = 50
 
 
 class UNetFacade(NetworkFacade):

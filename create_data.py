@@ -11,7 +11,7 @@ def create_crop_dataset(iterations):
     coordinates = []
     size = 1000
     im_size = 9
-    for j in range(200):
+    for j in range(50):
         sigma = np.random.randint(175, 185) #todo: vary sigma with dataset
         generator = crop_generator_u_net(im_size, sigma_x=sigma, noiseless_ground_truth=True,size=size)
         # for image in generator():

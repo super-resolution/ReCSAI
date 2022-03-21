@@ -72,7 +72,7 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, no
     factory.image_shape = (im_shape,im_shape)# select points here
     def generator():
         for z in range(100):
-            ph = np.random.randint(500,1500)#todo: add photons to dataset
+            ph = np.random.randint(200,1000)#todo: add photons to dataset was 500,1500
             points = factory.create_crop_point_set(photons=ph, on_time=30)
             #sigma_y = np.random.randint(100, 250)
             sig_y = sigma_x+np.random.rand()*10-5
@@ -97,18 +97,21 @@ def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, no
                 def build_image(ind, switching_array,):#todo: points to image additional parameters sigma and intensity
                     image_s = np.zeros((im_shape, im_shape, 3))
                     image_noiseless = np.zeros((im_shape, im_shape, 3))
+                    local_bg= np.random.choice(a=[True, False], size=1, p=[0.1,0.9])[0]#activated recently
                     for i in range(3):
-                        #todo: if before is zero activate switching
-                        #todo: if after is zero activate inverted
-                            #todo: for points with right variables
+
                         image,gt,on_points = factory.simulate_accurate_flimbi(points, points[ind], switching_rate=0, inverted=switching_array[:,i])
                         image_noiseless[:,:, i] = factory.reduce_size(gt).astype(np.float32)
 
                         image = factory.reduce_size(image).astype(np.float32)
+
+                        #local bg simulation:
+                        if local_bg:
+                            image += np.random.rand()*5+15 #noise was 2
+
                         #image_noiseless[:,:,i] = copy.deepcopy(image)
-                        image += np.random.rand()*5+10 #noise was 2
                         image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
-                        # plt.scatter(on_points[:,1]/100,on_points[:,0]/100)
+                        #plt.scatter(on_points[:,1]/100,on_points[:,0]/100)
                         # plt.imshow(image)
                         # plt.show()
 
@@ -270,7 +273,7 @@ def generate_generator(image):#todo needs image size
         for i in range(batches_count):
             dat = image[i * batch_size:(i + 1) * batch_size,]#14:-14,14:-14]
             # dat = dat[:dat.shape[0]//4*4]
-            # dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
+            #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
             # dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
             #dat[:,1::2,1:] = dat[:,1::2,:-1]
             dat -= dat.min()

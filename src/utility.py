@@ -8,7 +8,18 @@ from pathlib import Path
 import numpy as np
 import scipy
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
+from time import time
+from functools import wraps
 
+def timing(f):
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time()
+        result = f(*args, **kw)
+        te = time()
+        print(f'func:{f.__name__} args:[{args}{kw}] took: {te-ts} sec')
+        return result
+    return wrap
 
 
 def result_image_to_coordinates(result_tensor, coord_list=None, threshold=0.2, sigma_thresh=0.1):
@@ -150,6 +161,7 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
     train_new = []
     truth_new = []
     coord_list = []
+    #data_tensor = data_tensor/tf.keras.backend.max(data_tensor)
     data = tf.cast(data_tensor, tf.float32).numpy()
     data /= tf.keras.backend.max(data)
 
@@ -161,7 +173,7 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
     #data_tensor /= tf.keras.backend.max(data_tensor)
     for i in range(im.shape[0]):
         # todo: denoise all at once
-        current_data = data[i, :, :, :]#/tf.keras.backend.max(data[i, :, :, :])
+        current_data = data[i, :, :, :]/tf.keras.backend.max(data[i, :, :, :])
         #current_data = tf.repeat(current_data,3, axis=-1)
 
         wave = im[i:i + 1, :, :, 1:2]/tf.keras.backend.max(im[i:i + 1, :, :, 1:2])

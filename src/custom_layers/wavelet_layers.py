@@ -1,5 +1,5 @@
 import tensorflow as tf
-import src.custom_nodes as nodes
+import src.custom_layers.custom_nodes as nodes
 import numpy as np
 from tfwavelets.dwtcoeffs import haar, db3
 

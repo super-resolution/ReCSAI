@@ -63,6 +63,8 @@ class JaccardIndex():
         self.fp = 0
         self.fn = 0
         self.error= []
+        self.accuracy = 0
+
 
     def result(self, step):
 

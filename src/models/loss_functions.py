@@ -25,7 +25,7 @@ def compute_loss_decode(truth, predict, noiseless_gt,  data):
 
 
     b_loss = l2(data[:, :, :, 1] - noiseless_gt[:, :, :, 1], predict[:, :, :, 7])
-    return  loc_loss(truth,predict) + count_loss(truth, predict) +  b_loss #+ loss
+    return loc_loss(truth,predict) + count_loss(truth, predict) + b_loss #+ loss
 
 
 
@@ -34,7 +34,7 @@ def count_loss(truth, predict):
     count = tf.zeros(tf.shape(truth)[0])
     for j in range(10):
         count += truth[:, j, 2]
-    sigma_c = tf.keras.backend.sum((predict[:, :, :, 2]+0.01) * (1 - predict[:, :, :, 2]), axis=[-1, -2])
+    sigma_c = tf.keras.backend.sum((predict[:, :, :, 2]+0.0001) * (1 - predict[:, :, :, 2]), axis=[-1, -2])
     # i=0#todo: learn background and photon count
     t = tf.keras.backend.sum(predict[:, :, :, 2], axis=[-1, -2])
     L2 = 1 / 2 * tf.square(t - count)
@@ -58,7 +58,7 @@ def loc_loss(truth, predict):
         ten = truth[:, i, 2]/ (count+0.001) * (-tf.math.log(tf.keras.backend.sum(
             predict[:, :, :, 2] / (tf.keras.backend.sum(predict[:, :, :, 2], axis=[-1,-2], keepdims=True)
                                    *
-                                   tf.math.sqrt(predict[:, :, :, 3]**2 * predict[:, :, :, 4]**2 * predict[:, :, :, 6]**2
+                                   tf.math.sqrt(predict[:, :, :, 3] * predict[:, :, :, 4] * predict[:, :, :, 6]#square or not square that is the question...
                                                 * (2 * tf.constant(m.pi)) ** 3)
                                    )
 
@@ -66,10 +66,10 @@ def loc_loss(truth, predict):
                     tf.square(
                         predict[:, :, :, 0] - (
                                     truth[:, i:i + 1, 0:1] - Y))  # todo: test that this gives expected values
-                    / (predict[:, :, :, 3]**2)
+                    / (predict[:, :, :, 3])
                     + tf.square(predict[:, :, :, 1] - (truth[:, i:i + 1, 1:2] - X))
-                    / (predict[:, :, :, 4]**2)
-                    + tf.square(predict[:, :, :, 5] - truth[:, i:i + 1, 3:4]) / predict[:, :, :, 6]**2
+                    / (predict[:, :, :, 4])
+                    + tf.square(predict[:, :, :, 5] - truth[:, i:i + 1, 3:4]) / predict[:, :, :, 6]
             ))
             , axis=[-1, -2])))  # todo: activation >= 0
 

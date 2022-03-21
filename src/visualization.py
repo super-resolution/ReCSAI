@@ -64,7 +64,7 @@ def render(data_in, thunderstorm=False):
     return downsampled
 
 
-def display_storm_data(data_in, thunderstorm=False):
+def display_storm_data(data_in, thunderstorm=False, name="", frc=None):
     #todo: show first and second half for FRC
     #data_in = data_in[np.where(data_in[:,2]<data_in[:,2].max()/3)]
     #data_in = data_in[1::2]
@@ -75,7 +75,7 @@ def display_storm_data(data_in, thunderstorm=False):
     array = np.zeros((int(localizations[:,0].max())+1, int(localizations[:,1].max())+1))#create better rendering...
     for i in range(localizations.shape[0]):
         if not thunderstorm:
-            array[int(localizations[i,0]),int(localizations[i,1])] += 15000*data_in[i,5]
+            array[int(localizations[i,0]),int(localizations[i,1])] += 30000*data_in[i,5]
         else:
             array[int(localizations[i,0]),int(localizations[i,1])] += (2000)
 
@@ -93,11 +93,58 @@ def display_storm_data(data_in, thunderstorm=False):
     v[-25:-20,10:110,0:3] = 1
     with TiffWriter('tmp/temp2.tif', bigtiff=True) as tif:
         tif.save(v)
+    if frc:
+        cv2.imwrite(f'tmp/{name}_{frc}.jpg',v[:,:,(2,1,0)]*255)
+    else:
+        cv2.imwrite(f'tmp/temp.jpg',v)
+
     #todo: save array...
     #array = np.log(array+1)
     plt.imshow(array, cmap='hot')
     plt.show()
-    
+
+
+def display_emitter_set(emitters):
+    """
+    Image from emitter set class
+    :param emitters:
+    :return:
+    """
+    # todo: show first and second half for FRC
+    # data_in = data_in[np.where(data_in[:,2]<data_in[:,2].max()/3)]
+    # data_in = data_in[1::2]
+
+    localizations = emitters.xyz  # +np.random.random((data_in.shape[0],2))
+    localizations *= 100
+    array = np.zeros(
+        (int(localizations[:, 0].max()) + 1, int(localizations[:, 1].max()) + 1))  # create better rendering...
+    for i in range(localizations.shape[0]):
+            array[int(localizations[i, 0]), int(localizations[i, 1])] += 30000 * emitters.photons[i]
+
+
+    array = cv2.GaussianBlur(array, (21, 21), 0)
+    # array -= 10
+    array = np.clip(array, 0, 255)
+    downsampled = cv2.resize(array, (int(array.shape[1] / 10), int(array.shape[0] / 10)), interpolation=cv2.INTER_AREA)
+    # todo: make 10 px scalebar
+    # with TiffWriter('tmp/temp.tif', bigtiff=True) as tif:
+    #     tif.save(downsampled)
+    #
+    # cm = plt.get_cmap('hot')
+    # v = cm(downsampled / 255)
+    # v[:, :, 3] = 255
+    # v[-25:-20, 10:110, 0:3] = 1
+    # with TiffWriter('tmp/temp2.tif', bigtiff=True) as tif:
+    #     tif.save(v)
+    # if frc:
+    #     cv2.imwrite(f'tmp/{name}_{frc}.jpg', v[:, :, (2, 1, 0)] * 255)
+    # else:
+    #     cv2.imwrite(f'tmp/temp.jpg', v)
+
+    # todo: save array...
+    # array = np.log(array+1)
+    plt.imshow(array, cmap='hot')
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -106,10 +153,24 @@ if __name__ == '__main__':
     #todo: plot thunderstorm... and compute frc + lineprofiler
     import pandas as pd
     from src.utility import FRC_loss
-    data = pd.read_csv(r"C:\Users\biophys\PycharmProjects\TfWaveletLayers\test_data\thunderstorm_results_Dyomics654.csv").as_matrix()
-    data = data[:,(2,1,0,3)]/100
-    #drift = (1 - data[:, 2] / data[:, 2].max()) * 0.6
-    #data[:, 1] -= drift
+    name = "Cy5"
+    #name = "JF646"
+    #name= "Dyomics654"
 
-    print(FRC_loss(render(data[:data.shape[0]//4]),render(data[data.shape[0]//4:data.shape[0]//2])))
-    display_storm_data(data[:data.shape[0]//2], thunderstorm=True)
+    data = pd.read_csv(fr"C:\Users\biophys\PycharmProjects\TfWaveletLayers\test_data\thunderstorm_results_{name}.csv").as_matrix()
+    data = data[:,(2,1,0,3)]/100#todo clip coordinates
+
+    #cy5
+    drift = (1 - data[:, 2] / data[:, 2].max()) * 0.6
+    data[:, 1] -= drift
+    frc = FRC_loss(render(data[:data.shape[0]//2]),render(data[data.shape[0]//2:]))
+    print(frc)
+    display_storm_data(data[:], thunderstorm=True, name=name, frc=frc)
+
+    #Dyomics
+    #data = data[np.where(np.logical_and(data[:,0]>6,data[:,0]<(data[:,0].max()-2)))]
+    #data[:,0] -=6
+
+    #frc = FRC_loss(render(data[:data.shape[0]//4]),render(data[data.shape[0]//4:data.shape[0]//2]))
+    #print(frc)
+    #display_storm_data(data[:data.shape[0]//2], thunderstorm=True, name=name, frc=frc)

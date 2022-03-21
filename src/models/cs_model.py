@@ -161,9 +161,9 @@ class CompressedSensingUNet(BaseModel):
         self.batch_norm = tf.keras.layers.BatchNormalization()
         initializer = tf.random_normal_initializer(0., 0.02)
         #todo: keep part of the down path
-        self.down_path = [downsample(8,3,apply_batchnorm=False),#36
-        downsample(16,3),#18
-        downsample(32,3),#9
+        self.down_path = [downsample(2,3,apply_batchnorm=False),#36
+        downsample(4,3),#18
+        downsample(8,3),#9
         downsample(64,5, strides=3),#3
         downsample(128,5,apply_batchnorm=False,strides=3),#1
                           ]
@@ -195,7 +195,7 @@ class CompressedSensingUNet(BaseModel):
         #self.conv2 = tf.keras.layers.Conv2D(8, (5, 1), activation=None, padding="same")
         #self.conv3 = tf.keras.layers.Conv2D(8, (1, 5), activation=None, padding="same")
 
-        self.conv1 = tf.keras.layers.Conv2D(8, (3, 3), activation=None, padding="same")
+        #self.conv1 = tf.keras.layers.Conv2D(8, (3, 3), activation=None, padding="same")
 
         #self.down_path2 = [downsample(8,3,apply_batchnorm=False), #36
         #downsample(8,3), #18
@@ -227,7 +227,7 @@ class CompressedSensingUNet(BaseModel):
         x = self.up_path[0](x)
         x = tf.keras.layers.Concatenate()([x, skip[-1]])
         x = self.up_path[1](x)
-        x = tf.keras.layers.Concatenate()([x, skip[-2]])
+        #x = tf.keras.layers.Concatenate()([x, skip[-2]])
 
 
         #x = tf.keras.layers.Concatenate()([x, skip2[-2]])
@@ -236,7 +236,7 @@ class CompressedSensingUNet(BaseModel):
         # z = self.conv3(x)
         # x = tf.keras.layers.Concatenate()([y, z])
 
-        x = self.conv1(x)
+        #x = self.conv1(x)
 
         x = self.activation(x)
         if training:
@@ -283,7 +283,7 @@ class CompressedSensingResUNet(BaseModel):
             x += update
         x = self.activation(x) #todo not compute this every time!
         if training:
-            return x,reconstruction_delta_list #,[cs]#todo: bacck to cs_out2
+            return x#,reconstruction_delta_list #,[cs]#todo: bacck to cs_out2
         else:
             return x
 
