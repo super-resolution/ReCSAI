@@ -62,7 +62,7 @@ plot_emitter_set(emitter_filtered)
 # display_storm_data(result_array[:,], name="Cy5", frc=frc)
 
 #dyomics etc
-frc = FRC_loss(render(result_array[:result_array.shape[0]//4,]), render(result_array[result_array.shape[0]//4:result_array.shape[0]//2]))
-print(frc)
-plot_parameter_distribution(result_array)
-display_storm_data(result_array[np.where(result_array[:,0]<90)], name="matlab", frc=frc)
+# frc = FRC_loss(render(result_array[:result_array.shape[0]//4,]), render(result_array[result_array.shape[0]//4:result_array.shape[0]//2]))
+# print(frc)
+# plot_parameter_distribution(result_array)
+# display_storm_data(result_array[np.where(result_array[:,0]<90)], name="matlab", frc=frc)

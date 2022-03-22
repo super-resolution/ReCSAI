@@ -1,0 +1,3 @@
+dataset: /dataset_reference_remote
+optimizer: <keras.optimizer_v2.adam.Adam object at 0x0000014834B024E0>
+learning rate: 0.0001
