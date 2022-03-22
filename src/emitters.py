@@ -162,11 +162,11 @@ class Emitter():
         """
         if path.split(".")[-1] == "csv":
             print("drift correction activated")
-            drift = pd.read_csv(self.drift_path).as_matrix()[::,(2,1)]
+            drift = pd.read_csv(path).as_matrix()[::,(2,1)]
             #drift[:,0] *= -1
         else:
             print("drift correction activated")
-            path = self.drift_path+r"\drift.json"
+            path = path+r"\drift.json"
             drift = read_thunderstorm_drift_json(path)
         for i,frame in enumerate(self.frames.max()):
             self.xyz[np.where(self.frames == frame),0] += drift[i,1]
