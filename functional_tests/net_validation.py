@@ -5,16 +5,12 @@ gpus = tf.config.experimental.list_physical_devices('GPU')
 for gpu in gpus:
   tf.config.experimental.set_memory_growth(gpu, True)
 
-from src.trainings.train_cs_net import CSUNetFacade, InceptionNetFacade, CVNetFacade
+from src.trainings.train_cs_net import CSUNetFacade, CSInceptionNetFacade, CNNNetFacade
 from src.models.loss_functions import loc_loss, count_loss, compute_loss_decode_ncs
 from src.emitters import Emitter
 
 facade = CSUNetFacade()
 facade.sigma = 180
-#facade.wavelet_thresh = 0.08
-#facade.threshold = 0.2
-#facade.sigma_thresh = 0.1
-#facade.photon_filter = 0.1
 dataset = facade.get_current_dataset()
 for i, (train_image, noiseless_gt, coords_t, t, sigma) in enumerate(dataset):
     if i % 4 == 0:

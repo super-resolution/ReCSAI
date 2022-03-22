@@ -2,16 +2,15 @@ from src.models.wavelet_model import WaveletAI
 import tensorflow as tf
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt #todo: plot in main?
-from src.data import crop_generator,CROP_TRANSFORMS, crop_generator_u_net, generate_generator, crop_generator_saved_file_coords_airy, DataGeneratorFactory, crop_generator_saved_file_coords, crop_generator_saved_file_specific
+#import matplotlib.pyplot as plt #todo: plot in main?
+from src.data import crop_generator_u_net, DataGeneratorFactory
 from src.custom_metrics import JaccardIndex
-from src.utility import bin_localisations_v2, get_coords, get_root_path, get_reconstruct_coords, read_thunderstorm_drift, read_thunderstorm_drift_json, timing
+from src.utility import bin_localisations_v2, get_reconstruct_coords,FRC_loss, timing
 from src.models.loss_functions import compute_loss_decode, compute_loss_decode_ncs
-from scipy.ndimage.filters import gaussian_filter, uniform_filter
+#from scipy.ndimage.filters import gaussian_filter, uniform_filter
+from src.emitters import Emitter
 
 
-
-#todo: facade and facade_d
 class NetworkFacade():
     IMAGE_ENCODING = 0
     COORDINATE_ENCODING = 1
@@ -22,11 +21,9 @@ class NetworkFacade():
         self.dataset_path = r"/dataset_reference_remote"
         #self.dataset_path = r"/dataset_low_ph"
         self.data_factory = DataGeneratorFactory(self.dataset_path)
-        self.drift_path = None
         self.denoising.load_weights(denoising_chkpt)
         self.learning_rate = 1e-4
         self.optimizer = tf.keras.optimizers.Adam(self.learning_rate)
-        #todo: create parameter file with dataset description optimizer etc
 
         #self.optimizer = tf.keras.optimizers.RMSprop(learning_rate=1e-5)#todo for transerlearning
         self.metrics = JaccardIndex(self._training_path)
@@ -39,10 +36,6 @@ class NetworkFacade():
             print("Initializing from scratch.")
         self.train_loops = 60
         self.threshold = 0.3
-        self.wavelet_thresh = 0.1
-        self.sigma_thresh = 0.4
-        self.photon_filter= 0.0
-        #todo: threshold for jaccard index
 
     @property
     def sigma(self):
@@ -66,6 +59,12 @@ class NetworkFacade():
         return loss
 
     def loop_d(self, dataset, save=True):
+        """
+        Training and validation
+        :param dataset: Dataset to train on
+        :param save: Save training?
+        :return:
+        """
         for i,(train_image,noiseless_gt, coords,t, sigma) in enumerate(dataset):
             if i%4 !=0:
                 # todo: time it
@@ -90,23 +89,15 @@ class NetworkFacade():
         self.metrics.save()
 
 
-    def validation(self, dataset):
-        for i,(train_image,noiseless_gt, coords_t,t, sigma) in enumerate(dataset):
-            if i%4 ==0:
-                #train_image,noiseless_gt, coords,t = iterator.get_next()
-                pred = self.network(train_image, training=False)#todo compute loss components
-                from src.models.loss_functions import loc_loss, count_loss
-                vloss = compute_loss_decode_ncs(coords_t, pred)
-                closs = count_loss(coords_t, pred)
-                b_loss = tf.keras.losses.MeanSquaredError()(train_image[:, :, :, 1] - noiseless_gt[:, :, :, 1], pred[:, :, :, 7])
-                print(f"validation loss = {vloss} {closs} {b_loss}" )
-
     def get_current_dataset(self):
         dataset = tf.data.Dataset.from_generator(self.data_factory(), (tf.float32, tf.float32, tf.float32, tf.float32, tf.float32),
                                                   output_shapes=self.data_factory.shape)
         return dataset
 
     def train_saved_data(self):
+        """
+        Train network on defined dataset
+        """
         dataset = tf.data.Dataset.from_generator(self.data_factory(), (tf.float32, tf.float32, tf.float32, tf.float32, tf.float32),
                                                   output_shapes=self.data_factory.shape)
         for j in range(self.train_loops):
@@ -116,9 +107,9 @@ class NetworkFacade():
             text_file.write("dataset: " + self.dataset_path+ "\n")
             text_file.write("optimizer: " + self.optimizer.__repr__() + "\n")
             text_file.write(f"learning rate: {self.learning_rate}" )
-        self.test_d()
 
     def pretrain_current_sigma_d(self):
+        #deprecated
         sigma = self.sigma
         generator = crop_generator_u_net(9, sigma_x=sigma, noiseless_ground_truth=True)
         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
@@ -127,157 +118,44 @@ class NetworkFacade():
 
         self.loop_d(iterator)
 
-    def get_localizations_from_image_tensor(self, result_tensor, coord_list):
-        #todo outsource to utility
-        #todo: outsource drift correct to emitters
-        drift = None
-        if self.drift_path:
-            if self.drift_path.split(".")[-1] == "csv":
-                print("drift correction activated")
-                drift = pd.read_csv(self.drift_path).as_matrix()[::,(2,1)]
-                #drift[:,0] *= -1
-            else:
-                print("drift correction activated")
-                path = self.drift_path+r"\drift.json"
-                drift = read_thunderstorm_drift_json(path)
-       #todo image folder with drift correct json
-        result_array = []
-        test=[]
-        for i in range(result_tensor.shape[0]):
-            # current_drift = drift[int(coord_list[i][2] * 0.4), 1:3]
-            # current_drift[1] *= -1
-
-            classifier =result_tensor[i, :, :, 2]
-
-            #classifier =uniform_filter(result_tensor[i, :, :, 2], size=3)
-            #plt.imshow(classifier)
-            # plt.show()
-            #classifier = result_tensor[i, :, :, 2]
-            x= np.sum(classifier)
-            if np.sum(classifier) > self.threshold:
-                #classifier[np.where(classifier < self.threshold)] = 0
-                #indices = np.where(np.logical_and(classifier>self.threshold,classifier<1))
-                frame = coord_list[i][2]
-                if self.drift_path:
-                    #print("drift correction applied")
-
-                    drift_x= drift[frame,1]
-                    drift_y = -drift[frame,0]
-                else:
-                    drift_x= 0
-                    drift_y = 0
-
-                #indices = get_coords(classifier,neighbors=3).T
-                indices = get_reconstruct_coords(classifier, self.threshold)
-                #todo: cross filter on coords and second threshold
-                x = result_tensor[i, indices[0], indices[1], 0]
-                y = result_tensor[i, indices[0], indices[1], 1]
-                p = result_tensor[i, indices[0], indices[1], 2]
-                dx = result_tensor[i, indices[0], indices[1], 3]#todo: if present
-                dy = result_tensor[i, indices[0], indices[1], 4]
-                N = result_tensor[i, indices[0], indices[1], 5]
-
-                for j in range(indices[0].shape[0]):
-                    #if np.sum(result_tensor[i, indices[0][j]-1:indices[0][j]+1, indices[0][j]-1:indices[0][j]+1, 2])>0.3:
-                        if dx[j]<self.sigma_thresh and dy[j]<self.sigma_thresh and N[j]>self.photon_filter:#todo outsource this to emitter set
-                            result_array.append(np.array([coord_list[i][0] +float(indices[0][j]) + (x[j]) + drift_x
-                                ,coord_list[i][1] +float(indices[1][j]) + y[j] + drift_y, frame, dx[j], dy[j], N[j], p[j]]))
-                            #test.append(np.array([x[j],y[j]]))
-        #print(np.mean(np.array(test),axis=0))
-        #todo: return emitter set
-        return np.array(result_array)
-
-    def get_localizations_from_coordinate_tensor(self, result_tensor, coord_list):
-        result_array = []
-        for i in range(result_tensor.shape[0]):
-            #current_drift = drift[int(coord_list[i][2] * 0.4), 1:3]
-            # current_drift[1] *= -1
-            #                if coord_list[i][2] == frame:
-            # limit = [4,1,0.3]
-            limit = [0.8, 0.6, 0.5]
-            for n in range(3):
-                if result_tensor[i, 6 + n] > limit[n]:
-                    result_array.append(np.array([
-                        coord_list[i][0] + result_tensor[i, 2 * n] / 8, coord_list[i][1] + result_tensor[i, 2 * n + 1] / 8,coord_list[i][2]]))
-        return np.array(result_array)
-
     #@timing
     def predict(self, image, raw=False):
+        """
+        Predict localisations of image stack
+        :param image: path to image or image as np array
+        :param raw: should data be returned as feature map or emitter set?
+        :return:
+        """
+
         coords = []
-        #todo: implement drift
         result_full = []
-        gen,offset = generate_generator(image)
+        gen,offset = self.data_factory.generate_image_serving_generator(image)
         dataset = tf.data.Dataset.from_generator(gen, tf.float64)
         j = 0
         for image in dataset:
-            # plt.imshow(image[2,:,:,0])
-            # plt.show()
-            # plt.imshow(image[2,:,:,1])
-            # plt.show()
             crop_tensor, _, coord_list = bin_localisations_v2(image, self.denoising, th=self.wavelet_thresh)
             coord_list[:, 0:2] -= offset
             for z in range(len(coord_list)):
                 coord_list[z][2] += j * 2000
             result_tensor = self.network.predict(crop_tensor)
-            if raw:
-                result_full.append(result_tensor)
-                coords.append(np.array(coord_list))
-            elif self.network.TYPE == self.IMAGE_ENCODING:
-                result = self.get_localizations_from_image_tensor(result_tensor, coord_list)
-                result_full.append(result)
-            elif self.network.TYPE == self.COORDINATE_ENCODING:
-                result = self.get_localizations_from_coordinate_tensor(result_tensor, coord_list)
-                result_full.append(result)
-            else:
-                raise EnvironmentError("Unknown Network output")
+            result_full.append(result_tensor)
+            coords.append(np.array(coord_list))
+
             j+=1
             print(j)
         result_full = np.concatenate(result_full,axis=0)
         coords = np.concatenate(coords,axis=0)
         if raw:
             return result_full, coords
-        return result_full
+        elif self.network.TYPE == self.IMAGE_ENCODING:
+            return Emitter.from_result_tensor(result_full, self.threshold, coords)
+        elif self.network.TYPE == self.COORDINATE_ENCODING:
+            pass
+        else:
+            raise EnvironmentError("Unknown Network output")
 
-    def plot(self, images, diff, gt):
-        for i in range(diff.frames.max()):
-            emitters = diff.xyz[np.where(diff.frames==i)]/100
-            if np.any(emitters):
-                gt_emitters = gt.xyz[np.where(gt.frames==i)]/100
-                image = images[i]
-                plt.imshow(image[:,:,1])
-                plt.scatter(emitters[:,1],emitters[:,0],)
-                plt.scatter(gt_emitters[:,1], gt_emitters[:,0],)
-                plt.show()
-
-    def test_d(self):
-        sigma = np.random.randint(150, 200)
-
-        dataset = tf.data.Dataset.from_generator(crop_generator_saved_file_coords, (tf.float32, tf.float32, tf.float32, tf.float32),
-                                                  output_shapes=((1 * 1000, 9, 9, 3),(1*1000, 9, 9, 3), (1 * 1000, 10, 3),(1*1000, 9, 9, 4)))
-
-        self.sigma = sigma
-        for train_image, tru,truth_c, truth_i in dataset.take(1):
-            truth = truth_i.numpy()
-            result = self.network.predict(train_image)
-            for i in range(truth.shape[0]):
-                fig,axs = plt.subplots(3,3)
-                axs[0][0].imshow(truth[i, :, :, 2])
-                axs[0][1].imshow(result[i,:,:,2])
-
-                axs[1][0].imshow(truth[i, :, :, 1])
-                axs[1][1].imshow(result[i,:,:,1])#) - (truth_c[i,j:j+1,1:2]-X))
-                axs[1][2].imshow(result[i,:,:,3])
-
-                axs[2][0].imshow(truth[i, :, :, 0])
-                axs[2][1].imshow(result[i,:,:,0] )#- (truth_c[i,j:j+1,0:1]-Y))
-                axs[2][2].imshow(result[i,:,:,5])
-
-                axs[0][0].set_title("Ground truth")
-                axs[0][1].set_title("Prediction")
-                axs[0][0].set_ylabel("Classifier")
-                axs[1][0].set_ylabel("Delta x")
-                axs[2][0].set_ylabel("Delta y")
-                plt.show()
+    def compute_frc(self, image1, image2):
+        FRC_loss(image1, image2)
 
 
 class NetworkFacade_C():

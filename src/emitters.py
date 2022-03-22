@@ -157,8 +157,7 @@ class Emitter():
     def apply_drift(self, path):
         """
         Apply thunderstorm c-spline drift or raw drif in csv format
-        :param path:
-        :return:
+        :param path: path to drift correct file
         """
         if path.split(".")[-1] == "csv":
             print("drift correction activated")
@@ -168,9 +167,9 @@ class Emitter():
             print("drift correction activated")
             path = path+r"\drift.json"
             drift = read_thunderstorm_drift_json(path)
-        for i,frame in enumerate(self.frames.max()):
-            self.xyz[np.where(self.frames == frame),0] += drift[i,1]
-            self.xyz[np.where(self.frames == frame),1] -= drift[i,0]
+        for i in range(self.frames.max()):
+            self.xyz[np.where(self.frames == i),0] += drift[i,1]*100
+            self.xyz[np.where(self.frames == i),1] -= drift[i,0]*100
 
 
 

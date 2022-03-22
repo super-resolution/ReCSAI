@@ -1,16 +1,13 @@
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1GQI5KXUymahWzkJ_m4ZVx4LPRGPdVbQf#scrollTo=j6zaRBylyEpW)]
+
 
 # Tf Wavelet Layers
-(integrations for colab zenodo)
-is a Single Molecule Localisation Microscopy software, that combines the following components:
-* Efficient prefiltering by learnable wavelet filters
-(pics)
-* A differentiable compressed sensing algorithm implemented into a neuronal network fro accurate localisation reconstructions
-(update)
-* A set of localisation filters
-(emitter set)
-* State of the art rendering of SMLM data
-(more like rendering)
+is a SMLM (Single Molecule Localisation Microscopy) software, to fit the location sparse fluorescent emitters with subpixel accuracy. The current version is optimized to work with disrupted, nonlinear or varying PSF's occuring in confocal dSTORM measurements. The software currently implements the following features:
+* Prefilter ROIs with potential localisations using a trainable wavelet filterbank
+* Choose from several CS (Compressive Sensing) based network architectures
+* Use the Emitter class to filter localisations, apply drift corrections, concatenate sets, save and read localisation files in multiple formats or compute metrics like the jaccard index
+* Render your data in a visualization pipeline
+* Ready to use Colab notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1GQI5KXUymahWzkJ_m4ZVx4LPRGPdVbQf#scrollTo=j6zaRBylyEpW)
+* Train on your own data:
 
 ## Requirements
 Additionally to installing the requirements.txt you need to get:
@@ -18,3 +15,4 @@ Additionally to installing the requirements.txt you need to get:
 ## Usage
 Tf Wavelet Layers can be used via [Colab](https://colab.research.google.com/drive/1GQI5KXUymahWzkJ_m4ZVx4LPRGPdVbQf?pli=1#scrollTo=j6zaRBylyEpW) or by cloning the git repository and editing the main.py.
 Custom trainings can be implemented by editing train_cs_net.py, creating a folder in datasets and defining this folder as the current dataset in facade.py.
+## Paper

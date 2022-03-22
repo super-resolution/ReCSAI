@@ -42,6 +42,39 @@ class DataGeneratorFactory():
                 yield data[i]/data[i].max(), noiseless[i]/noiseless[i].max(), c, truth[i], sigma[i]
         return generator
 
+    def generate_image_serving_generator(self, image):
+        if isinstance(image, str):
+            with TIF(image) as tif:
+                image = tif.asarray()
+        if image.shape[1] > 128:
+            offset = int((256 - image.shape[1]) / 2)
+        else:
+            offset = int((128 - image.shape[1]) / 2)  # pad to 128
+        batch_size = 2000
+
+        def data_generator_real():
+            if image.shape[0] % batch_size == 0:
+                batches_count = image.shape[0] // batch_size
+            else:
+                batches_count = 1 + image.shape[0] // batch_size
+            print(batches_count)
+
+            for i in range(batches_count):
+                dat = image[i * batch_size:(i + 1) * batch_size, ]  # 14:-14,14:-14]
+                # dat = dat[:dat.shape[0]//4*4]
+                # dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
+                # dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
+                # dat[:,1::2,1:] = dat[:,1::2,:-1]
+                dat -= dat.min()
+                data = np.ones((dat.shape[0], dat.shape[1] + 2 * offset, dat.shape[1] + 2 * offset, 3)) * np.mean(
+                    dat)  # todo: this is weird data
+                data[:, offset:offset + dat.shape[1], offset:offset + dat.shape[2], 1] = dat
+                data[1:, offset:offset + dat.shape[1], offset:offset + dat.shape[2], 0] = dat[:-1]
+                data[:-1, offset:offset + dat.shape[1], offset:offset + dat.shape[2], 2] = dat[1:]
+                yield data
+
+        return data_generator_real, offset
+
 def build_switching_array(n):
     bef_after = np.random.randint(0, 2, 2 * n)
     test = np.ones((n, 3))
@@ -257,33 +290,6 @@ def real_data_generator(im_shape, switching_rate=0.2):
     return generator
 
 
-def generate_generator(image):#todo needs image size
-    if image.shape[1]>128:
-        offset = int((256 - image.shape[1]) / 2)
-    else:
-        offset = int((128 - image.shape[1]) / 2)  # pad to 128
-    batch_size = 2000
-    def data_generator_real():
-        if image.shape[0]% batch_size == 0:
-            batches_count = image.shape[0]//batch_size
-        else:
-            batches_count = 1+image.shape[0]// batch_size
-        print(batches_count)
-
-        for i in range(batches_count):
-            dat = image[i * batch_size:(i + 1) * batch_size,]#14:-14,14:-14]
-            # dat = dat[:dat.shape[0]//4*4]
-            #dat = dat[::4] + dat[1::4] + dat[2::4] + dat[3::4] #todo shift ungerade
-            # dat[:, 1::2] = scipy.ndimage.shift(dat[:,1::2], (0,0,0.5))
-            #dat[:,1::2,1:] = dat[:,1::2,:-1]
-            dat -= dat.min()
-            data = np.ones((dat.shape[0], dat.shape[1]+2*offset, dat.shape[1]+2*offset, 3))*np.mean(dat)  # todo: this is weird data
-            data[:, offset:offset + dat.shape[1], offset:offset + dat.shape[2], 1] = dat
-            data[1:, offset:offset + dat.shape[1], offset:offset + dat.shape[2], 0] = dat[:-1]
-            data[:-1, offset:offset + dat.shape[1], offset:offset + dat.shape[2], 2] = dat[1:]
-            yield data
-    return data_generator_real, offset
-
 def data_generator_coords(file_path, offset_slice=0):
     with TIF(file_path) as tif:
         dat = tif.asarray()
@@ -312,19 +318,7 @@ def data_generator_coords(file_path, offset_slice=0):
         yield data[i+ offset_slice]#,  im[:,:,:], px_coords
 
 
-def crop_generator_saved_file():
-    data = np.load(get_root_path() +r"\crop_dataset_train_VS.npy", allow_pickle=True).astype(np.float32)
-    truth = np.load(get_root_path() +r"\crop_dataset_truth_VS.npy", allow_pickle=True).astype(np.float32)
-    for i in range(data.shape[0]):
-        yield data[i], truth[i]
 
-def crop_generator_saved_file_EX():
-    data = np.load(get_root_path() +r"\crop_dataset_train.npy", allow_pickle=True).astype(np.float32)
-    truth = np.load(get_root_path() +r"\crop_dataset_truth.npy", allow_pickle=True).astype(np.float32)
-    noiseless = np.load(get_root_path() +r"\crop_dataset_noiseless_VS.npy", allow_pickle=True).astype(np.float32)
-
-    for i in range(data.shape[0]):
-        yield data[i], truth[i], noiseless[i]
 
 def crop_generator_saved_file_coords():
     data = np.load(get_root_path() +r"/crop_dataset_train_VS_1000.npy", allow_pickle=True).astype(np.float32)
@@ -352,34 +346,6 @@ def crop_generator_save_file_wavelet():
     for i in range(data.shape[0]):
         yield data[i], noiseless[i]
 
-def crop_generator_saved_file_specific():
-    data = np.load(get_root_path() +r"/crop_dataset_train_1.npy", allow_pickle=True).astype(np.float32)
-    truth = np.load(get_root_path() +r"/crop_dataset_truth_1.npy", allow_pickle=True).astype(np.float32)
-    noiseless = np.load(get_root_path() +r"/crop_dataset_noiseless_1.npy", allow_pickle=True).astype(np.float32)
-    coords = np.load(get_root_path() +r"/crop_dataset_coordinates_1.npy", allow_pickle=True).astype(np.float32)
-    #todo: coords to pixel coords
-    for i in range(data.shape[0]):
-        c = coords[i]
-        c[:,:,3]/=0.001+c[:,:3].max()
-        yield data[i], noiseless[i], c, truth[i]
 
-def crop_generator_saved_file_coords_airy():
-    data = np.load(get_root_path() +r"/current_dataset/crop_dataset_train_VS_1000_Airy.npy", allow_pickle=True).astype(np.float32)
-    truth = np.load(get_root_path() +r"/current_dataset/crop_dataset_truth_VS_1000_Airy.npy", allow_pickle=True).astype(np.float32)
-    noiseless = np.load(get_root_path() +r"/current_dataset/crop_dataset_noiseless_VS_1000_Airy.npy", allow_pickle=True).astype(np.float32)
-    coords = np.load(get_root_path() +r"/current_dataset/crop_dataset_coordinates_VS_1000_Airy.npy", allow_pickle=True).astype(np.float32)
-    sigma = np.load(get_root_path() + r"/current_dataset/crop_dataset_sigma_VS_1000_Airy.npy",
-                    allow_pickle=True).astype(np.float32)
-
-    #todo: coords to pixel coords
-    coords[:,:,:,3] /= 0.001+coords[:,:,:,3].max()
-    for i in range(data.shape[0]):
-        c = coords[i]
-        yield data[i], noiseless[i], c, truth[i], sigma[i]
-
-if __name__ == '__main__':
-    g = crop_generator_saved_file()
-    for data in g:
-        x=0
 
 

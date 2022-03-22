@@ -5,6 +5,31 @@ import cv2
 from tifffile.tifffile import TiffWriter
 import copy
 
+
+def plot_feature_map(dataset, network):
+        for train_image, tru,truth_c, truth_i in dataset.take(1):
+            truth = truth_i.numpy()
+            result = network.predict(train_image)
+            for i in range(truth.shape[0]):
+                fig,axs = plt.subplots(3,3)
+                axs[0][0].imshow(truth[i, :, :, 2])
+                axs[0][1].imshow(result[i,:,:,2])
+
+                axs[1][0].imshow(truth[i, :, :, 1])
+                axs[1][1].imshow(result[i,:,:,1])#) - (truth_c[i,j:j+1,1:2]-X))
+                axs[1][2].imshow(result[i,:,:,3])
+
+                axs[2][0].imshow(truth[i, :, :, 0])
+                axs[2][1].imshow(result[i,:,:,0] )#- (truth_c[i,j:j+1,0:1]-Y))
+                axs[2][2].imshow(result[i,:,:,5])
+
+                axs[0][0].set_title("Ground truth")
+                axs[0][1].set_title("Prediction")
+                axs[0][0].set_ylabel("Classifier")
+                axs[1][0].set_ylabel("Delta x")
+                axs[2][0].set_ylabel("Delta y")
+                plt.show()
+
 def plot_parameter_distribution(data):
     fig, axs = plt.subplots(2,2)
     axs[0][0].hist(data[:,3])#sigx
@@ -104,7 +129,7 @@ def display_storm_data(data_in, thunderstorm=False, name="", frc=None):
     plt.show()
 
 
-def display_emitter_set(emitters):
+def plot_emitter_set(emitters):
     """
     Image from emitter set class
     :param emitters:
@@ -115,7 +140,6 @@ def display_emitter_set(emitters):
     # data_in = data_in[1::2]
 
     localizations = emitters.xyz  # +np.random.random((data_in.shape[0],2))
-    localizations *= 100
     array = np.zeros(
         (int(localizations[:, 0].max()) + 1, int(localizations[:, 1].max()) + 1))  # create better rendering...
     for i in range(localizations.shape[0]):
