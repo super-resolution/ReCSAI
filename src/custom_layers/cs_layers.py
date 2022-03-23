@@ -1,7 +1,7 @@
 import tensorflow as tf
 from src.utility import get_psf,create_psf_matrix,old_psf_matrix
 from src.custom_layers.utility_layer import downsample,upsample
-from tensorflow.keras import initializers
+#from tensorflow.keras import initializers
 
 class CompressedSensingInception(tf.keras.layers.Layer):
     def __init__(self,*args, iterations, **kwargs ):
@@ -18,7 +18,7 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         self.reshape = tf.keras.layers.Reshape((72, 72, 3), )#done: compare low iteration with high iteration and implement additional loss
         #self.padding = tf.keras.layers.Lambda(lambda x:  tf.pad(x, paddings, "REFLECT"))
         self.convolution1x1_x1 = tf.keras.layers.Conv2D(3,(1,1), activation=tf.keras.layers.LeakyReLU(),
-                                                        kernel_initializer=initializers.truncated_normal(mean=1.0, stddev=0.3),
+                                                        kernel_initializer=tf.keras.initializers.truncated_normal(mean=1.0, stddev=0.3),
                                                         kernel_constraint=tf.keras.constraints.non_neg())#reduce dim to 1 for cs max intensity proj? padding doesnt matter
         self.convolution1x1_x2 = tf.keras.layers.Conv2D(8,(1,1), activation=tf.keras.layers.LeakyReLU())#reduce dimension after max pooling
         self.convolution5x1_x = tf.keras.layers.Conv2D(16,(5,1),strides=(2,2), activation=None,padding="same",name="asdf1")#reduce dim by 2 todo: prio2 include asymetric
@@ -58,9 +58,9 @@ class CompressedSensingInception(tf.keras.layers.Layer):
         #todo: prio1 include skips with concat
         self.down1 = downsample(12,5,strides=3,apply_batchnorm=True)
         self.down2 = downsample(24,5,strides=3)#todo: concat sigma here? concat sigma in extra z-path
-        self.hidden1 = tf.keras.layers.Dense(24,kernel_initializer=initializers.RandomNormal(mean=0.5,stddev=0.3),bias_initializer=initializers.truncated_normal())
-        self.hidden2 = tf.keras.layers.Dense(12,kernel_initializer=initializers.RandomNormal(mean=0.5,stddev=0.3),bias_initializer=initializers.truncated_normal())
-        self.hidden3 = tf.keras.layers.Dense(1,kernel_initializer=initializers.RandomNormal(mean=0.5,stddev=0.3),bias_initializer=initializers.truncated_normal(),
+        self.hidden1 = tf.keras.layers.Dense(24,kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.5,stddev=0.3),bias_initializer=tf.keras.initializers.truncated_normal())
+        self.hidden2 = tf.keras.layers.Dense(12,kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.5,stddev=0.3),bias_initializer=tf.keras.initializers.truncated_normal())
+        self.hidden3 = tf.keras.layers.Dense(1,kernel_initializer=tf.keras.initializers.RandomNormal(mean=0.5,stddev=0.3),bias_initializer=tf.keras.initializers.truncated_normal(),
                                              )
 
         self.lam_activation = tf.keras.layers.Lambda(lambda x: 0.3*tf.keras.activations.sigmoid(x))
