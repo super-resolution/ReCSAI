@@ -3,6 +3,7 @@ from tifffile import TiffWriter
 import os
 import matplotlib.pyplot as plt
 
+#todo: outsource this to data factory
 def create_crop_dataset(iterations):
     data_train = []
     data_truth = []
