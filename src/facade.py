@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 #import matplotlib.pyplot as plt #todo: plot in main?
-from src.data import crop_generator_u_net, DataGeneratorFactory
+from src.data import crop_generator_u_net, DataServing
 from src.custom_metrics import JaccardIndex
 from src.utility import bin_localisations_v2, get_reconstruct_coords,FRC_loss, timing
 from src.models.loss_functions import compute_loss_decode, compute_loss_decode_ncs
@@ -20,7 +20,7 @@ class NetworkFacade():
         self._training_path = path
         self.dataset_path = r"/dataset_reference_remote"
         #self.dataset_path = r"/dataset_low_ph"
-        self.data_factory = DataGeneratorFactory(self.dataset_path)
+        self.data_factory = DataServing(self.dataset_path)
         self.denoising.load_weights(denoising_chkpt)
         self.learning_rate = 1e-4
         self.optimizer = tf.keras.optimizers.Adam(self.learning_rate)

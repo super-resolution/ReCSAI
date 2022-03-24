@@ -5,6 +5,17 @@ import cv2
 from tifffile.tifffile import TiffWriter
 import copy
 
+def plot_data_gen(dataset):
+    for train_image, noiseless, coords, truth in dataset.take(4):
+        for i in range(train_image.shape[0]):
+            current_coord = coords[i].numpy()
+            current_coord = current_coord[np.where(current_coord[:,0]!=0)]
+            fig, axs = plt.subplots(2)
+            axs[0].imshow(train_image[i, :, :, 1])
+            axs[0].scatter(current_coord[:,1],current_coord[:,0])
+            axs[1].imshow(noiseless[i, :, :, 1])
+
+            plt.show()
 
 def plot_feature_map(dataset, network):
         for train_image, tru,truth_c, truth_i in dataset.take(1):

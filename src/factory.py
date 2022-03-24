@@ -14,6 +14,10 @@ class Factory():
         seed = 42  # switch seed
         self.rs = np.random.RandomState(seed)
         self.kernel_type = "Gaussian"
+        self.quantum_efficiency = 0.45
+        self.dark_noise = 5 / 10  # dark noise was 25 / 10
+        self.sensitivity = 1
+        self.bitdepth = 12
 
     @property
     def kernel(self):
@@ -40,7 +44,7 @@ class Factory():
     def create_crop_point_set(self, photons=1200, on_time=400):
         n_points = 100000
         points = np.zeros((n_points, 5)).astype(np.float32)
-        photon_distribution = np.random.normal(photons,0.2*photons, n_points)  # todo: higher distribution
+        photon_distribution = np.random.normal(photons,0.3*photons, n_points)  # todo: higher distribution
         on_time = np.random.poisson(on_time, n_points)  # maxwell.rvs(size=n_points, loc=12.5, scale=5)
         delay_time = np.random.poisson(on_time, n_points)
 
@@ -65,21 +69,52 @@ class Factory():
             points[i, 4] = np.random.randint(-25, 25)
         return points
 
-    def accurate_noise_simulations_camera(self, image, quantum_efficiency=0.45, dark_noise=5 / 10, #dark noise was 25 / 10
-                                              sensitivity=1, bitdepth=12):
+    def build_crop(self, ind, switching_array, points ):  # todo: pass points here
+        image_s = np.zeros((self.image_shape[0], self.image_shape[1], 3))
+        image_noiseless = np.zeros((self.image_shape[0], self.image_shape[1], 3))
+        #factory stuff!
+
+        local_bg = np.random.choice(a=[True, False], size=1, p=[0.1, 0.9])[0]  # activated recently
+        for i in range(3):
+
+            image, gt, on_points = self.simulate_accurate_flimbi(points, points[ind], switching_rate=0,
+                                                                    inverted=switching_array[:, i])  # bottleneck
+            image_noiseless[:, :, i] = self.reduce_size(gt).astype(np.float32)
+
+            image = self.reduce_size(image).astype(np.float32)
+            # local bg simulation:
+            if local_bg:
+                image += np.random.rand() * 5 + 15  # noise was 2
+
+            # image_noiseless[:,:,i] = copy.deepcopy(image)
+            image = self.accurate_noise_simulations_camera(image).astype(np.float32)
+            # plt.scatter(on_points[:,1]/100,on_points[:,0]/100)
+            # plt.imshow(image)
+            # plt.show()
+
+            image_s[:, :, i] = image
+            if i == 1:
+                truth_cs = self.create_classifier_image( on_points,
+                                                           100)  # todo: variable px_size
+                main_points = on_points
+
+        return image_s, truth_cs, image_noiseless, main_points
+
+
+    def accurate_noise_simulations_camera(self, image):
         image = image.astype(np.uint16)
 
         shot_noise = self.rs.poisson(image, image.shape)
 
         # Round the result to ensure that we have a discrete number of electrons
-        electrons = np.round(quantum_efficiency * shot_noise)
+        electrons = np.round(self.quantum_efficiency * shot_noise)
 
         # electrons dark noise 34 counts per second
-        electrons_out = np.round(self.rs.normal(scale=dark_noise, size=electrons.shape) + electrons)
+        electrons_out = np.round(self.rs.normal(scale=self.dark_noise, size=electrons.shape) + electrons)
 
         # ADU/e-
-        max_adu = np.int(2 ** bitdepth - 1)
-        adu = (electrons_out * sensitivity).astype(np.int)
+        max_adu = np.int(2 ** self.bitdepth - 1)
+        adu = (electrons_out * self.sensitivity).astype(np.int)
         adu[adu > max_adu] = max_adu  # models pixel saturation
         adu[adu < 0] = 0  # models pixel saturation
         return adu
@@ -245,8 +280,8 @@ class Factory():
                 delta = float(np.random.rand()*0.1-0.05)
         return localizations
 
-    def create_classifier_image(self, size, points, px_size):
-        image = np.zeros((size[0], size[1], 4))
+    def create_classifier_image(self,  points, px_size):
+        image = np.zeros((self.image_shape[0], self.image_shape[1], 4))
         for point in points:
             y = (point[0]%px_size)/px_size-0.5
             x = (point[1]%px_size)/px_size-0.5

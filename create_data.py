@@ -2,37 +2,39 @@ from src.data import *
 from tifffile import TiffWriter
 import os
 import matplotlib.pyplot as plt
+from src.data import DataGeneration
+from src.visualization import plot_data_gen
 
-#todo: outsource this to data factory
-def create_crop_dataset(iterations):
-    data_train = []
-    data_truth = []
-    sig = []
-    data_noiseless = []
-    coordinates = []
-    size = 1000
-    im_size = 9
-    for j in range(50):
-        sigma = np.random.randint(175, 185) #todo: vary sigma with dataset
-        generator = crop_generator_u_net(im_size, sigma_x=sigma, noiseless_ground_truth=True,size=size)
-        # for image in generator():
-        #     pass
-        dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
-                                                 output_shapes=((1 * size, im_size, im_size, 3), (1 * size, im_size, im_size, 3),
-                                                                (1 * size, 10, 4), (1 * size, im_size, im_size, 4)))
-        for train_image, noiseless,coords, truth in dataset.take(4):
-            #todo create noiseless and transform it with different noise...
-            data_train.append(train_image.numpy())
-            data_truth.append(truth.numpy())
-            data_noiseless.append(noiseless.numpy())
-            coordinates.append(coords.numpy())
-
-            # fig, axs = plt.subplots(2)
-            # axs[0].imshow(train_image.numpy()[0,:,:,1])
-            # axs[1].imshow(truth.numpy()[0,:,:,1])
-            # plt.show()
-            sig.append(sigma)
-    return np.array(data_train), data_truth, sig, np.array(data_noiseless), np.array(coordinates)
+# def create_crop_dataset(iterations):
+#     data_train = []
+#     data_truth = []
+#     sig = []
+#     data_noiseless = []
+#     coordinates = []
+#     size = 1000
+#     im_size = 9
+#     for j in range(50):
+#         sigma = np.random.randint(175, 185) #todo: vary sigma with dataset
+#         #todo outsource to data factory
+#         generator = crop_generator_u_net(im_size, sigma_x=sigma, noiseless_ground_truth=True,size=size)
+#         # for image in generator():
+#         #     pass
+#         dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
+#                                                  output_shapes=((1 * size, im_size, im_size, 3), (1 * size, im_size, im_size, 3),
+#                                                                 (1 * size, 10, 4), (1 * size, im_size, im_size, 4)))
+#         for train_image, noiseless,coords, truth in dataset.take(4):
+#             #todo create noiseless and transform it with different noise...
+#             data_train.append(train_image.numpy())
+#             data_truth.append(truth.numpy())
+#             data_noiseless.append(noiseless.numpy())
+#             coordinates.append(coords.numpy())
+#
+#             # fig, axs = plt.subplots(2)
+#             # axs[0].imshow(train_image.numpy()[0,:,:,1])
+#             # axs[1].imshow(truth.numpy()[0,:,:,1])
+#             # plt.show()
+#             sig.append(sigma)
+#     return np.array(data_train), data_truth, sig, np.array(data_noiseless), np.array(coordinates)
 
 
 # def build_dataset(im_shape, dataset_size, file_name, switching_rate=0.1, on_time=30,):
@@ -72,15 +74,12 @@ def create_crop_dataset(iterations):
 
 
 if __name__ == '__main__':
-    #data = np.load("crop_dataset.npy", allow_pickle=True)
-    #todo: create hd dataset
-    data, truth, sigma, noiseless, coordinates = create_crop_dataset(1)
-    np.save("train.npy", data)#NS = non switching
-    np.save("noiseless.npy", noiseless)#VS = variable sigma
-    np.save("truth.npy", truth)#VS = variable sigma
-    np.save("coordinates.npy", coordinates)
-    np.save("sigma.npy", sigma)
+    gener = DataGeneration(9)
+    generator, shape = gener.create_data_generator(1, noiseless_ground_truth=True)
+    dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
+                                             output_shapes=shape)
+    plot_data_gen(dataset)
 
-
+    gener.create_dataset("test_data_creation")
     # for j in range(10):
     #     build_dataset(100, 100, "dataset_"+str(j), switching_rate=0.1+0.02*j,on_time=1000-100*j)

@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tifffile import TiffFile as TIF
 import numpy as np
+import os
 import matplotlib.pyplot as plt
 import scipy.ndimage
 from src.factory import Factory
@@ -11,7 +12,7 @@ from src.utility import get_root_path
 CROP_TRANSFORMS = 4
 
 #todo: data generator creation factory
-class DataGeneratorFactory():
+class DataServing():
     def __init__(self, path):
         self.path = path
 
@@ -74,6 +75,111 @@ class DataGeneratorFactory():
                 yield data
 
         return data_generator_real, offset
+
+class DataGeneration():
+    def __init__(self, im_shape, sigma_x=180, sigma_y=180, quantum_efficiency = 0.45, dark_noise = 5 / 10, sensitivity = 1, bitdepth = 12):
+        self.sigma_x = sigma_x
+        self.sigma_y = sigma_y
+        self.factory = Factory()
+        self.factory.shape = (im_shape * 100, im_shape * 100)
+        self.factory.image_shape = (im_shape, im_shape)  # select points here
+        self.factory.quantum_efficiency = quantum_efficiency
+        self.factory.dark_noise = dark_noise
+        self.factory.sensitivity = sensitivity
+        self.factory.bitdepth = bitdepth
+
+    def create_data_generator(self, size, noiseless_ground_truth=False):
+        sigma_x = self.sigma_x
+        sigma_y = self.sigma_y
+        factory = self.factory
+        mean_photon_distribution = 600# todo: add photons to dataset was 500,1500
+        points = self.factory.create_crop_point_set(photons=mean_photon_distribution, on_time=30)
+        def generator():
+            mean_loc_count = 1.5  # 2
+            for z in range(4):
+                #sigma_y = np.random.randint(100, 250)
+                sig_y = sigma_x+np.random.rand()*10-5
+                sig_x = sigma_y+np.random.rand()*10-5
+                factory.kernel_type = "Airy"
+                factory.kernel = (sig_x, sig_y)
+                truth_cs_list = []
+                image_list = []
+                image_noiseless_list = []
+                co=[]
+                for i in range(size): #todo: while loop here
+                    print(i)
+                    n = int(np.random.normal(mean_loc_count, 0.2*mean_loc_count))#np.random.poisson(1.7)
+                    if n<0:
+                        n=0
+                    ind = np.random.randint(0, points.shape[0] - n)
+
+                    #todo: build named tuple (i.e. true true flase)
+                    #todo: set switching accordingly(i.e. true, inverted=true, false
+                    ind = np.arange(ind, ind + n, 1).astype(np.int32)#todo: set switching true
+                    switching_array = build_switching_array(n)
+
+                    image_s,truth_cs, image_noiseless, main_points = factory.build_crop(ind, switching_array, points)
+                    co.append(main_points)
+                    truth_cs_list.append(truth_cs)
+                    image_list.append(image_s)
+                    image_noiseless_list.append(image_noiseless)
+                if noiseless_ground_truth:
+                    current = np.array(truth_cs_list)
+                    coords = []
+                    for j in range(current.shape[0]):
+                        page = current[j]
+                        indices = np.array(np.where(page[:, :, 2] == 1))
+                        per_image = np.zeros((10, 4))#todo first size was 10
+                        for k, ind in enumerate(indices.T):
+                            c = ind + np.array(
+                                [page[ind[0], ind[1], 0], page[ind[0], ind[1], 1]]) + 0.5  # this is probably wrong!
+                            per_image[k, 0:2] = c
+                            per_image[k, 2] = 1
+                            per_image[k, 3] = co[j][k][2]
+                        coords.append(np.array(per_image))#todo: not used to build tensor
+                    yield tf.convert_to_tensor(image_list, dtype=tf.float32),  tf.convert_to_tensor(image_noiseless_list, dtype=tf.float32), \
+                          tf.convert_to_tensor(coords, dtype=tf.float32), tf.convert_to_tensor(truth_cs_list, dtype=tf.float32),# todo: change in create data
+                else:
+                    yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list)#todo: shuffle?
+
+        shape = ((1 * size, self.factory.image_shape[0], self.factory.image_shape[1], 3),
+                 (1 * size, self.factory.image_shape[0], self.factory.image_shape[1], 3),
+                 (1 * size, 10, 4),
+                 (1 * size, self.factory.image_shape[0], self.factory.image_shape[1], 4))
+        return generator, shape
+
+
+
+    def create_dataset(self, save_path):
+        data_train = []
+        data_truth = []
+        sig = []
+        data_noiseless = []
+        coordinates = []
+        size = 1000
+        for j in range(1):
+            generator, shape = self.create_data_generator(size, noiseless_ground_truth=True)
+            dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
+                                                     output_shapes=shape)
+            for train_image, noiseless, coords, truth in dataset.take(4):
+                data_train.append(train_image.numpy())
+                data_truth.append(truth.numpy())
+                data_noiseless.append(noiseless.numpy())
+                coordinates.append(coords.numpy())
+                sig.append(self.sigma_x)
+
+        base_path = get_root_path() + r"/datasets/" + save_path
+        if os.path.exists(base_path):
+            print("warning overwriting dataset")
+        else:
+            os.mkdir(base_path)
+        np.save(base_path + "/train.npy", np.array(data_train))  # NS = non switching
+        np.save(base_path + "/noiseless.npy", np.array(data_noiseless))  # VS = variable sigma
+        np.save(base_path + "/truth.npy", np.array(data_truth))  # VS = variable sigma
+        np.save(base_path + "/coordinates.npy", np.array(coordinates))
+        np.save(base_path + "/sigma.npy", np.array(sig))
+
+
 
 def build_switching_array(n):
     bef_after = np.random.randint(0, 2, 2 * n)
