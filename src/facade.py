@@ -20,7 +20,6 @@ class NetworkFacade():
         self._training_path = path
         self.dataset_path = r"/dataset_reference_remote"
         #self.dataset_path = r"/dataset_low_ph"
-        self.data_factory = DataServing(self.dataset_path)
         self.denoising.load_weights(denoising_chkpt)
         self.learning_rate = 1e-4
         self.optimizer = tf.keras.optimizers.Adam(self.learning_rate)
@@ -90,6 +89,7 @@ class NetworkFacade():
 
 
     def get_current_dataset(self):
+        self.data_factory = DataServing(self.dataset_path)
         dataset = tf.data.Dataset.from_generator(self.data_factory(), (tf.float32, tf.float32, tf.float32, tf.float32, tf.float32),
                                                   output_shapes=self.data_factory.shape)
         return dataset
@@ -98,6 +98,7 @@ class NetworkFacade():
         """
         Train network on defined dataset
         """
+        self.data_factory = DataServing(self.dataset_path)
         dataset = tf.data.Dataset.from_generator(self.data_factory(), (tf.float32, tf.float32, tf.float32, tf.float32, tf.float32),
                                                   output_shapes=self.data_factory.shape)
         for j in range(self.train_loops):
@@ -126,7 +127,7 @@ class NetworkFacade():
         :param raw: should data be returned as feature map or emitter set?
         :return:
         """
-
+        self.data_factory = DataServing(self.dataset_path)
         coords = []
         result_full = []
         gen,offset = self.data_factory.generate_image_serving_generator(image)

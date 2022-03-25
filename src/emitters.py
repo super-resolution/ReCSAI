@@ -159,7 +159,9 @@ class Emitter():
         Apply thunderstorm c-spline drift or raw drif in csv format
         :param path: path to drift correct file
         """
-        if path.split(".")[-1] == "csv":
+        if isinstance(path, np.array):
+            drift = path[:,(2,1)]
+        elif path.split(".")[-1] == "csv":
             print("drift correction activated")
             drift = pd.read_csv(path).as_matrix()[::,(2,1)]
             #drift[:,0] *= -1
