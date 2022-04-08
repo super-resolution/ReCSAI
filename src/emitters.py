@@ -184,8 +184,11 @@ class Emitter():
         use_cuda = True
         fov_width = 80
         loc_error = np.array((0.2, 0.2, 0.03))  # pixel, pixel, um
-        crlb = np.ones(self.xyz.shape[0]) * np.array(loc_error)[None]
-        estimated_drift, _ = dme_estimate(self.xyz, self.frames,
+        loc = self.xyz
+        localizations = np.zeros((loc.shape[0], 3))
+        localizations[:, 0:2] = loc / 100
+        crlb = np.ones(localizations.shape[0]) * np.array(loc_error)[None]
+        estimated_drift, _ = dme_estimate(localizations, self.frames,
                                           crlb,
                                           framesperbin=20,  # note that small frames per bin use many more iterations
                                           imgshape=[fov_width, fov_width],
