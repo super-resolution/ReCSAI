@@ -6,8 +6,9 @@ from tifffile.tifffile import TiffFile
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from src.trainings.train_cs_net import InceptionNetFacade
-from src.visualization import plot_wavelet_bin_results
+from src.trainings.train_cs_net import CSInceptionNetFacade
+from src.emitters import Emitter
+from src.visualization import plot_frame_gen
 
 def plot_stuff(pred_frame_list, image, tensor):
     for i in range(len(pred_frame_list)):
@@ -74,20 +75,20 @@ path = r"C:\Users\biophys\matlab\test2.tif"
 
 
 with TiffFile(path) as tif:
-    image = tif.asarray()[:,0:-18]#[:,7:-5]
+    image = tif.asarray()#[:,0:-18]#[:,7:-5]
     #image = np.rot90(image, axes=(1, 2))
 
 
 
-facade = InceptionNetFacade()
+facade = CSInceptionNetFacade()
 
 facade.threshold = 0.08 # todo: still has artefacts...
 facade.sigma_thresh = 0.3
 facade.photon_filter = 0.0
-result_tensor = np.load(os.getcwd()+r"\tmp\current_result.npy",allow_pickle=True)
-coord_list = np.load(os.getcwd()+ r"\tmp\current_coordinate_list.npy",allow_pickle=True)
-test = coord_to_fram(coord_list)
+result_tensor = np.load(get_root_path()+r"\tmp\current_result.npy",allow_pickle=True)
+coord_list = np.load(get_root_path()+ r"\tmp\current_coordinate_list.npy",allow_pickle=True)
+#test = coord_to_fram(coord_list)
 #plot_wavelet_bin_results(image[3000], image[3000], test[3000]) #todo put this together
-result_array = facade.get_localizations_from_image_tensor(result_tensor, coord_list)
-pred_frame_list = to_frame_list(result_array)
-plot_stuff(test, image, result_tensor)
+emitters = Emitter.from_result_tensor(result_tensor, 0.08, coord_list)
+gen = emitters.get_frameset_generator(image, (np.arange(1000,2000)))
+plot_frame_gen(gen)

@@ -5,6 +5,14 @@ import cv2
 from tifffile.tifffile import TiffWriter
 import copy
 
+def plot_frame_gen(gen):
+    for image, coords in gen():
+        plt.imshow(image)
+        #for coord in coords:
+        plt.scatter(coords[:,1], coords[:,0])
+        plt.show()
+
+
 def plot_data_gen(dataset):
     for train_image, noiseless, coords, truth in dataset.take(4):
         for i in range(train_image.shape[0]):

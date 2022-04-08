@@ -157,7 +157,7 @@ def FRC_loss(i1, i2):
 
 
 
-def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
+def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):#todo: kick edge localisaitons
     train_new = []
     truth_new = []
     coord_list = []
@@ -196,7 +196,7 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):
         for coord in coords:
             # ax.add_patch(rect)
             # ax.set_title("original", fontsize=10)
-            if coord[0] - 4 > 0 and coord[1] - 4 > 0 and coord[0] + 4 < im.shape[-2] and coord[1] + 4 < im.shape[-2]:
+            if coord[0] - 4 > 0 and coord[1] - 4 > 0 and coord[0] + 4 < im.shape[-2]-0 and coord[1] + 4 < im.shape[-2]-0:
                 crop = current_data[ coord[0] - 4:coord[0] + 5, coord[1] - 4:coord[1] + 5, :]#todo: set current data
                 crop = crop-tf.keras.backend.min(crop)
                 #crop = crop/tf.keras.backend.max(crop)

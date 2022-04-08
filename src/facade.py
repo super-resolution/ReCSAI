@@ -18,7 +18,7 @@ class NetworkFacade():
         self.network = network_class()
         self.denoising = WaveletAI(shape=shape)
         self._training_path = path
-        self.dataset_path = r"/dataset_reference_remote"
+        self.dataset_path = r"/dataset_low_ph"
         #self.dataset_path = r"/dataset_low_ph"
         self.denoising.load_weights(denoising_chkpt)
         self.learning_rate = 1e-4

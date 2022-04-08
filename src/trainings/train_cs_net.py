@@ -50,5 +50,5 @@ class ResUNetFacade(NetworkFacade):
 #         self.train_loops = 120
 
 if __name__ == '__main__':
-    training = CSUNetFacade()
+    training = ResUNetFacade()
     training.train_saved_data()
