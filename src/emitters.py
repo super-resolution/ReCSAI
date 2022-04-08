@@ -187,7 +187,7 @@ class Emitter():
         loc = self.xyz
         localizations = np.zeros((loc.shape[0], 3))
         localizations[:, 0:2] = loc / 100
-        crlb = np.ones(localizations.shape[0]) * np.array(loc_error)[None]
+        crlb = np.ones(localizations.shape) * np.array(loc_error)[None]
         estimated_drift, _ = dme_estimate(localizations, self.frames,
                                           crlb,
                                           framesperbin=20,  # note that small frames per bin use many more iterations
