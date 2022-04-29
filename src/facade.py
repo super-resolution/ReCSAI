@@ -18,10 +18,10 @@ class NetworkFacade():
         self.network = network_class()
         self.denoising = WaveletAI(shape=shape)
         self._training_path = path
-        self.dataset_path = r"/dataset_low_ph"
+        self.dataset_path = r"/test_data_creation"
         #self.dataset_path = r"/dataset_low_ph"
         self.denoising.load_weights(denoising_chkpt)
-        self.learning_rate = 1e-4
+        self.learning_rate = 1e-3
         self.optimizer = tf.keras.optimizers.Adam(self.learning_rate)
 
         #self.optimizer = tf.keras.optimizers.RMSprop(learning_rate=1e-5)#todo for transerlearning

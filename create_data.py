@@ -2,7 +2,7 @@ from src.data import *
 from tifffile import TiffWriter
 import os
 import matplotlib.pyplot as plt
-from src.data import DataGeneration
+from src.data import DataGeneration, GPUDataGeneration
 from src.visualization import plot_data_gen
 
 # def create_crop_dataset(iterations):
@@ -74,7 +74,7 @@ from src.visualization import plot_data_gen
 
 
 if __name__ == '__main__':
-    gener = DataGeneration(9)
+    gener = GPUDataGeneration(9)
     generator, shape = gener.create_data_generator(1, noiseless_ground_truth=True)
     dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
                                              output_shapes=shape)

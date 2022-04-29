@@ -4,10 +4,11 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import scipy.ndimage
-from src.factory import Factory
+from src.factory import Factory,Kernel
 import copy
 from astropy.convolution import Gaussian2DKernel
 from src.utility import get_root_path
+from astropy.convolution import Gaussian2DKernel,AiryDisk2DKernel
 
 CROP_TRANSFORMS = 4
 
@@ -28,8 +29,12 @@ class DataServing():
         def generator():
             data = np.load(data_path + "/train.npy",
                            allow_pickle=True).astype(np.float32)
-            truth = np.load(data_path + "/truth.npy",
-                            allow_pickle=True).astype(np.float32)
+            if os.path.exists(data_path + "/truth.npy"):
+                truth = np.load(data_path + "/truth.npy",
+                                allow_pickle=True).astype(np.float32)
+            else:
+                print("no truth data found")
+                truth = np.zeros((data.shape[0],data.shape[1],9,9,4))
             noiseless = np.load(data_path + "/noiseless.npy",
                                 allow_pickle=True).astype(np.float32)
             coords = np.load(data_path + "/coordinates.npy",
@@ -39,7 +44,7 @@ class DataServing():
             # todo: coords to pixel coords
             coords[:, :, :, 3] /= 0.001 + coords[:, :, :, 3].max()
             for i in range(data.shape[0]):
-                c = coords[i]
+                c = coords[i]#todo: undo is only valid for gpu data
                 yield data[i]/data[i].max(), noiseless[i]/noiseless[i].max(), c, truth[i], sigma[i]
         return generator
 
@@ -75,6 +80,71 @@ class DataServing():
                 yield data
 
         return data_generator_real, offset
+class GPUDataGeneration():
+    def __init__(self, im_shape, sigma_x=180, sigma_y=180, quantum_efficiency = 0.45, dark_noise = 5 / 10, sensitivity = 1, bitdepth = 12):
+        self.sigma_x = sigma_x
+        self.sigma_y = sigma_y
+        self.factory = Kernel()
+        #self.factory.shape = (im_shape * 100, im_shape * 100)
+        self.factory.image_shape = (im_shape, im_shape)  # select points here
+        self.factory.quantum_efficiency = quantum_efficiency
+        self.factory.dark_noise = dark_noise
+        self.factory.sensitivity = sensitivity
+        self.factory.bitdepth = bitdepth
+
+    def create_data_generator(self, size, noiseless_ground_truth=False, ):
+        sigma_x = self.sigma_x
+        def generator():
+            for z in range(4):
+                points, indices = self.factory.point_set_simulator(6, frames=size)
+
+                s = int(8 * int(150) + 1)
+                self.factory.kernel = AiryDisk2DKernel(radius=3 * sigma_x, x_size=s, y_size=s).array[np.newaxis, :, :]
+                train_image, noiseless, p = self.factory.create_data(np.array(points), (9, 9), indices)
+                p[:,0:2] /=100
+
+                truth = np.zeros((train_image.shape[0],9,9,4))
+
+                yield tf.convert_to_tensor(train_image, dtype=tf.float32), tf.convert_to_tensor(noiseless,
+                                                                                               dtype=tf.float32), \
+                      tf.convert_to_tensor(p, dtype=tf.float32), tf.convert_to_tensor(truth, dtype=tf.float32)
+        shape = ((1 * size, self.factory.image_shape[0], self.factory.image_shape[1], 3),
+                 (1 * size, self.factory.image_shape[0], self.factory.image_shape[1], 3),
+                 (1 * size, 10, 5),
+                 (1 * size, self.factory.image_shape[0], self.factory.image_shape[1], 4))
+        return generator, shape
+
+    def create_dataset(self, save_path):
+        data_train = []
+        data_truth = []
+        sig = []
+        data_noiseless = []
+        coordinates = []
+        size = 1000
+        for j in range(100):
+            for i in range(4):
+                points, indices = self.factory.point_set_simulator(6, frames=size)
+
+                s = int(8 * int(150) + 1)
+                self.factory.kernel = AiryDisk2DKernel(radius=3 * self.sigma_x, x_size=s, y_size=s).array[np.newaxis, :, :]
+                train_image, noiseless, p = self.factory.create_data(np.array(points), (9, 9), indices)
+                p[:,0:2] /=100
+                data_train.append(train_image)
+                #data_truth.append(truth.numpy())
+                data_noiseless.append(noiseless)
+                coordinates.append(p)
+                sig.append(self.sigma_x)
+
+        base_path = get_root_path() + r"/datasets/" + save_path
+        if os.path.exists(base_path):
+            print("warning overwriting dataset")
+        else:
+            os.mkdir(base_path)
+        np.save(base_path + "/train.npy", np.array(data_train))  # NS = non switching
+        np.save(base_path + "/noiseless.npy", np.array(data_noiseless))  # VS = variable sigma
+        #np.save(base_path + "/truth.npy", np.array(data_truth))  # VS = variable sigma
+        np.save(base_path + "/coordinates.npy", np.array(coordinates))
+        np.save(base_path + "/sigma.npy", np.array(sig))
 
 class DataGeneration():
     def __init__(self, im_shape, sigma_x=180, sigma_y=180, quantum_efficiency = 0.45, dark_noise = 5 / 10, sensitivity = 1, bitdepth = 12):
@@ -159,6 +229,7 @@ class DataGeneration():
         size = 1000
         for j in range(1):
             generator, shape = self.create_data_generator(size, noiseless_ground_truth=True)
+            #replace with gpu generator
             dataset = tf.data.Dataset.from_generator(generator, (tf.float32, tf.float32, tf.float32, tf.float32),
                                                      output_shapes=shape)
             for train_image, noiseless, coords, truth in dataset.take(4):

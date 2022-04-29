@@ -6,6 +6,210 @@ import scipy
 import copy
 from collections import namedtuple
 
+import tensorflow as tf
+import tensorflow_addons as tfa
+
+class Kernel():
+    def __init__(self):
+        self.px_size = 100
+        seed = 42  # switch seed
+        self.quantum_efficiency = 0.45
+        self.dark_noise = 5 / 10  # dark noise was 25 / 10
+        self.sensitivity = 1
+        self.bitdepth = 12
+        self.image_shape = (9,9)
+        self.rs = np.random.RandomState(seed)
+
+    def apply_intensity(self, image, intensities):
+        im_max = tf.reduce_max(image, axis=(0,1,2))
+        image /= im_max
+        image *= tf.constant(intensities.astype(np.float32)/30)
+        return image
+
+
+    def point_set_simulator(self, t, photons=1200, average_lifetime=600, frames=50):
+        #todo: image dimension in y average lifetime of the on state
+        #todo: lifetime to line on line off
+        #todo: integration time per pixel to calculate on time!
+
+        #todo: coordinates x,y,z, switching off, switching on
+        #todo: simulate 3 consecutive frames
+        mean_loc_count = 1.5
+        n_points = 10000
+        #points = np.zeros((n_points, 5)).astype(np.float32)
+        photon_distribution = np.random.normal(photons,0.3*photons, n_points)  # todo: higher distribution
+        #on_time = np.random.poisson(average_lifetime, n_points)  # maxwell.rvs(size=n_points, loc=12.5, scale=5)
+        #delay_time = np.random.poisson(30, n_points)
+        points = []
+        indices = []
+        for i in range(frames):
+            #todo: simulate 3 points in a row
+            frame_points = int(np.random.normal(mean_loc_count, 0.2*mean_loc_count))#np.random.poisson(1.7)
+            if frame_points<0:
+                frame_points=0
+            xy = np.random.randint(150, 900 - 150, size=(frame_points,2)) #9 is crop size
+            on_time = np.random.poisson(average_lifetime, frame_points)  # maxwell.rvs(size=n_points, loc=12.5, scale=5)
+            delay_time = np.random.poisson(30, frame_points)
+
+            start = delay_time//t
+            frame = start//9#cropsize
+            px = start%9
+
+            stop = (delay_time+on_time)//t
+            stop_frame = stop//9
+            stop_px = stop%9
+            for j in range(3):
+                n=0
+                s = len(points)
+
+                for frp in range(frame_points):
+                    if frame[frp]<=j and stop_frame[frp]>=j:
+                        n+=1
+                        on_add = (frame[frp] -j)*9
+                        off_add = (stop_frame[frp] -j)*9
+                        p = np.array([xy[frp,0],xy[frp,1], photon_distribution[i], px[frp]+on_add, stop_px[frp]+off_add])
+                        points.append(p)
+                indices.append(np.arange(s,s+n))
+        return points,indices
+            # p = np.random.randint(150, self.shape[0]-150, size=2)
+            # points[i, 0:2] = p
+            # points[i, 2] = photon_distribution[i]  # todo: increase lifetime?
+            # points[i, 3] = on_time[i]   #todo: compute xstart and x_end
+            # points[i, 4] = delay_time[i]
+
+        #pass
+
+    @property
+    def kernel(self):
+        #todo: 3D or 2D
+        return self._kernel
+
+    @kernel.setter
+    def kernel(self, value):
+        #todo: set array and turn it to tensor
+        self._kernel = tf.constant(value)
+
+    def create_images(self, image_batch, z, mod, tf_mask):
+        kernel_point_tensor = tf.gather(self._kernel, z)
+
+        #translate xy arrays here
+        shifted_kernel = tfa.image.translate(tf.expand_dims(kernel_point_tensor,-1), tf.cast(mod, tf.float32))
+        tf_image_batch=tf.expand_dims(image_batch.astype(np.float32),-1)
+        n_shape = tf.shape(shifted_kernel)[1:3]//100
+
+        #inter area interpolation of kernel
+        #convolve
+        resized_kernel = tf.transpose(tf.image.resize(shifted_kernel,n_shape ,method=tf.image.ResizeMethod.AREA),(2,1,0,3))
+        resized_kernel = resized_kernel*tf_mask
+        image = tf.nn.depthwise_conv2d(tf.transpose(tf_image_batch,(3,1,2,0)), resized_kernel[::-1,::-1],strides=[1, 1, 1, 1], padding='SAME')
+        return image,resized_kernel
+
+    def accurate_noise_simulations_camera(self, image):
+        image = image.astype(np.uint16)
+
+        shot_noise = self.rs.poisson(image, image.shape)
+
+        # Round the result to ensure that we have a discrete number of electrons
+        electrons = np.round(self.quantum_efficiency * shot_noise)
+
+        # electrons dark noise 34 counts per second
+        electrons_out = np.round(self.rs.normal(scale=self.dark_noise, size=electrons.shape) + electrons)
+
+        # ADU/e-
+        max_adu = np.int(2 ** self.bitdepth - 1)
+        adu = (electrons_out * self.sensitivity).astype(np.int)
+        adu[adu > max_adu] = max_adu  # models pixel saturation
+        adu[adu < 0] = 0  # models pixel saturation
+        return adu
+
+    def create_data(self, points, size, index_list):
+        batch_size= 150
+        images = []
+        noiseless = []
+        p_array = []
+        n = len(index_list)//batch_size
+        start = 0
+        if len(index_list)%batch_size !=0:
+            n+=1
+        for k in range(n):
+            print(k)
+            #pick 150 frames
+            current_index_list = copy.deepcopy(index_list[k*batch_size:(k+1)*batch_size])
+            z = np.concatenate(current_index_list,axis=0)
+            current_points = points[z]
+            for item in current_index_list:
+                item -= start
+            im, nl, p = self.compute_point_batch(current_points, size, current_index_list)
+            images.append(im)
+            noiseless.append(im)
+            p_array.append(p)
+            start = z.max()+1
+        return np.concatenate(images, axis=0), np.concatenate(noiseless, axis=0), np.concatenate(p_array,axis=0)
+
+
+    #todo: outsource to tf function
+    def compute_point_batch(self, point, size, index_list):
+        """takes array of points, size of images to construct and a list of indices which points correspond to which image"""
+        #todo: batch points to fit on gpu
+        #if len(point.shape) != 3:
+        #    raise ValueError("point shape not fitting")
+        #todo: indices to points of one image
+        point[np.where(point[:,3]<0),3] = 0
+        point[np.where(point[:,4]<0),4] = 0
+
+        #create image batch0
+        image_batch = np.zeros((tf.shape(point)[0],size[0],size[1]))
+
+        indices = np.arange(0, point.shape[0], 1)[:,np.newaxis]
+        point_xy = point[:,0:2]
+        #get offset to pixel center with modulo
+        #adjust range from -0.5 to +0.5
+        pix = (point_xy//self.px_size).astype(np.int32)
+        mod = point_xy%self.px_size-tf.constant(.5)
+
+        z= tf.zeros((tf.shape(point)[0]),tf.int32)
+
+        indices = np.concatenate([indices, pix], axis=1).T
+        image_batch[(indices[0],indices[1],indices[2])] = 1
+
+        #z = point[:,2]
+        mask = np.zeros((12,12,tf.shape(point)[0],1))
+        #todo: make large set of masks depending on lifetime
+        #todo: define point set with int of switch on and switch off
+        for i in range(point.shape[0]):
+            mask[point[i,3].astype(np.int32):point[i,4].astype(np.int32),:,i] = 1
+        tf_mask = tf.constant(mask.astype(np.float32))
+
+        image, resized_kernel = self.create_images(image_batch, z, mod, tf_mask)
+        image = self.apply_intensity(image, point[:,2])
+        result_images = []
+        #iterate over indices and gather and reduce sum
+        points = [] #todo: points as array
+        for i,point_set in enumerate(index_list):
+            result_images.append(tf.reduce_sum(tf.gather(image, point_set, axis=-1),axis=-1, keepdims=True))
+            if i%3 == 1:
+                #todo: points as np array with 10 indices
+                p = np.zeros((10,5))
+                p[0:point_set.shape[0]] = point[point_set]
+                points.append(p)
+        reshaped_nl = []
+        reshaped = []
+
+        for i in range(len(result_images)//3):
+            sublist_nl = [result_images[3*i+j][0]  for j in range(3)]
+            reshaped_nl.append(tf.concat(sublist_nl, axis=-1).numpy())
+            #add nosie
+            sublist = [self.accurate_noise_simulations_camera(tf.squeeze(result_images[3*i+j]).numpy())  for j in range(3)]
+            reshaped.append(np.stack(sublist, axis=-1))
+
+        reshaped_nl = np.array(reshaped_nl)#noiseless
+        reshaped = np.array(reshaped)
+        points=np.array(points)
+        #todo: as numpy add noise restack and safe...
+        return reshaped, reshaped_nl, points
+
+
+
 class Factory():
     def __init__(self):
         self._kernel = Gaussian2DKernel(x_stddev=150, y_stddev=150)

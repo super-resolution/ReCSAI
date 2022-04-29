@@ -33,7 +33,7 @@ class NetworkTrainingMetrics():
 
 
 if __name__ == '__main__':
-    cs_cnn = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_cnn\_final_training_100_ndata_test_thresholding\accuracy.npy", "CS CNN 100 iterations")
+    cs_cnn = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_cnn\_final_training_100_ndata\accuracy.npy", "CS CNN 100 iterations")
 
     cs_incept = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_inception\_final_training_100_10_ndata\accuracy.npy", "CS inception 100 iterations")
 
@@ -90,12 +90,12 @@ if __name__ == '__main__':
             axs[i].set_xticks([])
         axs[i].set_ylabel(names[i])
         #axs[i].set_xlim(xmin=0 , xmax=x_max)
-    axs[2].set_xlabel("steps")
+    axs[2].set_xlabel("Steps")
     plt.legend()
     plt.savefig("metrics1.svg")
     plt.show()
 
-    names = ["validation loss"]
+    names = ["Validation loss"]
     plt.figure(figsize=[6, 5])
 
     c_cmap = [(.0,0.0,.0,0.8),(0.9,.2,.2,0.8),(0,.0,0.8,0.8)]
@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
             plt.ylabel(names[i])
             plt.xlim(xmin=0 , xmax=x_max)
-        plt.xlabel("steps")
+        plt.xlabel("Steps")
     plt.legend()
     plt.savefig("metrics1.svg")
     plt.show()
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     for net in networks:
         plt.scatter(net._rmse[-10], net._jaccard[-10], label=net.name, marker="X")
     plt.legend()
-    plt.ylabel("Jaccard")
+    plt.ylabel("JI")
     plt.xlabel("RMSE")
     plt.savefig("metrics2.svg")
     plt.show()

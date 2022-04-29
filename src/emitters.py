@@ -190,7 +190,7 @@ class Emitter():
         crlb = np.ones(localizations.shape) * np.array(loc_error)[None]
         estimated_drift, _ = dme_estimate(localizations, self.frames,
                                           crlb,
-                                          framesperbin=20,  # note that small frames per bin use many more iterations
+                                          framesperbin=200,  # note that small frames per bin use many more iterations
                                           imgshape=[fov_width, fov_width],
                                           coarseFramesPerBin=200,
                                           coarseSigma=[0.2, 0.2, 0.2],  # run a coarse drift correction with large Z sigma
