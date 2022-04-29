@@ -9,7 +9,7 @@ is a SMLM (Single Molecule Localisation Microscopy) software, to fit the locatio
 
 ## Usage
 * Ready to use Colab notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1GQI5KXUymahWzkJ_m4ZVx4LPRGPdVbQf#scrollTo=j6zaRBylyEpW)
-* Train on your own data:
+* Train on your own data: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Mo8UzX817JoE1EkLN0oLbdp--PvcW4Z3#scrollTo=fDwyeQv8z5n6)
 
 ## Local setup
 Additionally to installing the requirements.txt you need to get:
