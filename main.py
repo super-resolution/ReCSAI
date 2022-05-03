@@ -37,12 +37,12 @@ facade.sigma = 180
 #facade.pretrain_current_sigma_d()
 facade.wavelet_thresh = 0.1
 p_threshold = 0.3
-# result_tensor,coord_list = facade.predict(path, raw=True)
-# if not os.path.exists(os.getcwd()+r"\tmp"):
-#     os.mkdir(os.getcwd()+r"\tmp")
-# np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
-# np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
-# # #todo: save metadata and emitter set?
+result_tensor,coord_list = facade.predict(path, raw=True)
+if not os.path.exists(os.getcwd()+r"\tmp"):
+    os.mkdir(os.getcwd()+r"\tmp")
+np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
+np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
+
 result_tensor = np.load(os.getcwd()+r"\tmp\current_result.npy",allow_pickle=True)
 coord_list = np.load(os.getcwd()+ r"\tmp\current_coordinate_list.npy",allow_pickle=True)
 print("finished AI")
