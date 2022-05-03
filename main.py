@@ -35,13 +35,13 @@ facade = ResUNetFacade()
 
 facade.sigma = 180
 #facade.pretrain_current_sigma_d()
-facade.wavelet_thresh = 0.04
-p_threshold = 0.1
-result_tensor,coord_list = facade.predict(path, raw=True)
-if not os.path.exists(os.getcwd()+r"\tmp"):
-    os.mkdir(os.getcwd()+r"\tmp")
-np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
-np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
+facade.wavelet_thresh = 0.1
+p_threshold = 0.3
+# result_tensor,coord_list = facade.predict(path, raw=True)
+# if not os.path.exists(os.getcwd()+r"\tmp"):
+#     os.mkdir(os.getcwd()+r"\tmp")
+# np.save(os.getcwd()+r"\tmp\current_result.npy",result_tensor)
+# np.save(os.getcwd()+ r"\tmp\current_coordinate_list.npy", coord_list)
 # # #todo: save metadata and emitter set?
 result_tensor = np.load(os.getcwd()+r"\tmp\current_result.npy",allow_pickle=True)
 coord_list = np.load(os.getcwd()+ r"\tmp\current_coordinate_list.npy",allow_pickle=True)
@@ -50,7 +50,7 @@ print("finished AI")
 emitter = Emitter.from_result_tensor(result_tensor,p_threshold, coord_list )
 print(emitter.xyz.shape[0])
 emitter_filtered = emitter.filter(sig_x=0.1, sig_y=0.1, photons=0.1, )
-emitter_filtered.apply_drift(r"C:\Users\biophys\Downloads\confocalSTORM_beads+MT\alpha_drift.csv")
+#emitter_filtered.apply_drift(r"C:\Users\biophys\Downloads\confocalSTORM_beads+MT\alpha_drift.csv")
 #emitter_filtered.use_dme_drift_correct()
 # import matplotlib.pyplot as plt
 # plt.show()

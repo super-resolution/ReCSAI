@@ -199,12 +199,12 @@ class Kernel():
             sublist_nl = [result_images[3*i+j][0]  for j in range(3)]
             reshaped_nl.append(tf.concat(sublist_nl, axis=-1).numpy())
             #add nosie
-            sublist = [self.accurate_noise_simulations_camera(tf.squeeze(result_images[3*i+j]).numpy())  for j in range(3)]
+            sublist = [self.accurate_noise_simulations_camera(tf.squeeze(result_images[3*i+j]).numpy()+5)  for j in range(3)]
             reshaped.append(np.stack(sublist, axis=-1))
 
         reshaped_nl = np.array(reshaped_nl)#noiseless
         reshaped = np.array(reshaped)
-        points=np.array(points)
+        points = np.array(points)
         #todo: as numpy add noise restack and safe...
         return reshaped, reshaped_nl, points
 

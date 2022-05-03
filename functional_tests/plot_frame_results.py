@@ -63,13 +63,14 @@ def coord_to_fram(result_array):
 
 #path = r"D:\Daten\Dominik_B\Cy5_AI_enhanced_5.tif"
 
-path = r"D:\Daten\Dominik_B\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
-path = r"D:\Daten\Dominik_B\JF646_Aktin_100us_45px_100nm_Framefrq2.4Hz_linefrq108.7Hz_100LP_4000Frames.tif kept stack.tif"
-path = r"D:\Daten\Dominik_B\Dyomics654_100us101nm45pxFramefrq2.4HzLinefrq108.7Hz_4850Frames_100LP.tif kept stack.tif"
+path = r"D:\Daten\Dominik_B\Cy5\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
+
+#path = r"D:\Daten\Dominik_B\JF646_Aktin_100us_45px_100nm_Framefrq2.4Hz_linefrq108.7Hz_100LP_4000Frames.tif kept stack.tif"
+#path = r"D:\Daten\Dominik_B\Dyomics654_100us101nm45pxFramefrq2.4HzLinefrq108.7Hz_4850Frames_100LP.tif kept stack.tif"
 
 #path = r"D:\Daten\Artificial\ContestHD.tif"
 #path = r"D:\Daten\Christina\U2OS_+Ac4ManAz_5uM.tif"
-path = r"C:\Users\biophys\matlab\test2.tif"
+#path = r"C:\Users\biophys\matlab\test2.tif"
 #path = r"D:\Daten\Artificial\sequence-as-stack-MT0.N1.HD-2D-Exp.tif"
 #path = r"D:\Daten\Dominik_B\substack_cy5_lange_aufnahme.tif"
 

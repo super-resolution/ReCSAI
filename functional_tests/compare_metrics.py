@@ -35,11 +35,11 @@ class NetworkTrainingMetrics():
 if __name__ == '__main__':
     cs_cnn = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_cnn\_final_training_100_ndata\accuracy.npy", "CS CNN 100 iterations")
 
-    cs_incept = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_inception\_final_training_100_10_ndata\accuracy.npy", "CS inception 100 iterations")
+    cs_incept = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_inception\_final_training_100_10_ndata\accuracy.npy", "CS Inception 100 iterations")
 
-    cs_u = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_u\_final_training_100_ndata\accuracy.npy", "CS U 100 iterations")
-    cs_u2 = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_u\_final2_training_100_ndata_test_compare\accuracy.npy", "CS Res U 4 iterations")
-    cs_u2_hit = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_u\_final2_training_100_ndata_further_higherit\accuracy.npy", "CS Res U 8 iterations")
+    cs_u = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_u\_final_training_100_ndata\accuracy.npy", "CS U-Net 100 iterations")
+    cs_u2 = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_u\_final2_training_100_ndata_test_compare\accuracy.npy", "Rec U-Net 4 iterations")
+    cs_u2_hit = NetworkTrainingMetrics(get_root_path() + r"\trainings\cs_u\_final2_training_100_ndata_further_higherit\accuracy.npy", "Rec U-Net 8 iterations")
 
     #cs_conv = np.load(get_root_path() + r"\trainings\cs_conv\_conv_training_ndata\accuracy.npy",
     #                     allow_pickle=True)
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     plt.figure(figsize=[6, 5])
     for net in networks:
         plt.scatter(net._rmse[-10], net._jaccard[-10], label=net.name, marker="X")
-    plt.legend()
+    #plt.legend()
     plt.ylabel("JI")
     plt.xlabel("RMSE")
     plt.savefig("metrics2.svg")
