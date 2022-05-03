@@ -142,3 +142,5 @@ If you want to use your own data you can put it under current dataset and update
 
 Custom trainings can be implemented by editing train_cs_net.py, creating a folder in datasets and defining this folder as the current dataset in facade.py.
 ## Paper
+Reference preprint here
+

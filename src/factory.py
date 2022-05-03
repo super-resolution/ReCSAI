@@ -1,7 +1,6 @@
 import numpy as np
 from astropy.convolution import Gaussian2DKernel,AiryDisk2DKernel
 import cv2
-import numba
 import scipy
 import copy
 from collections import namedtuple
