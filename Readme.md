@@ -42,7 +42,7 @@ from src.emitters import Emitter
 ```
 2. Define the path to your data
 ```
-path = r"D:\Daten\Dominik_B\Cy5\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
+path = r"path_to_your_data.tif"
 ```
 3. Build a network instance and set parameters
 ```
