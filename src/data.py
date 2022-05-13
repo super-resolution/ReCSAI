@@ -114,14 +114,14 @@ class GPUDataGeneration():
                  (1 * size, self.factory.image_shape[0], self.factory.image_shape[1], 4))
         return generator, shape
 
-    def create_dataset(self, save_path):
+    def create_dataset(self, save_path, dataset_size=100):
         data_train = []
         data_truth = []
         sig = []
         data_noiseless = []
         coordinates = []
         size = 1000
-        for j in range(100):
+        for j in range(dataset_size):
             for i in range(4):
                 points, indices = self.factory.point_set_simulator(6, frames=size)
 
@@ -134,6 +134,9 @@ class GPUDataGeneration():
                 data_noiseless.append(noiseless)
                 coordinates.append(p)
                 sig.append(self.sigma_x)
+
+        if not os.path.exists(get_root_path() + r"/datasets"):
+            os.mkdir(get_root_path() + r"/datasets")
 
         base_path = get_root_path() + r"/datasets/" + save_path
         if os.path.exists(base_path):
