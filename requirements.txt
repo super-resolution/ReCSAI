@@ -7,3 +7,4 @@ scipy
 opencv_python
 astropy
 tensorflow
+jupyter

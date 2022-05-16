@@ -27,18 +27,10 @@ class Kernel():
 
 
     def point_set_simulator(self, t, photons=1200, average_lifetime=600, frames=50):
-        #todo: image dimension in y average lifetime of the on state
-        #todo: lifetime to line on line off
-        #todo: integration time per pixel to calculate on time!
-
-        #todo: coordinates x,y,z, switching off, switching on
-        #todo: simulate 3 consecutive frames
         mean_loc_count = 1.5
         n_points = 10000
-        #points = np.zeros((n_points, 5)).astype(np.float32)
         photon_distribution = np.random.normal(photons,0.3*photons, n_points)  # todo: higher distribution
-        #on_time = np.random.poisson(average_lifetime, n_points)  # maxwell.rvs(size=n_points, loc=12.5, scale=5)
-        #delay_time = np.random.poisson(30, n_points)
+
         points = []
         indices = []
         for i in range(frames):
@@ -70,13 +62,7 @@ class Kernel():
                         points.append(p)
                 indices.append(np.arange(s,s+n))
         return points,indices
-            # p = np.random.randint(150, self.shape[0]-150, size=2)
-            # points[i, 0:2] = p
-            # points[i, 2] = photon_distribution[i]  # todo: increase lifetime?
-            # points[i, 3] = on_time[i]   #todo: compute xstart and x_end
-            # points[i, 4] = delay_time[i]
 
-        #pass
 
     @property
     def kernel(self):
@@ -85,7 +71,6 @@ class Kernel():
 
     @kernel.setter
     def kernel(self, value):
-        #todo: set array and turn it to tensor
         self._kernel = tf.constant(value)
 
     def create_images(self, image_batch, z, mod, tf_mask):
@@ -146,7 +131,6 @@ class Kernel():
         return np.concatenate(images, axis=0), np.concatenate(noiseless, axis=0), np.concatenate(p_array,axis=0)
 
 
-    #todo: outsource to tf function
     def compute_point_batch(self, point, size, index_list):
         """takes array of points, size of images to construct and a list of indices which points correspond to which image"""
         #todo: batch points to fit on gpu
@@ -173,8 +157,8 @@ class Kernel():
 
         #z = point[:,2]
         mask = np.zeros((12,12,tf.shape(point)[0],1))
-        #todo: make large set of masks depending on lifetime
-        #todo: define point set with int of switch on and switch off
+        #make large set of masks depending on lifetime
+        #define point set with int of switch on and switch off
         for i in range(point.shape[0]):
             mask[point[i,3].astype(np.int32):point[i,4].astype(np.int32),:,i] = 1
         tf_mask = tf.constant(mask.astype(np.float32))
@@ -183,11 +167,11 @@ class Kernel():
         image = self.apply_intensity(image, point[:,2])
         result_images = []
         #iterate over indices and gather and reduce sum
-        points = [] #todo: points as array
+        points = [] #points as array
         for i,point_set in enumerate(index_list):
             result_images.append(tf.reduce_sum(tf.gather(image, point_set, axis=-1),axis=-1, keepdims=True))
             if i%3 == 1:
-                #todo: points as np array with 10 indices
+                #points as np array with 10 indices
                 p = np.zeros((10,5))
                 p[0:point_set.shape[0]] = point[point_set]
                 points.append(p)
@@ -204,7 +188,7 @@ class Kernel():
         reshaped_nl = np.array(reshaped_nl)#noiseless
         reshaped = np.array(reshaped)
         points = np.array(points)
-        #todo: as numpy add noise restack and safe...
+        #as numpy add noise restack and save...
         return reshaped, reshaped_nl, points
 
 

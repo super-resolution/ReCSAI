@@ -172,37 +172,7 @@ class CompressedSensingUNet(BaseModel):
                                                         strides=3,
                                                         padding='same',
                                                         kernel_initializer=initializer,)
-                        #works better due to tanh activation and bias,  #9
-        #upsample(32, 4, apply_dropout=True),
-        #upsample(16, 4),  # (batch_size, 16, 16, 1024)
-        #upsample(8, 4),  # (batch_size, 16, 16, 1024)
 ]
-        # self.down_path2 =[
-        # downsample(32,5, strides=3),#3
-        # downsample(64,5,strides=3),#1
-        # ]
-        # self.up_path2 = [upsample(64, 4, apply_dropout=True, strides=3),
-        #                 #upsample(8, 4, apply_dropout=False, strides=3),  # 9
-        #                  tf.keras.layers.Conv2DTranspose(8, 4,
-        #                                                         strides=3,
-        #                                                         padding='same',
-        #                                                         kernel_initializer=initializer,
-        #                                                        )#works better due to tanh activation and bias
-                        # upsample(32, 4, apply_dropout=True),
-                        # upsample(16, 4),  # (batch_size, 16, 16, 1024)
-                        # upsample(8, 4),  # (batch_size, 16, 16, 1024)
-        #                ]
-        #self.conv2 = tf.keras.layers.Conv2D(8, (5, 1), activation=None, padding="same")
-        #self.conv3 = tf.keras.layers.Conv2D(8, (1, 5), activation=None, padding="same")
-
-        #self.conv1 = tf.keras.layers.Conv2D(8, (3, 3), activation=None, padding="same")
-
-        #self.down_path2 = [downsample(8,3,apply_batchnorm=False), #36
-        #downsample(8,3), #18
-        #downsample(8,3)] #9
-        #todo: add vertical layers for unet++
-
-        #todo: upsample path here
 
         self.concat = tf.keras.layers.Concatenate()
 
@@ -227,16 +197,6 @@ class CompressedSensingUNet(BaseModel):
         x = self.up_path[0](x)
         x = tf.keras.layers.Concatenate()([x, skip[-1]])
         x = self.up_path[1](x)
-        #x = tf.keras.layers.Concatenate()([x, skip[-2]])
-
-
-        #x = tf.keras.layers.Concatenate()([x, skip2[-2]])
-
-        # y = self.conv2(x)
-        # z = self.conv3(x)
-        # x = tf.keras.layers.Concatenate()([y, z])
-
-        #x = self.conv1(x)
 
         x = self.activation(x)
         if training:

@@ -28,13 +28,10 @@ def result_image_to_coordinates(result_tensor, coord_list=None, threshold=0.2, s
     for i in range(result_tensor.shape[0]):
         classifier =result_tensor[i, :, :, 2]
 
-        #classifier = uniform_filter(result_tensor[i, :, :, 2], size=3) * 9
         # plt.imshow(classifier)
         # plt.show()
-        # classifier = result_tensor[i, :, :, 2]
         if np.sum(classifier) > threshold:
             classifier[np.where(classifier < threshold)] = 0
-            # indices = np.where(classifier>self.threshold)
 
             indices = get_coords(classifier).T
             x = result_tensor[i, indices[0], indices[1], 0]
@@ -45,7 +42,6 @@ def result_image_to_coordinates(result_tensor, coord_list=None, threshold=0.2, s
             N = result_tensor[i, indices[0], indices[1], 5]
 
             for j in range(indices[0].shape[0]):
-                #if dx[j] < sigma_thresh and dy[j] < sigma_thresh:
                     if coord_list:
                         result_array.append(np.array([coord_list[i][0] + float(indices[0][j]) + (x[j])
                                                          , coord_list[i][1] + float(indices[1][j]) + y[j], coord_list[i][2],
@@ -60,15 +56,10 @@ def result_image_to_coordinates(result_tensor, coord_list=None, threshold=0.2, s
     return np.array(result_array)
 
 def predict_sigma(psf_crops, result_array, ai):
-    #perfect_result_array = []
     perfect_psf_array = []
     print("evaluated")
-    indices = tf.where(result_array[:,2]<1.3)
-    #x = psf_crops[indices[:,0]]
     for i in range(result_array.shape[0]):
-        #print(i)
         if result_array[i,2]>0.95 and result_array[i,2]<1.25:
-            #perfect_result_array.append(result_array[i,0:2])
             perfect_psf_array.append(psf_crops[i,:,:,1].numpy())
     perfect_psfs = np.transpose(np.array(perfect_psf_array),(1,2,0))
     x=[]
@@ -161,7 +152,6 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):#todo
     train_new = []
     truth_new = []
     coord_list = []
-    #data_tensor = data_tensor/tf.keras.backend.max(data_tensor)
     data = tf.cast(data_tensor, tf.float32).numpy()
     data /= tf.keras.backend.max(data)
 
@@ -172,7 +162,6 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):#todo
     #im /= tf.keras.backend.max(im)
     #data_tensor /= tf.keras.backend.max(data_tensor)
     for i in range(im.shape[0]):
-        # todo: denoise all at once
         current_data = data[i, :, :, :]/tf.keras.backend.max(data[i, :, :, :])
         #current_data = tf.repeat(current_data,3, axis=-1)
 
@@ -180,19 +169,16 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):#todo
         y = tf.constant([th])
         mask = tf.greater(wave, y)
         wave_mask = wave * tf.cast(mask, tf.float32)
-        c_data_masked = current_data*tf.cast(tf.greater(current_data, y), tf.float32)
+        # c_data_masked = current_data*tf.cast(tf.greater(current_data, y), tf.float32)
         # fig, axs = plt.subplots(3)
         # axs[0].imshow(wave_mask[0, :, :, 0])
         # axs[1].imshow(data[i, :, :, 1])
         # axs[2].imshow(im[i, :, :, 1])
         # plt.show()
-        #ax.imshow(wave[0,:,:,0])
-        #coords = get_coords(c_data_masked.numpy()[ :, :, 1])
 
         coords = get_coords(wave_mask.numpy()[0, :, :, 0])
         # from src.visualization import plot_wavelet_bin_results
         # plot_wavelet_bin_results(current_data[:,:,1].numpy(), wave_mask.numpy()[0, :, :, 0], coords)
-        # todo: crop PSFs done here
         for coord in coords:
             # ax.add_patch(rect)
             # ax.set_title("original", fontsize=10)
@@ -202,15 +188,12 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):#todo
                 #crop = crop/tf.keras.backend.max(crop)
 
                 #np.save(os.getcwd() + r"\crop.npy", crop)
-                #
                 # fig, axs = plt.subplots(3)
                 # axs[0].imshow(crop[ :, :, 0])
                 # axs[1].imshow(crop[ :, :, 1])
                 # axs[2].imshow(crop[ :, :, 2])
                 # plt.show()
                 if truth_array is not None:
-                    # todo: implement recursive nonlinear drift estimator
-                    # todo: is coord[0] gerade or ungerade
                     truth = truth_array[i]
                     ind = np.where(np.logical_and(
                         np.logical_and(truth[:,0]>coord[0]-4,truth[:,1]>coord[1]-4),
@@ -229,79 +212,14 @@ def bin_localisations_v2(data_tensor, denoising, truth_array=None, th=0.1):#todo
                         # axs.imshow(crop[:,:,1])
                         # axs.scatter(y,x)
                         # plt.show()
-
                 else:
                     train_new.append(crop)
                     coord_list.append(np.append(coord - 4, i))
-
-                # todo: calc coordinates why?
     print(len(train_new))
     train_new = tf.stack(train_new)
     truth_new = tf.stack(truth_new)
     return train_new, truth_new, np.array(coord_list)
 
-def create_shift_data(data_tensor, denoising, truth_array=None, th=0.1):
-    train_new = []
-    truth_new = []
-    coord_list = []
-    t = tf.identity(data_tensor)
-
-    one = denoising.predict(data_tensor[:, :, :, 0:1])
-    two = denoising.predict(data_tensor[:, :, :, 1:2])
-    three = denoising.predict(data_tensor[:, :, :, 2:3])
-    im = tf.concat([one, two, three], -1)
-    im = im/tf.keras.backend.max(im)
-
-    for i in range(im.shape[0]):
-        # todo: denoise all at once
-
-        wave = im[i:i + 1, :, :, 1:2]
-        y = tf.constant([th])
-        mask = tf.greater(wave, y)
-        wave_mask = wave * tf.cast(mask, tf.float32)
-        # fig, axs = plt.subplots(3)
-        # axs[0].imshow(data_tensor[i, :, :, 0])
-        # axs[1].imshow(data_tensor[i, :, :, 1])
-        # axs[2].imshow(data_tensor[i, :, :, 2])
-        # plt.show()
-        #ax.imshow(wave[0,:,:,0])
-        coords = get_coords(wave_mask.numpy()[0, :, :, 0])
-        # todo: crop PSFs done here
-        for coord in coords:
-            # ax.add_patch(rect)
-            # ax.set_title("original", fontsize=10)
-            if coord[0] - 4 > 0 and coord[1] - 4 > 0 and coord[0] + 4 < 64 and coord[1] + 4 < 64:
-                crop = t[i, coord[0] - 4:coord[0] + 5, coord[1] - 4:coord[1] + 5, :]
-                td = tf.unstack(crop, axis=-1)
-                if coord[0]%2==0:
-                    td[0] = tf.ones_like(td[0])
-                else:
-                    td[0] = tf.zeros_like(td[0])
-                crop = tf.stack(td, axis=-1)
-
-                # fig, axs = plt.subplots(3)
-                # axs[0].imshow(crop[ :, :, 0])
-                # axs[1].imshow(crop[ :, :, 1])
-                # axs[2].imshow(crop[ :, :, 2])
-                # plt.show()
-                #train_new.append(crop)
-                if truth_array is not None:
-                    # todo: implement recursive nonlinear drift estimator
-                    # todo: is coord[0] gerade or ungerade
-                    truth = truth_array[i]
-                    ind = np.where(np.logical_and(
-                        np.logical_and(truth[:,0]>coord[0]-2,truth[:,1]>coord[1]-2),
-                        np.logical_and(truth[:,0]<coord[0]+2,truth[:,1]<coord[1]+2)))
-                    if ind[0].shape[0] !=0:
-                        x = (truth[ind[0][0],0]-coord[0]+4)*72/73*8
-                        y = (truth[ind[0][0],1]-coord[1]+4)*72/73*8
-                        truth_new.append(tf.stack([x, y,truth[ind[0][0],2],truth[ind[0][0],3],truth[ind[0][0],4]]))
-                        train_new.append(crop)
-                        coord_list.append(coord - 4)
-
-    train_new = tf.stack(train_new)
-    truth_new = tf.stack(truth_new)
-    return train_new, truth_new, coord_list
 
 
 
@@ -441,7 +359,6 @@ def read_thunderstorm_drift_json(path):
 def read_thunderstorm_drift(path):
     import pandas as pd
     from scipy.interpolate import interp1d
-    #done: read json
     data = pd.read_csv(path, sep=",")
     frames_x = data['X2'].values
     frames_y = data['X3'].values
@@ -456,23 +373,13 @@ def read_thunderstorm_drift(path):
     return np.stack([driftx_n, drifty_n],axis=-1)
 
 
-
-    #todo: pick X2 Y2 X3 Y3
-
-    #todo: interpolate linear between entries
-
-    #todo: return drift per frame
-
-    pass
-
 def get_reconstruct_coords(tensor, th, neighbors=3):
     import copy
     filter = np.ones((neighbors,neighbors))
     filter[0::2,0::2] = 0
     tensor = copy.deepcopy(tensor)
     convolved = scipy.ndimage.convolve(tensor, filter)
-    #todo: if convolved >1 pick maximum
-    #todo: if convolved > 2 pick both
+
 
     indices = np.where(np.logical_and(tensor > th, convolved >2*th))
     x = []
@@ -491,7 +398,6 @@ def get_reconstruct_coords(tensor, th, neighbors=3):
 
     indices = np.unique(np.array((np.array(x).astype(np.int), np.array(y).astype(np.int))),axis=1)
     return indices
-    #todo: where convolved > 1.5 threshold
 
 def get_coords(reconstruct, neighbors=5):
     neighborhood = np.ones((neighbors,neighbors)).astype(np.bool)

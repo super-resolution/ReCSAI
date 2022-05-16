@@ -277,109 +277,7 @@ def build_switching_array(n):
     return test2
 
 
-def crop_generator_u_net(im_shape, sigma_x=150, sigma_y=150,size=100, seed=0, noiseless_ground_truth=False):
-    #todo: create dynamical
-    mean_loc_count = 1.5#2
-    factory = Factory()
-    factory.shape= (im_shape*100,im_shape*100)
-    factory.image_shape = (im_shape,im_shape)# select points here
-    def generator():
-        for z in range(100):
-            ph = np.random.randint(200,1000)#todo: add photons to dataset was 500,1500
-            points = factory.create_crop_point_set(photons=ph, on_time=30)
-            #sigma_y = np.random.randint(100, 250)
-            sig_y = sigma_x+np.random.rand()*10-5
-            sig_x = sigma_y+np.random.rand()*10-5
-            factory.kernel_type = "Airy"
-            factory.kernel = (sig_x, sig_y)
-            truth_cs_list = []
-            image_list = []
-            image_noiseless_list = []
-            co=[]
-            for i in range(size): #todo: while loop here
-                print(i)
-
-                n = int(np.random.normal(mean_loc_count, 0.2*mean_loc_count))#np.random.poisson(1.7)
-
-                if n<0:
-                    n=0
-                ind = np.random.randint(0, points.shape[0] - n)
-
-                #if n>3:
-                #    n=3
-                def build_image(ind, switching_array,):#todo: points to image additional parameters sigma and intensity
-                    image_s = np.zeros((im_shape, im_shape, 3))
-                    image_noiseless = np.zeros((im_shape, im_shape, 3))
-                    local_bg= np.random.choice(a=[True, False], size=1, p=[0.1,0.9])[0]#activated recently
-                    for i in range(3):
-
-                        image,gt,on_points = factory.simulate_accurate_flimbi(points, points[ind], switching_rate=0, inverted=switching_array[:,i])
-                        image_noiseless[:,:, i] = factory.reduce_size(gt).astype(np.float32)
-
-                        image = factory.reduce_size(image).astype(np.float32)
-
-                        #local bg simulation:
-                        if local_bg:
-                            image += np.random.rand()*5+15 #noise was 2
-
-                        #image_noiseless[:,:,i] = copy.deepcopy(image)
-                        image = factory.accurate_noise_simulations_camera(image).astype(np.float32)
-                        #plt.scatter(on_points[:,1]/100,on_points[:,0]/100)
-                        # plt.imshow(image)
-                        # plt.show()
-
-                        image_s[:,:,i] = image
-                        if i == 1:
-                            truth_cs = factory.create_classifier_image((im_shape, im_shape), on_points,
-                                                                       100)  # todo: variable px_size
-                            co.append(on_points)
-
-                    return image_s, truth_cs, image_noiseless
-
-                #todo: build named tuple (i.e. true true flase)
-                #todo: set switching accordingly(i.e. true, inverted=true, false
-                ind = np.arange(ind, ind + n, 1).astype(np.int32)#todo: set switching true
-                switching_array = build_switching_array(n)
-
-                image_s,truth_cs, image_noiseless = build_image(ind, switching_array)
-
-                #image_s -= image_s.min()#todo: skip normalization
-                #image_s += 0.0001
-                # image_s /= image_s.max()
-                # image_s *= np.random.rand()*0.3+0.7
-                #fig,axs = plt.subplots(3)
-                #axs[0].imshow(truth_cs[:,:,0])
-                #axs[1].imshow(truth_cs[:,:,1])
-                #axs[2].imshow(truth_cs[:,:,2])
-
-                #plt.show()
-                #if image_noiseless.max() >0:
-                #    image_noiseless /= image_noiseless.max()#todo: no normalization
-                truth_cs_list.append(truth_cs)
-                image_list.append(image_s)
-                image_noiseless_list.append(image_noiseless)
-            if noiseless_ground_truth:
-                current = np.array(truth_cs_list)
-                coords = []
-                for j in range(current.shape[0]):
-                    page = current[j]
-                    indices = np.array(np.where(page[:, :, 2] == 1))
-                    per_image = np.zeros((10, 4))#todo first size was 10
-                    for k, ind in enumerate(indices.T):
-                        c = ind + np.array(
-                            [page[ind[0], ind[1], 0], page[ind[0], ind[1], 1]]) + 0.5  # this is probably wrong!
-                        per_image[k, 0:2] = c
-                        per_image[k, 2] = 1
-                        per_image[k, 3] = co[j][k][2]
-                    coords.append(np.array(per_image))#todo: not used to build tensor
-                yield tf.convert_to_tensor(image_list, dtype=tf.float32),  tf.convert_to_tensor(image_noiseless_list, dtype=tf.float32), \
-                      tf.convert_to_tensor(coords, dtype=tf.float32), tf.convert_to_tensor(truth_cs_list, dtype=tf.float32),# todo: change in create data
-            else:
-                yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(truth_cs_list)#todo: shuffle?
-    return generator
-
 def crop_generator(im_shape, sigma_x=150, sigma_y=150):
-    #todo: create dynamical
 
     factory = Factory()
     factory.shape= (im_shape*100,im_shape*100)
@@ -450,24 +348,6 @@ def crop_generator(im_shape, sigma_x=150, sigma_y=150):
             yield tf.convert_to_tensor(image_list), tf.convert_to_tensor(np.array(points_list))#todo: shuffle?
     return generator
 
-def real_data_generator(im_shape, switching_rate=0.2):
-    factory = Factory()
-    factory.shape= (im_shape*100,im_shape*100)
-    factory.image_shape = (im_shape,im_shape)# select points here
-    def generator():
-        points = factory.create_point_set()
-        init_indices = np.random.choice(points.shape[0], 10)
-        on_points = points[init_indices]
-        for i in range(10000): #todo: while loop here
-            print(i)
-            image, truth, on_points = factory.simulate_accurate_flimbi(points, on_points, switching_rate=switching_rate)#todo: simulate off
-            image = factory.reduce_size(image)#todo: background base lvl?
-            image += 1/3*image.max()
-            image*=3
-            image = np.pad(factory.accurate_noise_simulations_camera(image),(14,14))
-            truth = np.pad(factory.reduce_size(truth).astype(np.int32),(14,14))
-            yield image, truth, np.array(on_points)
-    return generator
 
 
 def data_generator_coords(file_path, offset_slice=0):
