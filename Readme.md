@@ -6,8 +6,8 @@ is a SMLM (Single Molecule Localisation Microscopy) software to fit the location
 * Render your data in a visualization pipeline
 
 ## Usage
-* Ready to use Colab notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1GQI5KXUymahWzkJ_m4ZVx4LPRGPdVbQf#scrollTo=j6zaRBylyEpW)
-* Train on your own network: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1Mo8UzX817JoE1EkLN0oLbdp--PvcW4Z3#scrollTo=fDwyeQv8z5n6)
+* Ready to use Colab notebook: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/super-resolution/ReCSAI/blob/airy_disc/notebooks/ReCSAI_reconstruction.ipynb)
+* Train on your own network: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/super-resolution/ReCSAI/blob/airy_disc/notebooks/ReCSAI_training.ipynb)
 
 ## Local setup
 To install ReCSAI on your local machine, you need a CUDA capable GPU and a [Tensorflow](https://www.tensorflow.org/install/gpu) installation.
