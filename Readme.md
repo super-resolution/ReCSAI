@@ -12,7 +12,11 @@ is a SMLM (Single Molecule Localisation Microscopy) software to fit the location
 ## Local setup
 To install ReCSAI on your local machine, you need a CUDA capable GPU and a [Tensorflow](https://www.tensorflow.org/install/gpu) installation.
 For the Wavelet prefiltering, [tf-wavelets](https://github.com/UiO-CS/tf-wavelets) is needed. The rest of the packages can be installed using the *requirements.txt*.
-1. Open [tensorflow](https://www.tensorflow.org/install/gpu) and follow the instructions to install tensorflow on your machine
+1. Create an [Anaconda](https://www.anaconda.com/products/distribution) environment and activate it:
+``` 
+conda create --name recsai
+conda activate recsai
+```
 2. Clone [tf-wavelets](https://github.com/UiO-CS/tf-wavelets) 
 3. Open a command line, *cd* into the cloned repository and run:
 ```
