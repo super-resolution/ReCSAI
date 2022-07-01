@@ -16,5 +16,11 @@
   "test_models.py::TestCompressedSensingNet::test_network_learns_loss_function": true,
   "test_models.py::TestCompressedSensingNet::test_permutation_loss": true,
   "test_models.py::TestCsInceptionNet::test_decode_loss": true,
-  "test_models.py::TestCsUNet::test_shapes": true
+  "test_models.py::TestCsUNet::test_shapes": true,
+  "test_tfp_solution.py": true,
+  "test_tfp_solution.py::TFPTest::test_distribution_to_image": true,
+  "test_tfp_solution.py::TFPTest::test_fit_normal_distribution": true,
+  "test_tfp_solution.py::TFPTest::test_kl_divergence": true,
+  "test_tfp_solution.py::TFPTest::test_to_bernoulli": true,
+  "test_tfp_solution.py::TestRealData::()::test_fit_normal_distribution_2d": true
 }

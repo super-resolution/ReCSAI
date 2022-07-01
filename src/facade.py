@@ -107,6 +107,13 @@ class NetworkFacade():
             text_file.write(f"learning rate: {self.learning_rate}" )
 
 
+    def get_crops(self, image):
+        self.data_factory = DataServing(self.dataset_path)
+        gen,offset = self.data_factory.generate_image_serving_generator(image)
+        dataset = tf.data.Dataset.from_generator(gen, tf.float64)
+        for image in dataset.take(1):
+            crop_tensor, _, coord_list = bin_localisations_v2(image, self.denoising, th=self.wavelet_thresh)
+        return crop_tensor
     #@timing
     def predict(self, image, raw=False):
         """

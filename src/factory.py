@@ -77,7 +77,7 @@ class Kernel():
         kernel_point_tensor = tf.gather(self._kernel, z)
 
         #translate xy arrays here
-        shifted_kernel = tfa.image.translate(tf.expand_dims(kernel_point_tensor,-1), tf.cast(mod, tf.float32))
+        shifted_kernel = tfa.image.translate(tf.expand_dims(kernel_point_tensor,-1), tf.cast(mod, tf.float32), interpolation='bilinear')
         tf_image_batch=tf.expand_dims(image_batch.astype(np.float32),-1)
         n_shape = tf.shape(shifted_kernel)[1:3]//100
 

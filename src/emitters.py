@@ -24,6 +24,7 @@ class Emitter():
         self.photons = np.array(photons)
         self.sigxsigy = np.array(sigxsigy)#in nm?
         self.frames = np.array(frames,dtype=np.int32)
+        #todo: compute cramer rao lower bound
         if np.any(sigxsigy):
             self.sigxsigy = np.array(sigxsigy)
         else:
@@ -197,6 +198,13 @@ class Emitter():
                                           useCuda=use_cuda,
                                           useDebugLibrary=False)
         self.apply_drift(estimated_drift[:,0:2])
+
+    @classmethod
+    def simulate(cls):
+        #todo: define some limits for point set
+
+        pass
+
 
     @classmethod
     def load(cls, path, raw=False):

@@ -1,6 +1,16 @@
 import tensorflow as tf
 import math as m
 
+import tensorflow_probability as tfp
+
+@tf.function
+def compute_loss_tfp(truth, predict, noiseless_gt,  data):
+    #todo: use this to convert to distribution:
+    tfp.layers.MultivariateNormalTriL(encoded_size, lambda s: s.sample(10))
+
+
+    pass
+
 
 
 @tf.function
