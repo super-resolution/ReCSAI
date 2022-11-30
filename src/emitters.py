@@ -24,11 +24,12 @@ class Emitter():
         self.photons = np.array(photons)
         self.sigxsigy = np.array(sigxsigy)#in nm?
         self.frames = np.array(frames,dtype=np.int32)
+        self._error = None
         #todo: compute cramer rao lower bound
         if np.any(sigxsigy):
             self.sigxsigy = np.array(sigxsigy)
         else:
-            self.sigxsigy = np.zeros((xyz.shape[0],2))
+            self.sigxsigy = np.zeros((self.xyz.shape[0],2))
         if np.any(ids):
             self.ids = np.array(ids,dtype=np.int32)
         else:
@@ -59,6 +60,8 @@ class Emitter():
 
         self.check_data_integrety()
 
+
+
     def __add__(self, other):
         """
         Concatenates two emitter set to a new one
@@ -70,6 +73,40 @@ class Emitter():
         self.ids = np.append(self.ids, np.arange(self.ids[-1], other.xyz.shape[0], 1), axis=0)
         self.photons = np.append(self.photons, other.photons, axis=0)
 
+    def __mod__(self, other):
+        found_emitters = []
+        distances = []
+        t= []
+        for i in range(int(self.frames.max())):
+            pred_f = self.xyz[np.where(self.frames==i)]
+            truth_f = other.xyz[np.where(other.frames==i)]
+            if np.any(self.ids[np.where(self.frames==i)]):
+                id_f = self.ids[np.where(self.frames==i)][0]
+                t_truth = []
+                for k in range(pred_f.shape[0]):
+                    emitter_id = id_f + k
+                    found = False
+                    min_dis = 100
+                    for l in range(truth_f.shape[0]):
+                        d = pred_f[k] - truth_f[l]
+                        t.append(d)
+                        dis = np.linalg.norm(pred_f[k] - truth_f[l])
+                        if dis < min_dis:
+                            if emitter_id not in found_emitters and l not in t_truth:
+                                min_dis = dis
+                                current_diff = pred_f[k] - truth_f[l]
+                                current_l = l
+                                found = True
+                    if found:
+                        #todo append error to new emitter set?
+                        found_emitters.append(emitter_id)
+                        t_truth.append(current_l)
+                        distances.append(min_dis)
+
+        diff = np.array(found_emitters,dtype=np.int32)
+        sub = self.subset(diff)
+        sub.error = distances
+        return sub
     #compute difference between emitter sets and return emitter set
     def __sub__(self, other):
         """
@@ -79,6 +116,7 @@ class Emitter():
         """
         #todo: should have same frame length
         found_emitters = []
+        distances = []
         for i in range(int(self.frames.max())):
             pred_f = self.xyz[np.where(self.frames==i)]
             truth_f = other.xyz[np.where(other.frames==i)]
@@ -97,12 +135,24 @@ class Emitter():
                                 current_diff = pred_f[k] - truth_f[l]
                                 current_l = l
                                 found = True
+                                distances.append(min_dis)
                     if found:
                         #todo append error to new emitter set?
                         found_emitters.append(emitter_id)
                         t_truth.append(current_l)
         diff = np.setdiff1d(self.ids, np.array(found_emitters,dtype=np.int32))
-        return self.subset(diff)
+        sub = self.subset(diff)
+        #sub.error = distances
+        return sub
+
+    def adjust_offset(self, offset):
+        if isinstance(offset, np.ndarray):
+            if offset.shape[0] ==2:
+                self.xyz += offset
+            else:
+                print("wrong shape")
+        else:
+            print("not an array")
 
     def subset(self, ids):
         """
@@ -226,6 +276,9 @@ class Emitter():
         :param p_threshold: Threshold value for a classifier pixel to contain a localisation
         :return:
         """
+        if not np.any(coord_list):
+            print("warning no coordinate list loaded -> no offsets are added")
+
         xyz = []
         N_list = []
         sigx_sigy = []
@@ -234,6 +287,8 @@ class Emitter():
         frames = []
         for i in range(result_tensor.shape[0]):
             classifier =result_tensor[i, :, :, 2]
+            if i==32:
+                x=0
             x= np.sum(classifier)
             if x > p_threshold:
                 indices = get_reconstruct_coords(classifier, p_threshold)#todo: import and use function
@@ -248,20 +303,18 @@ class Emitter():
 
                 for j in range(indices[0].shape[0]):
                     if np.any(coord_list):
-                        xyz.append(np.array([coord_list[i][0] +float(indices[0][j]) + (x[j]),#x
-                                             coord_list[i][1] +float(indices[1][j]) + y[j]])*100)#y
+                        xyz.append(np.array([coord_list[i][0] + 0.5 + float(indices[0][j]) + (x[j]),#x
+                                             coord_list[i][1] + 0.5 +float(indices[1][j]) + y[j]])*100)#y
                         frames.append(coord_list[i][2])
-
                     else:
-                        print("warning no coordinate list loaded -> no offsets are added")
-                        xyz.append(np.array([float(indices[0][j]) + (x[j]),#x
-                                             float(indices[1][j]) + y[j]])*100)#y
+                        xyz.append(np.array([float(indices[0][j])+ 0.5 + (x[j]),#x
+                                             float(indices[1][j])+ 0.5 + y[j]])*100)#y
                         frames.append(i)
                     p_list.append(p[j])
                     sigx_sigy.append(np.array([dx[j],dy[j]]))
                     N_list.append(N[j])
                     sN_list.append(dN[j])
-        return cls(xyz, N_list, frames, sigx_sigy, p_list)
+        return cls(xyz, N_list, frames, sigx_sigy, p_list)#+50 for center pix offset
 
     @classmethod
     def from_ground_truth(cls, coordinate_tensor):
@@ -275,6 +328,18 @@ class Emitter():
         coords[:, 0:2] *= 100
         return cls(coords[:,0:2], coords[:,3], coords[:,2])
 
+    @classmethod
+    def from_thunderstorm_csv(cls, path, slide):
+        results = pd.read_csv(path).as_matrix()
+        #todo: sort this stuff
+        i = slide
+        start = i*4000
+        stop = (i+1)*4000-3000
+        indices = np.where(np.logical_and(results[:,0]>start, results[:,0]<stop))
+        frame = results[indices[0],0]-start-1
+        xyz = results[indices[0],1:3]
+        I = results[indices[0],4]
+        return cls(xyz[:,::-1], I, frame)
 
 
     def get_frameset_generator(self, images, frames, gt=None):
@@ -297,3 +362,25 @@ class Emitter():
                     else:
                         yield image, emitters
         return frameset_generator
+
+    @property
+    def error(self):
+        """returns RMSE"""
+        if np.any(self._error):
+            return np.sqrt(np.mean(self._error**2))
+        else:
+            print("no error available")
+
+    @error.setter
+    def error(self, value):
+        if not isinstance(value, np.ndarray):
+            value = np.array(value)
+        if value.shape[0] == self.ids.shape[0]:
+            self._error = value
+        else:
+            print("critical error error has an error length")
+
+
+    @property
+    def length(self):
+        return self.ids.shape[0]

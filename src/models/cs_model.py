@@ -164,16 +164,16 @@ class CompressedSensingUNet(BaseModel):
         self.down_path = [downsample(2,3,apply_batchnorm=False),#36
         downsample(4,3),#18
         downsample(8,3),#9
-        downsample(64,5, strides=3),#3
-        downsample(128,5,apply_batchnorm=False,strides=3),#1
+        downsample(128,5, strides=3),#3
+        downsample(256,5,apply_batchnorm=False,strides=3),#1
                           ]
-        self.up_path = [upsample(64, 4, apply_dropout=False, strides=3),
-                        tf.keras.layers.Conv2DTranspose(8, 4,
+        self.up_path = [upsample(128, 4, apply_dropout=False, strides=3),
+                        tf.keras.layers.Conv2DTranspose(64, 4,
                                                         strides=3,
                                                         padding='same',
                                                         kernel_initializer=initializer,)
 ]
-
+        self.conv1 = tf.keras.layers.Conv2D(8, (1, 1), activation=None, padding="same")
         self.concat = tf.keras.layers.Concatenate()
 
     def __call__(self, inputs, training=False):
@@ -197,7 +197,8 @@ class CompressedSensingUNet(BaseModel):
         x = self.up_path[0](x)
         x = tf.keras.layers.Concatenate()([x, skip[-1]])
         x = self.up_path[1](x)
-
+        x = tf.keras.layers.Concatenate()([x, skip[-2]])
+        x = self.conv1(x)
         x = self.activation(x)
         if training:
             return x#,[cs]#todo: bacck to cs_out2
@@ -266,6 +267,55 @@ class CompressedSensingResUNet(BaseModel):
     def sigma(self, value):
         self._sigma = value
 
+class CompressedSensingResUNetHIT(BaseModel):
+    TYPE = 0
+    OUTPUT_CHANNELS = 8
+    def __init__(self):
+        super(CompressedSensingResUNetHIT, self).__init__()
+        self.initial_layer = UNetLayer(8)
+
+        self.decoder = UNetLayer(1)
+        self.update_encoder = UNetLayer(8)
+
+
+
+    def __call__(self, inputs, training=False):
+        x = self.initial_layer(inputs)
+        x_zero = self.activation(x)
+        x = x_zero
+        reconstruction_delta_list = []
+        for i in range(8):
+            y = self.decoder(x)
+            y += x[:,:,:,7:8]
+            y -= inputs[:,:,:,1:2]
+            reconstruction_delta_list.append(y)
+            update = self.update_encoder(y)
+            update = tf.keras.activations.tanh(update)
+            x += update
+        x = self.activation(x) #todo not compute this every time!
+        if training:
+            return x#,reconstruction_delta_list #,[cs]#todo: bacck to cs_out2
+        else:
+            return x
+
+    def compute_loss(self,feature_map,reconstruction_delta_list, truth, noiseless_gt, data):
+        loss = compute_loss_decode(truth, feature_map, noiseless_gt, data)
+        # for feature_map in reconstruction_delta_list:
+        #     loss += tf.reduce_sum(tf.square(feature_map))
+        return loss
+
+
+    @property
+    def mat(self):
+        return self._mat
+
+    @property
+    def sigma(self):
+        return self._sigma
+
+    @sigma.setter
+    def sigma(self, value):
+        self._sigma = value
 
 class StandardUNet(BaseModel):
     TYPE = 0

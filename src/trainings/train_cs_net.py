@@ -2,16 +2,17 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from src.models.cs_model import CompressedSensingInceptionNet, CompressedSensingCVNet, CompressedSensingUNet,\
-    CompressedSensingResUNet, StandardUNet, CompressedSensingConvNet
+    CompressedSensingResUNet, StandardUNet, CompressedSensingConvNet, CompressedSensingResUNetHIT
 from src.facade import NetworkFacade
 from src.utility import get_root_path
 
 CURRENT_INCEPTION_PATH = get_root_path()+r"/trainings/cs_inception/_final_training_100_10_ndata"
 CURRENT_CNN_PATH = get_root_path()+r"/trainings/cs_cnn/_final_training_100_ndata_test_thresholding"
-CURRENT_U_PATH = get_root_path()+r"/trainings/cs_u/_final_training_100_ndata2"
+CURRENT_U_PATH = get_root_path()+r"/trainings/cs_u/_final_training_100_ndata"
 CURRENT_RES_U_PATH = get_root_path()+r"/trainings/cs_u/_final2_training_100_ndata_test_compare"#best so far
 #CURRENT_STANDARD_U_NETWORK = get_root_path()+r"/trainings/cs_u/standard_unet_ndata"
 #CURRENT_CONV_NETWORK_PATH = get_root_path()+r"/trainings/cs_conv/_conv_training_ndata"
+CURRENT_RES_U_HIT_PATH = get_root_path()+r"/trainings/cs_u/_final2_training_100_ndata_further_higherit"#best so far
 
 CURRENT_WAVELET_PATH = get_root_path()+r"/trainings/wavelet/training_lvl5/cp-5000.ckpt"
 
@@ -40,9 +41,15 @@ class CSUNetFacade(NetworkFacade):
 class ResUNetFacade(NetworkFacade):
     def __init__(self):
         super(ResUNetFacade, self).__init__(CompressedSensingResUNet, CURRENT_RES_U_PATH,
-                                           CURRENT_WAVELET_PATH, shape=128)
+                                           CURRENT_WAVELET_PATH, shape=256)
         self.train_loops = 120
 
+
+class ResUNetFacadeHIT(NetworkFacade):
+    def __init__(self):
+        super(ResUNetFacadeHIT, self).__init__(CompressedSensingResUNetHIT, CURRENT_RES_U_HIT_PATH,
+                                           CURRENT_WAVELET_PATH)
+        self.train_loops = 120
 # class StandardUNetFacade(NetworkFacade):
 #     def __init__(self):
 #         super(StandardUNetFacade, self).__init__(StandardUNet, CURRENT_STANDARD_U_NETWORK,

@@ -56,7 +56,7 @@ class DataServing():
             offset = int((256 - image.shape[1]) / 2)
         else:
             offset = int((128 - image.shape[1]) / 2)  # pad to 128
-        batch_size = 2000
+        batch_size = 500
         print(offset)
         def data_generator_real():
             if image.shape[0] % batch_size == 0:

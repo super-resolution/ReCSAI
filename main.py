@@ -12,17 +12,15 @@ from src.utility import FRC_loss
 
 
 
-path = r"D:\Daten\Dominik_B\Cy5\Cy5_MT_100us_101nm_45px_Framesfrq2.4Hz_Linefrq108.7Hz_5kW_7500Frames_kept stack.tif"
-
-
+path= r"path_to_your_file.tif"
 
 facade = ResUNetFacade()
 
 
 
 facade.sigma = 180
-facade.wavelet_thresh = 0.1
-p_threshold = 0.3
+facade.wavelet_thresh = 0.3
+p_threshold = 0.4
 result_tensor,coord_list = facade.predict(path, raw=True)
 if not os.path.exists(os.getcwd()+r"\tmp"):
     os.mkdir(os.getcwd()+r"\tmp")
@@ -36,7 +34,7 @@ print("finished AI")
 emitter = Emitter.from_result_tensor(result_tensor,p_threshold, coord_list )
 print(emitter.xyz.shape[0])
 emitter_filtered = emitter.filter(sig_x=0.1, sig_y=0.1, photons=0.1, )
-
+#emitter_filtered.use_dme_drift_correct()
 
 plot_emitter_set(emitter_filtered)
 

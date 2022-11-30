@@ -70,7 +70,7 @@ class JaccardIndex():
 
         if self.values:
             jac = self.tp/ (self.tp + self.fp + self.fn)
-            rmse = np.std(np.array(self.error))
+            rmse = np.std(np.array(self.error))#todo: thats wrong
             self.result_manager.append(np.array([step, jac, rmse, self.accuracy]))
             print(np.mean(self.error, axis=0))
             return jac, rmse, self.fp, self.fn

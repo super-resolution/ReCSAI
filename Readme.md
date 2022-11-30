@@ -1,5 +1,5 @@
 # *ReCSAI:* Recursive Compressed Sensing Artificial Intelligence
-is a SMLM (Single Molecule Localisation Microscopy) software to fit the location of sparse fluorescent emitters with subpixel accuracy. The current version is optimized to work with disrupted, nonlinear or varying PSF's occuring in confocal dSTORM measurements. The software currently implements the following features:
+is a SMLM (Single Molecule Localisation Microscopy) software to determine the location of sparse fluorescent emitters with subpixel accuracy. The provided trainings are optimized to work with disrupted, nonlinear or varying PSF's occuring in confocal dSTORM measurements. The software currently implements the following features:
 * Prefilter ROIs with potential localisations using a trainable wavelet filterbank
 * Choose from several CS (Compressive Sensing) based network architectures
 * Use the *Emitter* class to filter localisations, apply drift corrections, concatenate sets, save and read localisation files in multiple formats or compute metrics like the jaccard index
@@ -27,7 +27,7 @@ python setup.py --install
 ```
 pip install -r requirements.txt
 ```
-6. Edit *main.py* for your fitting purposes.
+6. Edit `main.py` for your fitting purposes.
 ## Customizing main.py
 1. Import stuff and enable memory growth in your GPU
 ```
@@ -82,12 +82,12 @@ emitter_filtered.apply_drift(r"your_path.csv")
 ```
 plot_emitter_set(emitter_filtered)
 ```
-If something doesnt work out, feel free to contact me.
+If something does not work out, feel free to contact me.
 
 
 
 ## Creating data
-You can extend the create_data.py file to create custom data for your purposes.
+You can extend the `create_data.py` file to create custom data for your purposes.
 1. Import data generation and visualization:
 ```
 from src.data import *
@@ -113,7 +113,7 @@ gener.create_dataset("test_data_creation")
 ```
 
 ## Running a custom training
-A basic file for training is implemented under src.trainings.train_cs_net.py
+A basic file for training is implemented under `src.trainings.train_cs_net.py`
 1. Import the training interface and some helper packages:
 ```
 import os, sys
@@ -139,9 +139,10 @@ class ResUNetFacade(NetworkFacade):
 training = ResUNetFacade()
 training.train_saved_data()
 ```
-If you want to use your own data you can put it under current dataset and update the path in the NetworkFacade initialization
+If you want to use your own data you can put it under current dataset and update the path in the `NetworkFacade` initialization
 
 
-Custom trainings can be implemented by editing train_cs_net.py, creating a folder in datasets and defining this folder as the current dataset in facade.py.
+Custom trainings can be implemented by `editing train_cs_net.py`, creating a folder in datasets and defining this folder as the current dataset in `facade.py`.
 ## Paper
+If you use ReCSAI for your work please cite:
 

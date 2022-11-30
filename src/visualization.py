@@ -148,7 +148,7 @@ def display_storm_data(data_in, thunderstorm=False, name="", frc=None):
     plt.show()
 
 
-def plot_emitter_set(emitters):
+def plot_emitter_set(emitters, frc=False):
     """
     Image from emitter set class
     :param emitters:
@@ -173,16 +173,16 @@ def plot_emitter_set(emitters):
     # with TiffWriter('tmp/temp.tif', bigtiff=True) as tif:
     #     tif.save(downsampled)
     #
-    # cm = plt.get_cmap('hot')
-    # v = cm(downsampled / 255)
-    # v[:, :, 3] = 255
-    # v[-25:-20, 10:110, 0:3] = 1
-    # with TiffWriter('tmp/temp2.tif', bigtiff=True) as tif:
-    #     tif.save(v)
-    # if frc:
-    #     cv2.imwrite(f'tmp/{name}_{frc}.jpg', v[:, :, (2, 1, 0)] * 255)
-    # else:
-    #     cv2.imwrite(f'tmp/temp.jpg', v)
+    cm = plt.get_cmap('hot')
+    v = cm(downsampled / 255)
+    v[:, :, 3] = 255
+    v[-25:-20, 10:110, 0:3] = 1
+    with TiffWriter('tmp/temp2.tif', bigtiff=True) as tif:
+        tif.save(v)
+    if frc:
+        cv2.imwrite(f'tmp/{name}_{frc}.jpg', v[:, :, (2, 1, 0)] * 255)
+    else:
+        cv2.imwrite(f'tmp/temp.jpg', v)
 
     # todo: save array...
     # array = np.log(array+1)

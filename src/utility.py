@@ -379,9 +379,7 @@ def get_reconstruct_coords(tensor, th, neighbors=3):
     filter[0::2,0::2] = 0
     tensor = copy.deepcopy(tensor)
     convolved = scipy.ndimage.convolve(tensor, filter)
-
-
-    indices = np.where(np.logical_and(tensor > th, convolved >2*th))
+    indices = np.where(convolved >2*th)
     x = []
     y = []
     for i in range(indices[0].shape[0]):
@@ -395,6 +393,11 @@ def get_reconstruct_coords(tensor, th, neighbors=3):
         max_ind = np.where(t==t.max())
         x.append(max_ind[0][0] + indices[0][i]-1)
         y.append(max_ind[1][0] + indices[1][i]-1)
+        if convolved[indices[0][i],indices[1][i]] > 4*th:
+            second = np.partition(t.flatten(), -2)[-2]
+            second_ind = np.where(t == second)
+            x.append(second_ind[0][0] + indices[0][i] - 1)
+            y.append(second_ind[1][0] + indices[1][i] - 1)
 
     indices = np.unique(np.array((np.array(x).astype(np.int), np.array(y).astype(np.int))),axis=1)
     return indices
