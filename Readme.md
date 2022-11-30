@@ -1,8 +1,8 @@
 # *ReCSAI:* Recursive Compressed Sensing Artificial Intelligence
-is a SMLM (Single Molecule Localisation Microscopy) software to determine the location of sparse fluorescent emitters with subpixel accuracy. The provided trainings are optimized to work with disrupted, nonlinear or varying PSF's occuring in confocal dSTORM measurements. The software currently implements the following features:
+is a SMLM (Single Molecule Localisation Microscopy) software to determine the location of sparse fluorescent emitters with subpixel accuracy. The provided trainings are optimized to work with disrupted, nonlinear or varying PSF's occuring in confocal *d*STORM measurements. The software currently implements the following features:
 * Prefilter ROIs with potential localisations using a trainable wavelet filterbank
 * Choose from several CS (Compressive Sensing) based network architectures
-* Use the *Emitter* class to filter localisations, apply drift corrections, concatenate sets, save and read localisation files in multiple formats or compute metrics like the jaccard index
+* Use the `Emitter` class to filter localisations, apply drift corrections, concatenate sets, save and read localisation files in multiple formats or compute metrics like the jaccard index
 * Render your data in a visualization pipeline
 
 ## Usage
@@ -11,7 +11,7 @@ is a SMLM (Single Molecule Localisation Microscopy) software to determine the lo
 
 ## Local setup
 To install ReCSAI on your local machine, you need a CUDA capable GPU and a [Tensorflow](https://www.tensorflow.org/install/gpu) installation.
-For the Wavelet prefiltering, [tf-wavelets](https://github.com/UiO-CS/tf-wavelets) is needed. The rest of the packages can be installed using the *requirements.txt*.
+For the Wavelet prefiltering, [tf-wavelets](https://github.com/UiO-CS/tf-wavelets) is needed. The rest of the packages can be installed using the `requirements.txt`.
 1. Create an [Anaconda](https://www.anaconda.com/products/distribution) environment and activate it:
 ``` 
 conda create --name recsai
